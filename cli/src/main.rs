@@ -85,9 +85,6 @@ fn render_markdown(text: &str) -> String {
     if text.trim().is_empty() {
         return String::new();
     }
-    if text.trim_start().starts_with('<') {
-        return text.to_string();
-    }
     let mut options = Options::default();
     options.render.unsafe_ = true;
     markdown_to_html(text, &options)
@@ -96,26 +93,50 @@ fn render_markdown(text: &str) -> String {
 fn parse_slides(raw: &str) -> (Vec<(String, String)>, Vec<Slide>) {
     let blocks: Vec<&str> = raw.split("\n---\n").collect();
 
+    // blocks[0] = global frontmatter
+    // blocks[1] = slide 1 body
+    // blocks[2] = slide 2 frontmatter, blocks[3] = slide 2 body
+    // blocks[2n] = slide n+1 frontmatter, blocks[2n+1] = slide n+1 body
+
     let first_block = blocks[0].trim_start_matches("---\n").trim_start_matches("---\r\n");
-    let (global_meta, first_body) = parse_frontmatter(first_block);
+    let (global_meta, _) = parse_frontmatter(first_block);
 
     let mut slides = Vec::new();
 
-    if !first_body.is_empty() {
+    // Slide 1: layout from global frontmatter, body from blocks[1]
+    if blocks.len() > 1 {
+        let mut fm: Vec<(String, String)> = Vec::new();
+        if let Some(layout) = global_meta.iter().find(|(k, _)| k == "layout") {
+            fm.push(layout.clone());
+        }
         slides.push(Slide {
-            frontmatter: Vec::new(),
-            body_html: render_markdown(&first_body),
+            frontmatter: fm,
+            body_html: render_markdown(blocks[1].trim()),
         });
     }
 
-    for block in &blocks[1..] {
-        let (fm, body) = parse_frontmatter(block);
-        if !body.is_empty() || !fm.is_empty() {
-            slides.push(Slide {
-                frontmatter: fm,
-                body_html: render_markdown(&body),
-            });
-        }
+    // Remaining slides: pairs of (frontmatter, body)
+    let mut i = 2;
+    while i < blocks.len() {
+        let (fm, inline_body) = parse_frontmatter(blocks[i]);
+
+        let body = if i + 1 < blocks.len() {
+            let next = blocks[i + 1].trim();
+            if inline_body.is_empty() {
+                next.to_string()
+            } else {
+                format!("{}\n{}", inline_body, next)
+            }
+        } else {
+            inline_body
+        };
+
+        slides.push(Slide {
+            frontmatter: fm,
+            body_html: render_markdown(&body),
+        });
+
+        i += 2;
     }
 
     (global_meta, slides)
