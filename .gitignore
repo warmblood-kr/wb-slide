@@ -1,12 +1,25 @@
+# Rust
+target/
+
+# Slide content (managed separately per deck)
+examples/
+
+# Slidev legacy
 node_modules/
 dist/
-.gstack/
+public/assets
+package.json
+package-lock.json
 
+# IDE / tools
+.gstack/
+.projectile
+
+# Source files
 *.pdf
 *.pptx
 *.ppt
 
-slides-export.pdf
-
-public/assets
+# Generated
 monocle-export.html
+slides-export.pdf

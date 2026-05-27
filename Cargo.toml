@@ -1,8 +1,10 @@
 [package]
 name = "monocle-slide"
 version = "0.1.0"
-edition = "2024"
-description = "Lightweight slide presentation framework"
+edition = "2021"
+description = "Lightweight slide presentation framework powered by Web Components and Rust"
+license = "MIT"
+repository = "https://github.com/warmblood-kr/monocle-slide"
 
 [dependencies]
 axum = "0.8"

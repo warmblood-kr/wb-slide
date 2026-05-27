@@ -3,9 +3,12 @@ export class SlideBase extends HTMLElement {
     const index = this.getAttribute('slide-index') || '';
     const content = this.innerHTML;
 
+    const watermark = this.getAttribute('watermark') || '';
+    const footer = this.getAttribute('footer') || '';
+
     const chrome = this.showChrome() ? `
-      <div class="ms-watermark">${this.watermarkText()}</div>
-      <div class="ms-footer-logo"><i>W</i><span>armblood</span></div>
+      ${watermark ? `<div class="ms-watermark">${watermark}</div>` : ''}
+      ${footer ? `<div class="ms-footer-logo">${footer}</div>` : ''}
       <div class="ms-page-number">${index}</div>
     ` : '';
 
@@ -18,9 +21,5 @@ export class SlideBase extends HTMLElement {
 
   showChrome() {
     return true;
-  }
-
-  watermarkText() {
-    return 'Monocle AI';
   }
 }

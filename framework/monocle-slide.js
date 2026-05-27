@@ -3,6 +3,9 @@ import './layouts/slide-feature.js';
 import './layouts/slide-cover.js';
 import './layouts/slide-section.js';
 import './layouts/slide-contact.js';
+import './layouts/slide-two-column.js';
+import './layouts/slide-image-full.js';
+import './layouts/slide-quote.js';
 
 class MonocleSlide extends HTMLElement {
   #currentSlide = 0;

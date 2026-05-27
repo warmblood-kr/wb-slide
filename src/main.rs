@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 #[derive(Embed)]
-#[folder = "../framework/"]
+#[folder = "framework/"]
 struct FrameworkAssets;
 
 #[derive(Parser)]
@@ -146,16 +146,25 @@ fn get_fm(slide: &Slide, key: &str) -> Option<String> {
     slide.frontmatter.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
 }
 
-fn build_slides_json(slides: &[Slide]) -> String {
+fn build_slides_json(slides: &[Slide], global_meta: &[(String, String)]) -> String {
+    let global_watermark = global_meta.iter().find(|(k, _)| k == "watermark").map(|(_, v)| v.as_str()).unwrap_or("");
+    let global_footer = global_meta.iter().find(|(k, _)| k == "footer").map(|(_, v)| v.as_str()).unwrap_or("");
+
     let arr: Vec<String> = slides.iter().enumerate().map(|(i, slide)| {
         let layout = get_fm(slide, "layout").unwrap_or_else(|| "slide-default".to_string());
-        let attrs: Vec<String> = slide.frontmatter.iter()
+        let mut attrs: Vec<String> = slide.frontmatter.iter()
             .filter(|(k, _)| k != "layout")
             .map(|(k, v)| {
                 let escaped_v = v.replace('\\', "\\\\").replace('"', "\\\"");
                 format!("\"{}\":\"{}\"", k, escaped_v)
             })
             .collect();
+        if !global_watermark.is_empty() && get_fm(slide, "watermark").is_none() {
+            attrs.push(format!("\"watermark\":\"{}\"", global_watermark));
+        }
+        if !global_footer.is_empty() && get_fm(slide, "footer").is_none() {
+            attrs.push(format!("\"footer\":\"{}\"", global_footer));
+        }
         let body_escaped = serde_json::to_string(&slide.body_html).unwrap();
         format!(
             "{{\"layout\":\"{}\",\"index\":{},\"attrs\":{{{}}},\"body\":{}}}",
@@ -246,8 +255,8 @@ async fn serve_index(
     let raw = std::fs::read_to_string(&state.slides_path)
         .unwrap_or_else(|_| "---\ntitle: No slides found\n---\n\n# No slides.md found".to_string());
 
-    let (_, slides) = parse_slides(&raw);
-    let slides_json = build_slides_json(&slides);
+    let (global_meta, slides) = parse_slides(&raw);
+    let slides_json = build_slides_json(&slides, &global_meta);
 
     let custom_css = state.custom_css_path
         .as_ref()
@@ -355,8 +364,8 @@ async fn main() {
             }
 
             let raw = std::fs::read_to_string(&state.slides_path).unwrap();
-            let (_, slides) = parse_slides(&raw);
-            let slides_json = build_slides_json(&slides);
+            let (global_meta, slides) = parse_slides(&raw);
+            let slides_json = build_slides_json(&slides, &global_meta);
 
             let custom_css = state.custom_css_path
                 .as_ref()
