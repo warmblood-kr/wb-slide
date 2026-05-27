@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.gstack/
+
+*.pdf
+*.pptx
+*.ppt
+
+slides-export.pdf
+
+public/assets

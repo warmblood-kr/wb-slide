@@ -1,0 +1,180 @@
+---
+theme: default
+title: Monocle AI 기능 소개서
+info: Monocle AI 사용자 기능 소개서 — Warmblood
+author: Warmblood
+keywords: monocle-ai,warmblood,ai,enterprise
+aspectRatio: '16/9'
+canvasWidth: 960
+fonts:
+  sans: Pretendard
+  fallback: false
+css: unocss
+---
+
+<div class="flex flex-col items-center justify-center h-full">
+  <div class="flex items-center gap-4 mb-8">
+    <img src="/assets/logos/monocle-ai-logo-full.png" class="h-16" />
+  </div>
+  <h1 class="text-4xl font-bold text-[#2D3436]">Monocle AI 기능 소개서</h1>
+  <div class="mt-12">
+    <img src="/assets/screenshots/cover-laptop-mockup.png" class="screenshot-frame" style="max-width: 600px;" />
+  </div>
+</div>
+
+---
+layout: default
+---
+
+<div class="watermark">Monocle AI</div>
+
+<div class="flex flex-col items-center justify-center h-full">
+  <h2 class="toc-title">목차</h2>
+  <div class="toc-list">
+    <p class="font-bold mb-2">사용자 기능</p>
+    <ul>
+      <li>멀티 벤더</li>
+      <li>멀티 벤더 동시 호출</li>
+      <li>프로젝트</li>
+      <li>M365 연동</li>
+      <li>웹 자료 활용</li>
+      <li>파일 첨부</li>
+      <li>참고 자료</li>
+      <li>커스텀 모델</li>
+      <li>크래프트</li>
+      <li>이미지 생성</li>
+      <li>메모리</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer-logo"><i>W</i><span>armblood</span></div>
+
+---
+layout: section-divider
+---
+
+<h1 class="section-title">사용자용 기능</h1>
+
+---
+layout: feature
+heading: 멀티 벤더
+subtitle: 한 번의 로그인으로 GPT, Claude, Gemini 등 주요 모델을 업무 목적에 맞게 선택해 사용할 수 있습니다.
+---
+
+<img src="/assets/screenshots/p04-multi-vendor-model-selection.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 멀티 벤더 동시 호출
+subtitle: 같은 질문을 여러 모델에 한 번에 보내, 모델별 답변을 비교하고 가장 적합한 결과를 골라 쓸 수 있습니다.
+---
+
+<img src="/assets/screenshots/p05-multi-vendor-simultaneous-call.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 프로젝트 (팀 협업 공간)
+subtitle: 팀이 함께 쓰는 채팅·자료·지시문을 한 공간에 모아, 누구나 같은 맥락 위에서 이어 작업할 수 있습니다.
+---
+
+<img src="/assets/screenshots/p06-project-team-collaboration.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: M365 (오피스웨어) 연동
+subtitle: Outlook 메일, 캘린더, OneDrive·SharePoint 등을 모노클AI 안에서 확인·작성·전송 작업에 활용 가능하도록 합니다.
+---
+
+<div class="flex flex-col items-center gap-3">
+  <img src="/assets/screenshots/p07-m365-description-card.png" style="max-height: 160px; border-radius: 8px;" />
+  <div class="flex items-center gap-5 flex-wrap justify-center">
+    <img src="/assets/icons/microsoft-365.png" class="w-10 h-10" />
+    <img src="/assets/icons/office-365-logo.png" style="height: 28px;" />
+    <img src="/assets/icons/powerpoint.png" class="w-10 h-10" />
+    <img src="/assets/icons/word.png" class="w-10 h-10" />
+    <img src="/assets/icons/excel.png" class="w-10 h-10" />
+    <img src="/assets/icons/outlook.png" class="w-10 h-10" />
+    <img src="/assets/icons/onedrive.png" class="w-10 h-10" />
+    <img src="/assets/icons/sharepoint.png" class="w-10 h-10" />
+    <img src="/assets/icons/teams.png" class="w-10 h-10" />
+  </div>
+  <img src="/assets/icons/m365-integration-bar.png" style="max-width: 420px;" />
+</div>
+
+---
+layout: feature
+heading: 웹 자료 활용
+subtitle: 실시간 웹 검색으로 최신 정보를 찾거나, 특정 URL의 내용을 읽고 답변을 받을 수 있습니다.
+---
+
+<div class="screenshots-overlap">
+  <img src="/assets/screenshots/p08-web-search-in-progress.png" />
+  <img src="/assets/screenshots/p08-web-search-result-with-citation.png" />
+</div>
+
+---
+layout: feature
+heading: 파일 첨부
+subtitle: PDF, WORD, PPT, XLSX, HWP, 이미지 파일을 읽고 답할 수 있습니다.
+---
+
+<img src="/assets/screenshots/p09-file-attachment.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 참고 자료
+subtitle: 사규·매뉴얼·법령 등 반복 참조하는 자료를 컬렉션으로 등록해두면, 답변마다 자동으로 근거 자료로 활용됩니다.
+---
+
+<div class="screenshots-overlap">
+  <img src="/assets/screenshots/p10-reference-materials-list.png" />
+  <img src="/assets/screenshots/p10-reference-materials-in-chat.png" />
+</div>
+
+---
+layout: feature
+heading: 커스텀 모델
+subtitle: 반복 업무에 맞는 지침과 참고 자료를 담은 전용 AI를 만들어, 일정한 품질의 결과를 빠르게 얻고 팀과 공유할 수 있습니다.
+---
+
+<img src="/assets/screenshots/p11-custom-models-agents.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 크래프트 (Word·PPT·PDF·Excel 생성)
+subtitle: 업무 지시만 입력하면 자료 조사·데이터 정리·문서 작성·이미지 생성까지 이어서 처리해 결과물을 바로 받아볼 수 있습니다.
+---
+
+<img src="/assets/screenshots/p12-craft-document-generation.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 이미지 생성
+subtitle: 이미지 모델도 GPT Image·Nano Banana 시리즈를 자유롭게 선택해 사용할 수 있습니다.
+---
+
+<img src="/assets/screenshots/p13-image-generation-model-select.png" class="screenshot-frame" />
+
+---
+layout: feature
+heading: 메모리
+subtitle: 대화 속에서 사용자의 업무·역할·선호를 기억해두고, 다음 대화에 자동으로 반영해 매번 배경 설명을 반복할 필요가 없습니다.
+---
+
+<img src="/assets/screenshots/p14-memory-management.png" class="screenshot-frame" />
+
+---
+layout: contact
+---
+
+<h2 class="contact-title">Contact</h2>
+
+<div class="contact-info">
+  <p><strong>주식회사 웜블러드</strong></p>
+  <p>https://warmblood.kr</p>
+  <p>https://monocle-ai.com</p>
+  <br />
+  <p>support@monocle-ai.com</p>
+  <p>02-6015-1708</p>
+</div>
