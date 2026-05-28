@@ -101,6 +101,12 @@ wb-slide update                        # Self-update to latest
 
 Need a custom layout? Drop a `.js` file in `layouts/`. See [docs/layouts.md](docs/layouts.md).
 
+## Themes
+
+Browse [wb-slide-registry](https://github.com/warmblood-kr/wb-slide-registry)
+for community themes and layouts. Use a theme by adding `theme: <name>` to your
+deck's frontmatter (coming in v0.5 — see [docs/registry-design.md](docs/registry-design.md)).
+
 ## Customization
 
 Override colors, fonts, or add CSS classes in `styles/`:
