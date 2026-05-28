@@ -15,7 +15,7 @@ use std::path::PathBuf;
 struct FrameworkAssets;
 
 #[derive(Parser)]
-#[command(name = "wb-slide", about = "Lightweight slide presentation framework")]
+#[command(name = "wb-slide", about = "Lightweight slide presentation framework", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -39,6 +39,10 @@ enum Commands {
         #[arg(short, long, default_value = "export.html")]
         output: PathBuf,
     },
+    /// Show version and check for updates
+    Version,
+    /// Update to the latest version
+    Update,
 }
 
 struct Slide {
@@ -452,5 +456,162 @@ async fn main() {
             std::fs::write(&output_path, html).unwrap();
             eprintln!("Exported to: {}", output_path.display());
         }
+
+        Commands::Version => {
+            let current = env!("CARGO_PKG_VERSION");
+            println!("wb-slide v{current}");
+
+            eprint!("Checking for updates... ");
+            match check_latest_version().await {
+                Ok(latest) => {
+                    let latest_clean = latest.trim_start_matches('v');
+                    if latest_clean == current {
+                        eprintln!("up to date.");
+                    } else {
+                        eprintln!("v{latest_clean} available!");
+                        eprintln!();
+                        eprintln!("  Run `wb-slide update` to upgrade.");
+                    }
+                }
+                Err(e) => eprintln!("could not check ({e})"),
+            }
+        }
+
+        Commands::Update => {
+            let current = env!("CARGO_PKG_VERSION");
+            eprint!("Checking latest version... ");
+
+            let latest = match check_latest_version().await {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("failed ({e})");
+                    std::process::exit(1);
+                }
+            };
+
+            let latest_clean = latest.trim_start_matches('v');
+            if latest_clean == current {
+                eprintln!("already at v{current}.");
+                return;
+            }
+
+            eprintln!("v{latest_clean} (current: v{current})");
+
+            let platform = detect_platform();
+            let asset = match platform.as_str() {
+                "macos-arm64" => "wb-slide-macos-arm64.tar.gz",
+                "linux-x64" => "wb-slide-linux-x64.tar.gz",
+                "windows-x64" => "wb-slide-windows-x64.zip",
+                _ => {
+                    eprintln!("Unsupported platform: {platform}");
+                    std::process::exit(1);
+                }
+            };
+
+            let url = format!(
+                "https://github.com/warmblood-kr/wb-slide/releases/download/{latest}/{asset}"
+            );
+
+            eprintln!("Downloading {asset}...");
+            let self_path = std::env::current_exe().unwrap();
+            let tmp_dir = std::env::temp_dir().join("wb-slide-update");
+            let _ = std::fs::remove_dir_all(&tmp_dir);
+            std::fs::create_dir_all(&tmp_dir).unwrap();
+
+            let resp = reqwest::get(&url).await;
+            let resp = match resp {
+                Ok(r) if r.status().is_success() => r,
+                Ok(r) => {
+                    eprintln!("Download failed: HTTP {}", r.status());
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("Download failed: {e}");
+                    std::process::exit(1);
+                }
+            };
+
+            let bytes = resp.bytes().await.unwrap();
+            let archive_path = tmp_dir.join(asset);
+            std::fs::write(&archive_path, &bytes).unwrap();
+
+            if asset.ends_with(".tar.gz") {
+                let status = std::process::Command::new("tar")
+                    .args(["xzf", &archive_path.to_string_lossy(), "-C", &tmp_dir.to_string_lossy()])
+                    .status()
+                    .expect("failed to run tar");
+                if !status.success() {
+                    eprintln!("Failed to extract archive");
+                    std::process::exit(1);
+                }
+                let new_binary = tmp_dir.join("wb-slide");
+                self_replace(&new_binary, &self_path);
+            } else {
+                eprintln!("Windows: extract {asset} manually and replace the binary.");
+                eprintln!("Archive saved to: {}", archive_path.display());
+                return;
+            }
+
+            let _ = std::fs::remove_dir_all(&tmp_dir);
+            eprintln!("Updated to v{latest_clean}!");
+        }
     }
+}
+
+async fn check_latest_version() -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("wb-slide")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get("https://api.github.com/repos/warmblood-kr/wb-slide/releases/latest")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+
+    text.split("\"tag_name\"")
+        .nth(1)
+        .and_then(|s| s.split('"').nth(1))
+        .map(|s| s.to_string())
+        .ok_or_else(|| "could not parse response".to_string())
+}
+
+fn detect_platform() -> String {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    match (os, arch) {
+        ("macos", "aarch64") => "macos-arm64".to_string(),
+        ("linux", "x86_64") => "linux-x64".to_string(),
+        ("windows", "x86_64") => "windows-x64".to_string(),
+        _ => format!("{os}-{arch}"),
+    }
+}
+
+fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(new_binary, std::fs::Permissions::from_mode(0o755));
+    }
+
+    let backup = self_path.with_extension("old");
+    let _ = std::fs::remove_file(&backup);
+
+    if std::fs::rename(self_path, &backup).is_err() {
+        eprintln!("Could not replace binary. Try with sudo:");
+        eprintln!("  sudo cp {} {}", new_binary.display(), self_path.display());
+        return;
+    }
+
+    if std::fs::rename(new_binary, self_path).is_err() {
+        let _ = std::fs::rename(&backup, self_path);
+        eprintln!("Could not install new binary. Try with sudo:");
+        eprintln!("  sudo cp {} {}", new_binary.display(), self_path.display());
+        return;
+    }
+
+    let _ = std::fs::remove_file(&backup);
 }
