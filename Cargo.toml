@@ -1,10 +1,10 @@
 [package]
-name = "monocle-slide"
+name = "wb-slide"
 version = "0.1.0"
 edition = "2021"
 description = "Lightweight slide presentation framework powered by Web Components and Rust"
 license = "MIT"
-repository = "https://github.com/warmblood-kr/monocle-slide"
+repository = "https://github.com/warmblood-kr/wb-slide"
 
 [dependencies]
 axum = "0.8"

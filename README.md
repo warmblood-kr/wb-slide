@@ -1,16 +1,22 @@
-# Monocle Slide
+# WB Slide
 
 Lightweight slide presentation framework. Markdown in, slides out.
 
 No npm. No bundler. Single binary.
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/warmblood-kr/wb-slide/main/install.sh | sh
+```
+
+Or download from [Releases](https://github.com/warmblood-kr/wb-slide/releases).
+
 ## Quick Start
 
 ```bash
-# Build
-cargo install --path .
+mkdir my-deck && cd my-deck
 
-# Create slides
 cat > slides.md << 'EOF'
 ---
 title: My Presentation
@@ -29,7 +35,7 @@ heading: Feature One
 subtitle: This is the first feature.
 ---
 
-<img src="assets/screenshot.png" class="screenshot-frame" />
+Content goes here.
 
 ---
 layout: slide-section
@@ -38,8 +44,7 @@ layout: slide-section
 # Thank You
 EOF
 
-# Present
-monocle-slide show
+wb-slide show
 ```
 
 Browser opens at `http://localhost:3030`. Navigate with arrow keys.
@@ -51,12 +56,12 @@ The CLI reads it, renders markdown to HTML, and serves a self-contained
 presentation with built-in layouts and keyboard navigation.
 
 ```
-slides.md  ──→  Rust CLI  ──→  Browser
-                  │
-                  ├── Parses YAML frontmatter
-                  ├── Renders markdown (comrak)
-                  ├── Applies Web Component layouts
-                  └── Serves via embedded HTTP server
+slides.md  -->  wb-slide  -->  Browser
+                  |
+                  +-- Parses YAML frontmatter
+                  +-- Renders markdown (comrak)
+                  +-- Applies Web Component layouts
+                  +-- Serves via embedded HTTP server
 ```
 
 ## Slide Format
@@ -82,11 +87,9 @@ Slide body content (HTML or Markdown).
 
 ### Global Frontmatter
 
-The first `---` block sets deck-wide defaults:
-
 | Key | Description |
 |-----|-------------|
-| `title` | Presentation title (used in `<title>` tag) |
+| `title` | Presentation title |
 | `watermark` | Text shown top-right on every slide |
 | `footer` | HTML shown bottom-left on every slide |
 | `layout` | Layout for the first slide |
@@ -106,21 +109,19 @@ The first `---` block sets deck-wide defaults:
 |--------|-------------|
 | `slide-default` | Padded content area with chrome |
 | `slide-cover` | Centered content, no watermark/footer/page number |
-| `slide-feature` | Title + subtitle + content area (most common) |
+| `slide-feature` | Title + subtitle + content area |
 | `slide-section` | Large centered text for section dividers |
 | `slide-contact` | Left-aligned content for contact info |
 | `slide-two-column` | Two-column grid layout |
 | `slide-image-full` | Full-bleed image, no chrome |
-| `slide-quote` | Blockquote with attribution |
+| `slide-quote` | Blockquote with `quote` and `author` attributes |
 
 ## Commands
 
-### `monocle-slide show`
-
-Start the presentation server.
+### `wb-slide show`
 
 ```
-monocle-slide show [OPTIONS]
+wb-slide show [OPTIONS]
 
 Options:
   -p, --port <PORT>    Port [default: 3030]
@@ -128,12 +129,10 @@ Options:
       --no-open        Don't open browser
 ```
 
-### `monocle-slide export`
-
-Export to a self-contained HTML file.
+### `wb-slide export`
 
 ```
-monocle-slide export [OPTIONS]
+wb-slide export [OPTIONS]
 
 Options:
   -d, --dir <DIR>        Working directory [default: .]
@@ -144,8 +143,8 @@ Options:
 
 | Key | Action |
 |-----|--------|
-| `→` `↓` `Space` `PageDown` | Next slide |
-| `←` `↑` `PageUp` | Previous slide |
+| `->` `v` `Space` `PageDown` | Next slide |
+| `<-` `^` `PageUp` | Previous slide |
 | `Home` | First slide |
 | `End` | Last slide |
 | `F` | Toggle fullscreen |
@@ -155,54 +154,48 @@ Options:
 ```
 my-presentation/
   slides.md           # Slide content (required)
-  styles/             # Auto-loaded: all *.css files, sorted by name (optional)
+  styles/             # Auto-loaded: all *.css files (optional)
     custom.css
     fonts.css
   assets/             # Static files served as-is (optional)
     screenshot.png
-  layouts/            # Auto-loaded: all *.js files as Web Components (optional)
+  layouts/            # Auto-loaded: all *.js Web Components (optional)
     my-layout.js
 ```
 
-The CLI auto-scans these directories at startup:
+The CLI auto-scans `styles/` and `layouts/` directories:
 
-- **`styles/`** -- all `.css` files are injected into the page (after framework CSS, so they override defaults)
-- **`layouts/`** -- all `.js` files are loaded as custom Web Component layouts. Use the same `SlideBase` class as built-in layouts.
-- **`assets/`** -- served as static files, referenced from slides via relative paths
+- **`styles/`** -- all `.css` files injected after framework CSS (overrides defaults)
+- **`layouts/`** -- all `.js` files loaded as custom Web Component layouts
+- **`assets/`** -- served as static files, referenced via relative paths
 
 ## Custom Styling
 
-Create any `.css` file in `styles/` to override theme variables or add custom classes:
+Create any `.css` file in `styles/`:
 
 ```css
 :root {
   --color-accent: #FF6600;
   --font-family: 'Pretendard', sans-serif;
 }
-
-.screenshot-frame {
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-  max-width: 80%;
-}
 ```
 
 ## Architecture
 
 ```
-monocle-slide (Rust binary, ~3MB)
-  ├── Embedded: framework/     ← Web Components + CSS (via rust-embed)
-  │     ├── monocle-slide.js   ← Core engine (<monocle-slide> element)
-  │     ├── slide-base.js      ← Layout base class
-  │     ├── layouts/*.js       ← Built-in layouts
-  │     ├── theme.css          ← Default theme
-  │     ├── utilities.css      ← Minimal utility classes
-  │     └── print.css          ← PDF print styles
-  └── Runtime:
-        ├── Reads slides.md from working directory
-        ├── Renders markdown server-side (comrak)
-        ├── Injects slides as JSON into HTML template
-        └── Serves assets from working directory
+wb-slide (single binary, ~3MB)
+  +-- Embedded: framework/     <-- Web Components + CSS (rust-embed)
+  |     +-- monocle-slide.js        Core engine
+  |     +-- slide-base.js           Layout base class
+  |     +-- layouts/*.js            Built-in layouts (8)
+  |     +-- theme.css               Default theme
+  |     +-- utilities.css           Minimal utility classes
+  |     +-- print.css               PDF print styles
+  +-- Runtime:
+        +-- Reads slides.md from working directory
+        +-- Renders markdown server-side (comrak)
+        +-- Auto-scans styles/ and layouts/
+        +-- Serves assets from working directory
 ```
 
 ## License

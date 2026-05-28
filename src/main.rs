@@ -15,7 +15,7 @@ use std::path::PathBuf;
 struct FrameworkAssets;
 
 #[derive(Parser)]
-#[command(name = "monocle-slide", about = "Lightweight slide presentation framework")]
+#[command(name = "wb-slide", about = "Lightweight slide presentation framework")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -276,7 +276,7 @@ async fn serve_index(
     let (global_meta, slides) = parse_slides(&raw);
     let slides_json = build_slides_json(&slides, &global_meta);
     let title = global_meta.iter().find(|(k, _)| k == "title")
-        .map(|(_, v)| v.as_str()).unwrap_or("Monocle Slide");
+        .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
     let user_css = collect_user_css(&state.work_dir);
     let user_layouts = collect_user_layouts(&state.work_dir);
@@ -401,7 +401,7 @@ async fn main() {
                 .with_state(state.clone());
 
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
-            eprintln!("  Monocle Slide v{}", env!("CARGO_PKG_VERSION"));
+            eprintln!("  WB Slide v{}", env!("CARGO_PKG_VERSION"));
             eprintln!("  Serving: {}", state.work_dir.display());
             eprintln!("  URL: http://localhost:{port}/");
 
@@ -425,7 +425,7 @@ async fn main() {
             let (global_meta, slides) = parse_slides(&raw);
             let slides_json = build_slides_json(&slides, &global_meta);
             let title = global_meta.iter().find(|(k, _)| k == "title")
-                .map(|(_, v)| v.as_str()).unwrap_or("Monocle Slide");
+                .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
             let user_css = collect_user_css(&state.work_dir);
             let user_layouts = collect_user_layouts(&state.work_dir);

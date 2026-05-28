@@ -650,21 +650,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "monocle-slide"
-version = "0.1.0"
-dependencies = [
- "axum",
- "clap",
- "comrak",
- "mime_guess",
- "open",
- "rust-embed",
- "serde_json",
- "tokio",
- "tower-http",
-]
-
-[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1360,6 +1345,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wb-slide"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "comrak",
+ "mime_guess",
+ "open",
+ "rust-embed",
+ "serde_json",
+ "tokio",
+ "tower-http",
 ]
 
 [[package]]
