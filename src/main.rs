@@ -10,6 +10,9 @@ use rust_embed::Embed;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+mod theme;
+use theme::{LoadedTheme, ThemeSpec};
+
 #[derive(Embed)]
 #[folder = "framework/"]
 struct FrameworkAssets;
@@ -31,6 +34,9 @@ enum Commands {
         dir: Option<PathBuf>,
         #[arg(long)]
         no_open: bool,
+        /// Bypass theme cache and re-fetch from registry
+        #[arg(long)]
+        refresh_themes: bool,
     },
     /// Export to a self-contained HTML file
     Export {
@@ -38,6 +44,9 @@ enum Commands {
         dir: Option<PathBuf>,
         #[arg(short, long, default_value = "export.html")]
         output: PathBuf,
+        /// Bypass theme cache and re-fetch from registry
+        #[arg(long)]
+        refresh_themes: bool,
     },
     /// Show version and check for updates
     Version,
@@ -241,14 +250,23 @@ struct HtmlOptions<'a> {
     slides_json: &'a str,
     framework_css: &'a str,
     framework_js: &'a str,
-    layout_js: &'a str,
+    slide_base_js: &'a str,
+    builtin_layouts_js: &'a str,
+    theme_css: Option<&'a str>,
+    theme_js: Option<&'a str>,
     user_css: Option<&'a str>,
     user_layouts: Option<&'a str>,
 }
 
 fn build_index_html(opts: &HtmlOptions) -> String {
+    let theme_css_tag = opts.theme_css
+        .map(|css| format!("<style data-source=\"theme\">{css}</style>"))
+        .unwrap_or_default();
     let user_css_tag = opts.user_css
-        .map(|css| format!("<style>{css}</style>"))
+        .map(|css| format!("<style data-source=\"user\">{css}</style>"))
+        .unwrap_or_default();
+    let theme_js_tag = opts.theme_js
+        .map(|js| format!("\n{js}"))
         .unwrap_or_default();
     let user_layouts_tag = opts.user_layouts
         .map(|js| format!("\n{js}"))
@@ -262,12 +280,14 @@ fn build_index_html(opts: &HtmlOptions) -> String {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
   <style>{framework_css}</style>
+  {theme_css_tag}
   {user_css_tag}
 </head>
 <body>
   <monocle-slide></monocle-slide>
   <script>window.__MONOCLE_SLIDES__ = {slides_json};</script>
-  <script type="module">{layout_js}{user_layouts_tag}
+  <script type="module">{slide_base_js}
+{user_layouts_tag}{theme_js_tag}{builtin_layouts_js}
 
 {framework_js}</script>
 </body>
@@ -275,7 +295,8 @@ fn build_index_html(opts: &HtmlOptions) -> String {
         title = opts.title,
         framework_css = opts.framework_css,
         slides_json = opts.slides_json,
-        layout_js = opts.layout_js,
+        slide_base_js = opts.slide_base_js,
+        builtin_layouts_js = opts.builtin_layouts_js,
         framework_js = opts.framework_js,
     )
 }
@@ -291,18 +312,23 @@ fn collect_framework_css() -> String {
     css
 }
 
-fn collect_layout_js() -> String {
-    let mut js = String::new();
+fn collect_slide_base_js() -> String {
     if let Some(file) = FrameworkAssets::get("slide-base.js") {
-        js.push_str(&String::from_utf8_lossy(&file.data));
-        js.push('\n');
+        return String::from_utf8_lossy(&file.data).into_owned();
     }
+    String::new()
+}
+
+fn collect_builtin_layouts_js() -> String {
+    let mut js = String::new();
     for name in FrameworkAssets::iter() {
         if name.starts_with("layouts/") && name.ends_with(".js") {
             if let Some(file) = FrameworkAssets::get(&name) {
                 let content = String::from_utf8_lossy(&file.data);
                 let content = content.replace("import { SlideBase } from '../slide-base.js';", "");
-                js.push_str(&content);
+                let guarded = theme::guard_custom_elements_define(&content);
+                let wrapped = theme::wrap_in_iife(&guarded);
+                js.push_str(&wrapped);
                 js.push('\n');
             }
         }
@@ -337,21 +363,44 @@ async fn serve_index(
     let title = global_meta.iter().find(|(k, _)| k == "title")
         .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
+    let theme = load_theme_from_meta(&global_meta, state.refresh_themes).await;
     let user_css = collect_user_css(&state.work_dir);
     let user_layouts = collect_user_layouts(&state.work_dir);
     let framework_css = collect_framework_css();
     let framework_js = collect_framework_js();
-    let layout_js = collect_layout_js();
+    let slide_base_js = collect_slide_base_js();
+    let builtin_layouts_js = collect_builtin_layouts_js();
 
     Html(build_index_html(&HtmlOptions {
         title,
         slides_json: &slides_json,
         framework_css: &framework_css,
         framework_js: &framework_js,
-        layout_js: &layout_js,
+        slide_base_js: &slide_base_js,
+        builtin_layouts_js: &builtin_layouts_js,
+        theme_css: theme.as_ref().map(|t| t.css.as_str()),
+        theme_js: theme.as_ref().map(|t| t.js.as_str()),
         user_css: user_css.as_deref(),
         user_layouts: user_layouts.as_deref(),
     }))
+}
+
+async fn load_theme_from_meta(
+    global_meta: &[(String, String)],
+    refresh: bool,
+) -> Option<LoadedTheme> {
+    let theme_value = global_meta.iter().find(|(k, _)| k == "theme")?.1.clone();
+    let spec = ThemeSpec::parse(&theme_value);
+    match theme::load_theme(&spec, refresh).await {
+        Ok(t) => {
+            eprintln!("  Theme: {} v{}", t.name, t.version);
+            Some(t)
+        }
+        Err(e) => {
+            eprintln!("warning: failed to load theme \"{theme_value}\": {e}");
+            None
+        }
+    }
 }
 
 async fn serve_framework(Path(path): Path<String>) -> Response {
@@ -382,9 +431,10 @@ async fn serve_static(
 struct AppState {
     work_dir: PathBuf,
     slides_path: PathBuf,
+    refresh_themes: bool,
 }
 
-fn resolve_state(dir: Option<PathBuf>) -> AppState {
+fn resolve_state(dir: Option<PathBuf>, refresh_themes: bool) -> AppState {
     let work_dir = dir.unwrap_or_else(|| std::env::current_dir().unwrap());
     let work_dir = work_dir.canonicalize().unwrap_or(work_dir);
 
@@ -394,7 +444,7 @@ fn resolve_state(dir: Option<PathBuf>) -> AppState {
         work_dir.join("index.md")
     };
 
-    AppState { work_dir, slides_path }
+    AppState { work_dir, slides_path, refresh_themes }
 }
 
 fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
@@ -432,7 +482,9 @@ fn collect_user_layouts(work_dir: &std::path::Path) -> Option<String> {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     let content = content.replace("import { SlideBase } from '../slide-base.js';", "");
                     let content = content.replace("import { SlideBase } from './slide-base.js';", "");
-                    js.push_str(&content);
+                    let guarded = theme::guard_custom_elements_define(&content);
+                    let wrapped = theme::wrap_in_iife(&guarded);
+                    js.push_str(&wrapped);
                     js.push('\n');
                 }
             }
@@ -446,8 +498,8 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Show { port, dir, no_open } => {
-            let state = resolve_state(dir);
+        Commands::Show { port, dir, no_open, refresh_themes } => {
+            let state = resolve_state(dir, refresh_themes);
 
             if !state.slides_path.exists() {
                 eprintln!("Warning: No slides.md or index.md found in {}", state.work_dir.display());
@@ -472,8 +524,8 @@ async fn main() {
             axum::serve(listener, app).await.unwrap();
         }
 
-        Commands::Export { dir, output } => {
-            let state = resolve_state(dir);
+        Commands::Export { dir, output, refresh_themes } => {
+            let state = resolve_state(dir, refresh_themes);
 
             if !state.slides_path.exists() {
                 eprintln!("Error: No slides.md found in {}", state.work_dir.display());
@@ -486,18 +538,23 @@ async fn main() {
             let title = global_meta.iter().find(|(k, _)| k == "title")
                 .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
+            let theme = load_theme_from_meta(&global_meta, refresh_themes).await;
             let user_css = collect_user_css(&state.work_dir);
             let user_layouts = collect_user_layouts(&state.work_dir);
             let framework_css = collect_framework_css();
             let framework_js = collect_framework_js();
-            let layout_js = collect_layout_js();
+            let slide_base_js = collect_slide_base_js();
+            let builtin_layouts_js = collect_builtin_layouts_js();
 
             let html = build_index_html(&HtmlOptions {
                 title,
                 slides_json: &slides_json,
                 framework_css: &framework_css,
                 framework_js: &framework_js,
-                layout_js: &layout_js,
+                slide_base_js: &slide_base_js,
+                builtin_layouts_js: &builtin_layouts_js,
+                theme_css: theme.as_ref().map(|t| t.css.as_str()),
+                theme_js: theme.as_ref().map(|t| t.js.as_str()),
                 user_css: user_css.as_deref(),
                 user_layouts: user_layouts.as_deref(),
             });
