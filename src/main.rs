@@ -177,9 +177,22 @@ fn build_slides_json(slides: &[Slide], global_meta: &[(String, String)]) -> Stri
     format!("[{}]", arr.join(","))
 }
 
-fn build_index_html(slides_json: &str, custom_css: Option<&str>, framework_css: &str, framework_js: &str, layout_js: &str) -> String {
-    let custom_css_tag = custom_css
+struct HtmlOptions<'a> {
+    title: &'a str,
+    slides_json: &'a str,
+    framework_css: &'a str,
+    framework_js: &'a str,
+    layout_js: &'a str,
+    user_css: Option<&'a str>,
+    user_layouts: Option<&'a str>,
+}
+
+fn build_index_html(opts: &HtmlOptions) -> String {
+    let user_css_tag = opts.user_css
         .map(|css| format!("<style>{css}</style>"))
+        .unwrap_or_default();
+    let user_layouts_tag = opts.user_layouts
+        .map(|js| format!("\n{js}"))
         .unwrap_or_default();
 
     format!(
@@ -188,18 +201,23 @@ fn build_index_html(slides_json: &str, custom_css: Option<&str>, framework_css: 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Monocle Slide</title>
+  <title>{title}</title>
   <style>{framework_css}</style>
-  {custom_css_tag}
+  {user_css_tag}
 </head>
 <body>
   <monocle-slide></monocle-slide>
   <script>window.__MONOCLE_SLIDES__ = {slides_json};</script>
-  <script type="module">{layout_js}
+  <script type="module">{layout_js}{user_layouts_tag}
 
 {framework_js}</script>
 </body>
-</html>"#
+</html>"#,
+        title = opts.title,
+        framework_css = opts.framework_css,
+        slides_json = opts.slides_json,
+        layout_js = opts.layout_js,
+        framework_js = opts.framework_js,
     )
 }
 
@@ -257,22 +275,24 @@ async fn serve_index(
 
     let (global_meta, slides) = parse_slides(&raw);
     let slides_json = build_slides_json(&slides, &global_meta);
+    let title = global_meta.iter().find(|(k, _)| k == "title")
+        .map(|(_, v)| v.as_str()).unwrap_or("Monocle Slide");
 
-    let custom_css = state.custom_css_path
-        .as_ref()
-        .and_then(|p| std::fs::read_to_string(p).ok());
-
+    let user_css = collect_user_css(&state.work_dir);
+    let user_layouts = collect_user_layouts(&state.work_dir);
     let framework_css = collect_framework_css();
     let framework_js = collect_framework_js();
     let layout_js = collect_layout_js();
 
-    Html(build_index_html(
-        &slides_json,
-        custom_css.as_deref(),
-        &framework_css,
-        &framework_js,
-        &layout_js,
-    ))
+    Html(build_index_html(&HtmlOptions {
+        title,
+        slides_json: &slides_json,
+        framework_css: &framework_css,
+        framework_js: &framework_js,
+        layout_js: &layout_js,
+        user_css: user_css.as_deref(),
+        user_layouts: user_layouts.as_deref(),
+    }))
 }
 
 async fn serve_framework(Path(path): Path<String>) -> Response {
@@ -303,7 +323,6 @@ async fn serve_static(
 struct AppState {
     work_dir: PathBuf,
     slides_path: PathBuf,
-    custom_css_path: Option<PathBuf>,
 }
 
 fn resolve_state(dir: Option<PathBuf>) -> AppState {
@@ -316,12 +335,51 @@ fn resolve_state(dir: Option<PathBuf>) -> AppState {
         work_dir.join("index.md")
     };
 
-    let custom_css_path = {
-        let p = work_dir.join("styles/custom.css");
-        if p.exists() { Some(p) } else { None }
-    };
+    AppState { work_dir, slides_path }
+}
 
-    AppState { work_dir, slides_path, custom_css_path }
+fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
+    let styles_dir = work_dir.join("styles");
+    if !styles_dir.is_dir() {
+        return None;
+    }
+    let mut css = String::new();
+    if let Ok(entries) = std::fs::read_dir(&styles_dir) {
+        let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+        paths.sort();
+        for path in paths {
+            if path.extension().map_or(false, |ext| ext == "css") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    css.push_str(&content);
+                    css.push('\n');
+                }
+            }
+        }
+    }
+    if css.is_empty() { None } else { Some(css) }
+}
+
+fn collect_user_layouts(work_dir: &std::path::Path) -> Option<String> {
+    let layouts_dir = work_dir.join("layouts");
+    if !layouts_dir.is_dir() {
+        return None;
+    }
+    let mut js = String::new();
+    if let Ok(entries) = std::fs::read_dir(&layouts_dir) {
+        let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+        paths.sort();
+        for path in paths {
+            if path.extension().map_or(false, |ext| ext == "js") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    let content = content.replace("import { SlideBase } from '../slide-base.js';", "");
+                    let content = content.replace("import { SlideBase } from './slide-base.js';", "");
+                    js.push_str(&content);
+                    js.push('\n');
+                }
+            }
+        }
+    }
+    if js.is_empty() { None } else { Some(js) }
 }
 
 #[tokio::main]
@@ -366,22 +424,24 @@ async fn main() {
             let raw = std::fs::read_to_string(&state.slides_path).unwrap();
             let (global_meta, slides) = parse_slides(&raw);
             let slides_json = build_slides_json(&slides, &global_meta);
+            let title = global_meta.iter().find(|(k, _)| k == "title")
+                .map(|(_, v)| v.as_str()).unwrap_or("Monocle Slide");
 
-            let custom_css = state.custom_css_path
-                .as_ref()
-                .and_then(|p| std::fs::read_to_string(p).ok());
-
+            let user_css = collect_user_css(&state.work_dir);
+            let user_layouts = collect_user_layouts(&state.work_dir);
             let framework_css = collect_framework_css();
             let framework_js = collect_framework_js();
             let layout_js = collect_layout_js();
 
-            let html = build_index_html(
-                &slides_json,
-                custom_css.as_deref(),
-                &framework_css,
-                &framework_js,
-                &layout_js,
-            );
+            let html = build_index_html(&HtmlOptions {
+                title,
+                slides_json: &slides_json,
+                framework_css: &framework_css,
+                framework_js: &framework_js,
+                layout_js: &layout_js,
+                user_css: user_css.as_deref(),
+                user_layouts: user_layouts.as_deref(),
+            });
 
             let output_path = if output.is_absolute() {
                 output

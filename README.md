@@ -155,17 +155,24 @@ Options:
 ```
 my-presentation/
   slides.md           # Slide content (required)
-  styles/
-    custom.css         # Theme overrides, custom classes (optional)
-  assets/              # Images, icons, etc. (optional)
+  styles/             # Auto-loaded: all *.css files, sorted by name (optional)
+    custom.css
+    fonts.css
+  assets/             # Static files served as-is (optional)
     screenshot.png
-  layouts/             # Custom layout components (optional, future)
+  layouts/            # Auto-loaded: all *.js files as Web Components (optional)
     my-layout.js
 ```
 
+The CLI auto-scans these directories at startup:
+
+- **`styles/`** -- all `.css` files are injected into the page (after framework CSS, so they override defaults)
+- **`layouts/`** -- all `.js` files are loaded as custom Web Component layouts. Use the same `SlideBase` class as built-in layouts.
+- **`assets/`** -- served as static files, referenced from slides via relative paths
+
 ## Custom Styling
 
-Create `styles/custom.css` to override theme variables or add custom classes:
+Create any `.css` file in `styles/` to override theme variables or add custom classes:
 
 ```css
 :root {
