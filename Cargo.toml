@@ -1,6 +1,6 @@
 [package]
 name = "wb-slide"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 description = "Lightweight slide presentation framework powered by Web Components and Rust"
 license = "MIT"
