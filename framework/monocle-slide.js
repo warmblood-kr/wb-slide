@@ -30,6 +30,9 @@ class MonocleSlide extends HTMLElement {
       }
 
       el.innerHTML = slide.body || '';
+      if (slide.slots) {
+        el._slots = slide.slots;
+      }
 
       container.appendChild(el);
       viewport.appendChild(container);

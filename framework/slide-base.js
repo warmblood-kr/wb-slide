@@ -2,6 +2,7 @@ export class SlideBase extends HTMLElement {
   connectedCallback() {
     const index = this.getAttribute('slide-index') || '';
     const content = this.innerHTML;
+    const slots = this._slots || {};
 
     const watermark = this.getAttribute('watermark') || '';
     const footer = this.getAttribute('footer') || '';
@@ -12,10 +13,10 @@ export class SlideBase extends HTMLElement {
       <div class="ms-page-number">${index}</div>
     ` : '';
 
-    this.innerHTML = chrome + this.layoutTemplate(content);
+    this.innerHTML = chrome + this.layoutTemplate(content, slots);
   }
 
-  layoutTemplate(content) {
+  layoutTemplate(content, slots) {
     return `<div class="ms-default-layout">${content}</div>`;
   }
 

@@ -48,6 +48,7 @@ enum Commands {
 struct Slide {
     frontmatter: Vec<(String, String)>,
     body_html: String,
+    slots: Vec<(String, String)>,
 }
 
 fn parse_frontmatter(block: &str) -> (Vec<(String, String)>, String) {
@@ -85,6 +86,37 @@ fn parse_frontmatter(block: &str) -> (Vec<(String, String)>, String) {
     (meta, body)
 }
 
+fn parse_slots(body: &str) -> (String, Vec<(String, String)>) {
+    let mut slots = Vec::new();
+    let mut default_parts = Vec::new();
+    let mut current_slot: Option<String> = None;
+    let mut current_content = Vec::new();
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("::") && trimmed.ends_with("::") && trimmed.len() > 4 {
+            let name = trimmed[2..trimmed.len() - 2].trim().to_string();
+            if let Some(prev_slot) = current_slot.take() {
+                slots.push((prev_slot, current_content.join("\n").trim().to_string()));
+            } else if !current_content.is_empty() {
+                default_parts.extend(current_content.drain(..));
+            }
+            current_content.clear();
+            current_slot = Some(name);
+        } else {
+            current_content.push(line.to_string());
+        }
+    }
+
+    if let Some(slot_name) = current_slot {
+        slots.push((slot_name, current_content.join("\n").trim().to_string()));
+    } else {
+        default_parts.extend(current_content);
+    }
+
+    (default_parts.join("\n").trim().to_string(), slots)
+}
+
 fn render_markdown(text: &str) -> String {
     if text.trim().is_empty() {
         return String::new();
@@ -113,9 +145,14 @@ fn parse_slides(raw: &str) -> (Vec<(String, String)>, Vec<Slide>) {
         if let Some(layout) = global_meta.iter().find(|(k, _)| k == "layout") {
             fm.push(layout.clone());
         }
+        let (default_body, slot_parts) = parse_slots(blocks[1].trim());
+        let slots = slot_parts.into_iter()
+            .map(|(name, content)| (name, render_markdown(&content)))
+            .collect();
         slides.push(Slide {
             frontmatter: fm,
-            body_html: render_markdown(blocks[1].trim()),
+            body_html: render_markdown(&default_body),
+            slots,
         });
     }
 
@@ -135,9 +172,15 @@ fn parse_slides(raw: &str) -> (Vec<(String, String)>, Vec<Slide>) {
             inline_body
         };
 
+        let (default_body, slot_parts) = parse_slots(&body);
+        let slots = slot_parts.into_iter()
+            .map(|(name, content)| (name, render_markdown(&content)))
+            .collect();
+
         slides.push(Slide {
             frontmatter: fm,
-            body_html: render_markdown(&body),
+            body_html: render_markdown(&default_body),
+            slots,
         });
 
         i += 2;
@@ -170,12 +213,24 @@ fn build_slides_json(slides: &[Slide], global_meta: &[(String, String)]) -> Stri
             attrs.push(format!("\"footer\":\"{}\"", global_footer));
         }
         let body_escaped = serde_json::to_string(&slide.body_html).unwrap();
+        let slots_json = if slide.slots.is_empty() {
+            "{}".to_string()
+        } else {
+            let slot_entries: Vec<String> = slide.slots.iter()
+                .map(|(name, html)| {
+                    let escaped = serde_json::to_string(html).unwrap();
+                    format!("\"{}\":{}", name, escaped)
+                })
+                .collect();
+            format!("{{{}}}", slot_entries.join(","))
+        };
         format!(
-            "{{\"layout\":\"{}\",\"index\":{},\"attrs\":{{{}}},\"body\":{}}}",
+            "{{\"layout\":\"{}\",\"index\":{},\"attrs\":{{{}}},\"body\":{},\"slots\":{}}}",
             layout,
             i + 1,
             attrs.join(","),
-            body_escaped
+            body_escaped,
+            slots_json
         )
     }).collect();
     format!("[{}]", arr.join(","))
@@ -614,4 +669,110 @@ fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) {
     }
 
     let _ = std::fs::remove_file(&backup);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_frontmatter_simple() {
+        let (meta, body) = parse_frontmatter("layout: slide-feature\nheading: Hello\n\nBody here");
+        assert_eq!(meta, vec![
+            ("layout".to_string(), "slide-feature".to_string()),
+            ("heading".to_string(), "Hello".to_string()),
+        ]);
+        assert_eq!(body, "Body here");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_quoted_value() {
+        let (meta, _) = parse_frontmatter("title: 'My Title'");
+        assert_eq!(meta[0].1, "My Title");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_colon_in_value() {
+        let (meta, _) = parse_frontmatter("subtitle: M365: Office Integration");
+        assert_eq!(meta[0].1, "M365: Office Integration");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_nested_yaml_skipped() {
+        let (meta, body) = parse_frontmatter("title: Test\nfonts:\n  sans: Pretendard\n\nBody");
+        assert_eq!(meta.len(), 1);
+        assert_eq!(meta[0], ("title".to_string(), "Test".to_string()));
+        assert_eq!(body, "Body");
+    }
+
+    #[test]
+    fn test_parse_slots_no_slots() {
+        let (default, slots) = parse_slots("<img src=\"test.png\" />");
+        assert_eq!(default, "<img src=\"test.png\" />");
+        assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn test_parse_slots_two_slots() {
+        let input = "::left::\n\n## Before\n\nOld way\n\n::right::\n\n## After\n\nNew way";
+        let (default, slots) = parse_slots(input);
+        assert!(default.is_empty());
+        assert_eq!(slots.len(), 2);
+        assert_eq!(slots[0].0, "left");
+        assert!(slots[0].1.contains("Before"));
+        assert!(slots[0].1.contains("Old way"));
+        assert_eq!(slots[1].0, "right");
+        assert!(slots[1].1.contains("After"));
+        assert!(slots[1].1.contains("New way"));
+    }
+
+    #[test]
+    fn test_parse_slots_default_before_slot() {
+        let input = "Default content\n\n::sidebar::\n\nSidebar content";
+        let (default, slots) = parse_slots(input);
+        assert_eq!(default, "Default content");
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].0, "sidebar");
+        assert!(slots[0].1.contains("Sidebar content"));
+    }
+
+    #[test]
+    fn test_parse_slides_basic() {
+        let raw = "---\ntitle: Test\nlayout: slide-cover\n---\n\n# Cover\n\n---\nlayout: slide-feature\nheading: Feature\n---\n\nBody content";
+        let (meta, slides) = parse_slides(raw);
+        assert_eq!(meta.iter().find(|(k, _)| k == "title").unwrap().1, "Test");
+        assert_eq!(slides.len(), 2);
+        assert_eq!(slides[0].frontmatter.iter().find(|(k, _)| k == "layout").unwrap().1, "slide-cover");
+        assert!(slides[0].body_html.contains("Cover"));
+        assert_eq!(slides[1].frontmatter.iter().find(|(k, _)| k == "layout").unwrap().1, "slide-feature");
+        assert!(slides[1].body_html.contains("Body content"));
+    }
+
+    #[test]
+    fn test_parse_slides_with_slots() {
+        let raw = "---\ntitle: Test\n---\n\nDefault\n\n---\nlayout: slide-two-column\n---\n\n::left::\n\nLeft content\n\n::right::\n\nRight content";
+        let (_, slides) = parse_slides(raw);
+        assert_eq!(slides.len(), 2);
+        assert_eq!(slides[1].slots.len(), 2);
+        assert_eq!(slides[1].slots[0].0, "left");
+        assert!(slides[1].slots[0].1.contains("Left content"));
+        assert_eq!(slides[1].slots[1].0, "right");
+        assert!(slides[1].slots[1].1.contains("Right content"));
+    }
+
+    #[test]
+    fn test_render_markdown_html_passthrough() {
+        let html = "<div class=\"flex\"><img src=\"test.png\" /></div>";
+        let result = render_markdown(html);
+        assert!(result.contains("<img"));
+        assert!(result.contains("test.png"));
+    }
+
+    #[test]
+    fn test_render_markdown_basic() {
+        let md = "## Hello\n\n**bold** text";
+        let result = render_markdown(md);
+        assert!(result.contains("<h2>"));
+        assert!(result.contains("<strong>bold</strong>"));
+    }
 }
