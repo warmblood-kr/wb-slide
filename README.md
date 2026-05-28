@@ -1,5 +1,7 @@
 # WB Slide
 
+[한국어](README.ko.md)
+
 Lightweight slide presentation framework. Markdown in, slides out.
 
 ## Why WB Slide?
