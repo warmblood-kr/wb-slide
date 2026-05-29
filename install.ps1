@@ -21,12 +21,23 @@ function Get-LatestVersion {
 }
 
 function Get-Platform {
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    if ($arch -ne "X64") {
-        Write-Error "Unsupported architecture: $arch (only x64 supported on Windows)"
-        exit 1
+    # Try multiple methods for arch detection; older PowerShell may lack one.
+    $arch = $null
+    try {
+        $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    } catch { }
+    if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
+    if (-not $arch) { $arch = $env:PROCESSOR_ARCHITEW6432 }
+
+    $archUpper = ($arch | Out-String).Trim().ToUpper()
+    switch -Regex ($archUpper) {
+        '^(X64|AMD64)$'  { return "windows-x64" }
+        '^(ARM64)$'      { Write-Error "Windows ARM64 not yet supported"; exit 1 }
+        default {
+            Write-Error "Unsupported architecture: '$archUpper' (only x64 supported on Windows)"
+            exit 1
+        }
     }
-    return "windows-x64"
 }
 
 function Test-PathContains($Dir) {
