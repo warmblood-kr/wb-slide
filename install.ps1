@@ -80,13 +80,23 @@ function Main {
     Write-Host "Installed: $dst"
     Write-Host ""
 
+    # Auto-register install dir into User PATH (no admin needed).
+    # User scope is per-user, separate from System PATH.
     if (-not (Test-PathContains $installDir)) {
-        Write-Host "WARNING: $installDir is not in your PATH." -ForegroundColor Yellow
-        Write-Host "Add it for the current user with:"
-        Write-Host ""
-        Write-Host "  [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$installDir', 'User')"
-        Write-Host ""
-        Write-Host "Then restart your terminal."
+        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if (-not $userPath) { $userPath = "" }
+        $sep = if ($userPath -and -not $userPath.EndsWith(';')) { ';' } else { '' }
+        $newPath = "${userPath}${sep}${installDir}"
+        try {
+            [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+            # Also update the current session so `wb-slide` works without reopening
+            $env:Path = "$env:Path;$installDir"
+            Write-Host "Added to User PATH: $installDir" -ForegroundColor Green
+            Write-Host "(Open a new terminal for the change to take effect everywhere.)"
+        } catch {
+            Write-Host "WARNING: could not auto-register PATH. Add manually:" -ForegroundColor Yellow
+            Write-Host "  [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$installDir', 'User')"
+        }
         Write-Host ""
     }
 
