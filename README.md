@@ -27,11 +27,25 @@ cases; the escape hatch is there for the rest.
 
 ## Install
 
+**macOS / Linux / WSL / Git Bash**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/warmblood-kr/wb-slide/main/install.sh | sh
 ```
 
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/warmblood-kr/wb-slide/main/install.ps1 | iex
+```
+
 Or download from [Releases](https://github.com/warmblood-kr/wb-slide/releases).
+
+Both installers default to a user-owned location (no admin/sudo needed):
+- macOS/Linux: `~/.local/bin`
+- Windows: `%LOCALAPPDATA%\Programs\wb-slide`
+
+Set `WB_SLIDE_INSTALL_DIR` to install elsewhere.
 
 Supports macOS (Apple Silicon), Linux (x64), and Windows (x64).
 

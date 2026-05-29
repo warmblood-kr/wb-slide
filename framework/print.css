@@ -4,29 +4,44 @@
     margin: 0;
   }
 
-  body {
+  html, body {
     background: white;
     overflow: visible;
+    height: auto;
+    width: auto;
   }
 
   monocle-slide {
-    width: auto;
+    display: block;
+    width: 960px;
     height: auto;
     overflow: visible;
     background: white;
+    position: static;
   }
 
-  .viewport {
+  .ms-viewport {
     position: static !important;
     transform: none !important;
+    width: 960px;
+    height: auto;
   }
 
-  .slide-container {
+  .ms-slide-container {
     display: block !important;
     page-break-after: always;
     page-break-inside: avoid;
+    break-after: page;
+    break-inside: avoid;
     width: 960px;
     height: 540px;
     position: relative !important;
+    top: auto !important;
+    left: auto !important;
+  }
+
+  .ms-slide-container:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 }

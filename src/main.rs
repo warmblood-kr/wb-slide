@@ -657,7 +657,11 @@ async fn main() {
                     std::process::exit(1);
                 }
                 let new_binary = tmp_dir.join("wb-slide");
-                self_replace(&new_binary, &self_path);
+                if !self_replace(&new_binary, &self_path) {
+                    eprintln!();
+                    eprintln!("Tip: install to a user-owned location instead, e.g. ~/.local/bin");
+                    std::process::exit(1);
+                }
             } else {
                 eprintln!("Windows: extract {asset} manually and replace the binary.");
                 eprintln!("Archive saved to: {}", archive_path.display());
@@ -702,7 +706,8 @@ fn detect_platform() -> String {
     }
 }
 
-fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) {
+/// Replace the running binary with a new one. Returns true on success.
+fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -713,19 +718,20 @@ fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) {
     let _ = std::fs::remove_file(&backup);
 
     if std::fs::rename(self_path, &backup).is_err() {
-        eprintln!("Could not replace binary. Try with sudo:");
-        eprintln!("  sudo cp {} {}", new_binary.display(), self_path.display());
-        return;
+        eprintln!("Could not replace binary at {}.", self_path.display());
+        eprintln!("Either re-run with sudo, or reinstall to a user-owned path:");
+        eprintln!("  curl -fsSL https://raw.githubusercontent.com/warmblood-kr/wb-slide/main/install.sh | sh");
+        return false;
     }
 
-    if std::fs::rename(new_binary, self_path).is_err() {
+    if let Err(e) = std::fs::rename(new_binary, self_path) {
         let _ = std::fs::rename(&backup, self_path);
-        eprintln!("Could not install new binary. Try with sudo:");
-        eprintln!("  sudo cp {} {}", new_binary.display(), self_path.display());
-        return;
+        eprintln!("Could not install new binary at {}: {e}", self_path.display());
+        return false;
     }
 
     let _ = std::fs::remove_file(&backup);
+    true
 }
 
 #[cfg(test)]
