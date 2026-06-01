@@ -100,7 +100,47 @@ function Main {
         Write-Host ""
     }
 
+    # Create Start Menu + Desktop shortcuts pointing at 'wb-slide gui'
+    Install-Shortcuts $dst
+
     Write-Host "Run 'wb-slide show' in a directory with slides.md to start presenting."
+    Write-Host "Or click the 'WB Slide' shortcut on your desktop or Start Menu for a folder picker."
+}
+
+function Install-Shortcuts($BinaryPath) {
+    $WshShell = New-Object -ComObject WScript.Shell
+
+    # Start Menu (user)
+    $startMenu = [Environment]::GetFolderPath('Programs')
+    $startMenuLnk = Join-Path $startMenu "WB Slide.lnk"
+    try {
+        $sc = $WshShell.CreateShortcut($startMenuLnk)
+        $sc.TargetPath = $BinaryPath
+        $sc.Arguments = "gui"
+        $sc.WorkingDirectory = (Split-Path $BinaryPath -Parent)
+        $sc.WindowStyle = 7  # minimized window
+        $sc.Description = "Lightweight slide presentation framework"
+        $sc.Save()
+        Write-Host "Start Menu shortcut: $startMenuLnk"
+    } catch {
+        Write-Host "WARNING: could not create Start Menu shortcut: $_" -ForegroundColor Yellow
+    }
+
+    # Desktop shortcut
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $desktopLnk = Join-Path $desktop "WB Slide.lnk"
+    try {
+        $sc = $WshShell.CreateShortcut($desktopLnk)
+        $sc.TargetPath = $BinaryPath
+        $sc.Arguments = "gui"
+        $sc.WorkingDirectory = (Split-Path $BinaryPath -Parent)
+        $sc.WindowStyle = 7
+        $sc.Description = "Lightweight slide presentation framework"
+        $sc.Save()
+        Write-Host "Desktop shortcut: $desktopLnk"
+    } catch {
+        Write-Host "WARNING: could not create Desktop shortcut: $_" -ForegroundColor Yellow
+    }
 }
 
 Main @args

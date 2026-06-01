@@ -115,6 +115,8 @@ main() {
       ;;
   esac
 
+  install_desktop_launcher "${INSTALL_DIR}/${BINARY}"
+
   echo ""
 
   # Path check
@@ -127,6 +129,63 @@ main() {
   fi
 
   echo "Run 'wb-slide show' in a directory with slides.md to start presenting."
+  echo "Or click the 'WB Slide' icon in your Applications menu for a folder picker."
+}
+
+# Create a desktop launcher that runs 'wb-slide gui' (folder picker → present).
+# Skips silently if the OS isn't supported by this branch.
+install_desktop_launcher() {
+  BIN_PATH="$1"
+  case "$(uname -s)" in
+    Darwin)
+      APP_DIR="${HOME}/Applications/WB Slide.app"
+      mkdir -p "${APP_DIR}/Contents/MacOS"
+      cat > "${APP_DIR}/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>WB Slide</string>
+  <key>CFBundleDisplayName</key><string>WB Slide</string>
+  <key>CFBundleIdentifier</key><string>kr.warmblood.wb-slide</string>
+  <key>CFBundleExecutable</key><string>WBSlide</string>
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSUIElement</key><false/>
+</dict>
+</plist>
+EOF
+      cat > "${APP_DIR}/Contents/MacOS/WBSlide" <<EOF
+#!/bin/sh
+exec "${BIN_PATH}" gui
+EOF
+      chmod +x "${APP_DIR}/Contents/MacOS/WBSlide"
+      echo "Desktop launcher: ${APP_DIR}"
+      ;;
+    Linux)
+      DESKTOP_DIR="${HOME}/.local/share/applications"
+      mkdir -p "${DESKTOP_DIR}"
+      cat > "${DESKTOP_DIR}/wb-slide.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=WB Slide
+Comment=Lightweight slide presentation framework
+Exec=${BIN_PATH} gui
+Terminal=false
+Categories=Office;Presentation;
+EOF
+      chmod +x "${DESKTOP_DIR}/wb-slide.desktop"
+      echo "Desktop launcher: ${DESKTOP_DIR}/wb-slide.desktop"
+
+      # Refresh the desktop database if available
+      if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "${DESKTOP_DIR}" >/dev/null 2>&1 || true
+      fi
+      ;;
+    *)
+      ;;
+  esac
 }
 
 main "$@"

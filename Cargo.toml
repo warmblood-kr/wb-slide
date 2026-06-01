@@ -1,6 +1,6 @@
 [package]
 name = "wb-slide"
-version = "0.5.3"
+version = "0.6.0"
 edition = "2021"
 description = "Lightweight slide presentation framework powered by Web Components and Rust"
 license = "MIT"
@@ -17,3 +17,4 @@ mime_guess = "2"
 comrak = { version = "0.35", default-features = false, features = ["syntect"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }

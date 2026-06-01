@@ -52,6 +52,12 @@ enum Commands {
     Version,
     /// Update to the latest version
     Update,
+    /// Open a folder picker dialog, then start the presentation server
+    /// (for non-CLI users — wire this to a desktop shortcut)
+    Gui {
+        #[arg(short, long, default_value = "3030")]
+        port: u16,
+    },
 }
 
 struct Slide {
@@ -587,6 +593,68 @@ async fn main() {
                 }
                 Err(e) => eprintln!("could not check ({e})"),
             }
+        }
+
+        Commands::Gui { port } => {
+            // Open a native folder picker dialog.
+            let picked = tokio::task::spawn_blocking(|| {
+                rfd::FileDialog::new()
+                    .set_title("Select a folder containing slides.md")
+                    .pick_folder()
+            })
+            .await
+            .ok()
+            .flatten();
+
+            let dir = match picked {
+                Some(p) => p,
+                None => {
+                    eprintln!("No folder selected.");
+                    return;
+                }
+            };
+
+            let state = AppState {
+                work_dir: dir.canonicalize().unwrap_or(dir.clone()),
+                slides_path: if dir.join("slides.md").exists() {
+                    dir.join("slides.md")
+                } else {
+                    dir.join("index.md")
+                },
+                refresh_themes: false,
+            };
+
+            if !state.slides_path.exists() {
+                let msg = format!(
+                    "No slides.md or index.md found in:\n{}",
+                    state.work_dir.display()
+                );
+                let _ = tokio::task::spawn_blocking(move || {
+                    rfd::MessageDialog::new()
+                        .set_title("WB Slide")
+                        .set_description(&msg)
+                        .set_level(rfd::MessageLevel::Warning)
+                        .show()
+                })
+                .await;
+                return;
+            }
+
+            let app = Router::new()
+                .route("/", axum::routing::get(serve_index))
+                .route("/_framework/{*path}", axum::routing::get(serve_framework))
+                .route("/{*path}", axum::routing::get(serve_static))
+                .with_state(state.clone());
+
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
+            eprintln!("  WB Slide v{}", env!("CARGO_PKG_VERSION"));
+            eprintln!("  Serving: {}", state.work_dir.display());
+            eprintln!("  URL: http://localhost:{port}/");
+
+            let _ = open::that(format!("http://localhost:{port}/"));
+
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
         }
 
         Commands::Update => {
