@@ -596,17 +596,8 @@ async fn main() {
         }
 
         Commands::Gui { port } => {
-            // Open a native folder picker dialog.
-            let picked = tokio::task::spawn_blocking(|| {
-                rfd::FileDialog::new()
-                    .set_title("Select a folder containing slides.md")
-                    .pick_folder()
-            })
-            .await
-            .ok()
-            .flatten();
-
-            let dir = match picked {
+            // Use the OS-native folder picker via shell-out. No GUI deps.
+            let dir = match pick_folder_native() {
                 Some(p) => p,
                 None => {
                     eprintln!("No folder selected.");
@@ -614,31 +605,27 @@ async fn main() {
                 }
             };
 
-            let state = AppState {
-                work_dir: dir.canonicalize().unwrap_or(dir.clone()),
-                slides_path: if dir.join("slides.md").exists() {
-                    dir.join("slides.md")
-                } else {
-                    dir.join("index.md")
-                },
-                refresh_themes: false,
+            let canonical = dir.canonicalize().unwrap_or(dir.clone());
+            let slides_path = if canonical.join("slides.md").exists() {
+                canonical.join("slides.md")
+            } else {
+                canonical.join("index.md")
             };
 
-            if !state.slides_path.exists() {
+            if !slides_path.exists() {
                 let msg = format!(
                     "No slides.md or index.md found in:\n{}",
-                    state.work_dir.display()
+                    canonical.display()
                 );
-                let _ = tokio::task::spawn_blocking(move || {
-                    rfd::MessageDialog::new()
-                        .set_title("WB Slide")
-                        .set_description(&msg)
-                        .set_level(rfd::MessageLevel::Warning)
-                        .show()
-                })
-                .await;
+                show_message_native(&msg);
                 return;
             }
+
+            let state = AppState {
+                work_dir: canonical.clone(),
+                slides_path,
+                refresh_themes: false,
+            };
 
             let app = Router::new()
                 .route("/", axum::routing::get(serve_index))
@@ -771,6 +758,116 @@ fn detect_platform() -> String {
         ("linux", "x86_64") => "linux-x64".to_string(),
         ("windows", "x86_64") => "windows-x64".to_string(),
         _ => format!("{os}-{arch}"),
+    }
+}
+
+/// Open a native folder picker dialog by shelling out to the OS.
+/// Returns None if the user cancels or no helper is available.
+fn pick_folder_native() -> Option<PathBuf> {
+    use std::process::Command;
+
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("osascript")
+            .args([
+                "-e",
+                "set f to choose folder with prompt \"Select a folder containing slides.md\"",
+                "-e",
+                "POSIX path of f",
+            ])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(PathBuf::from(path)) }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try zenity, then kdialog, then env fallback.
+        for cmd in &["zenity", "kdialog"] {
+            let args: Vec<&str> = if *cmd == "zenity" {
+                vec!["--file-selection", "--directory", "--title=Select a folder containing slides.md"]
+            } else {
+                vec!["--getexistingdirectory", ".", "--title", "Select a folder containing slides.md"]
+            };
+            if let Ok(output) = Command::new(cmd).args(&args).output() {
+                if output.status.success() {
+                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        return Some(PathBuf::from(path));
+                    }
+                }
+                // exit code != 0 means user cancelled; stop trying
+                return None;
+            }
+        }
+        eprintln!("No folder picker available. Install zenity or kdialog, or use `wb-slide show --dir <path>`.");
+        None
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let script = r#"
+Add-Type -AssemblyName System.Windows.Forms
+$f = New-Object System.Windows.Forms.FolderBrowserDialog
+$f.Description = "Select a folder containing slides.md"
+$f.ShowNewFolderButton = $false
+if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    [Console]::Out.WriteLine($f.SelectedPath)
+}
+"#;
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-STA", "-Command", script])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(PathBuf::from(path)) }
+    }
+}
+
+/// Show a small message dialog via the OS.
+fn show_message_native(msg: &str) {
+    use std::process::Command;
+
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!(
+            "display dialog \"{}\" with title \"WB Slide\" buttons {{\"OK\"}} default button \"OK\"",
+            msg.replace('"', "\\\"")
+        );
+        let _ = Command::new("osascript").args(["-e", &script]).output();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        for cmd in &["zenity", "kdialog"] {
+            let args: Vec<String> = if *cmd == "zenity" {
+                vec!["--info".to_string(), "--title=WB Slide".to_string(), format!("--text={msg}")]
+            } else {
+                vec!["--title".to_string(), "WB Slide".to_string(), "--msgbox".to_string(), msg.to_string()]
+            };
+            if Command::new(cmd).args(&args).status().is_ok() {
+                return;
+            }
+        }
+        eprintln!("{msg}");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let script = format!(
+            r#"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show("{}", "WB Slide") | Out-Null"#,
+            msg.replace('"', "`\"").replace('\n', "`n")
+        );
+        let _ = Command::new("powershell")
+            .args(["-NoProfile", "-Command", &script])
+            .output();
     }
 }
 
