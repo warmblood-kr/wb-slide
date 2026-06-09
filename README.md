@@ -21,7 +21,7 @@ No more "creative" font choices on slide 7.
 Ask an AI to write your slides and paste the output directly into `slides.md`.
 No conversion step, no copy-paste from a chat window into PowerPoint.
 
-**Extensible when you need it.** Custom layouts are Web Components -- drop a `.js` file
+**Extensible when you need it.** Custom layouts are HTML templates -- drop a `.html` file
 in the `layouts/` folder. Custom styles go in `styles/`. The defaults work for 90% of
 cases; the escape hatch is there for the rest.
 
@@ -113,13 +113,20 @@ wb-slide update                        # Self-update to latest
 | `slide-image-full` | Full-bleed image |
 | `slide-quote` | Blockquote |
 
-Need a custom layout? Drop a `.js` file in `layouts/`. See [docs/layouts.md](docs/layouts.md).
+Need a custom layout? Drop a `.html` template in `layouts/`. See [docs/layouts.md](docs/layouts.md).
 
 ## Themes
 
 Browse [wb-slide-registry](https://github.com/warmblood-kr/wb-slide-registry)
-for community themes and layouts. Use a theme by adding `theme: <name>` to your
-deck's frontmatter (coming in v0.5 — see [docs/registry-design.md](docs/registry-design.md)).
+for community themes. Use one by adding `theme: <name>` to your deck's
+frontmatter — wb-slide auto-fetches and caches it.
+
+```yaml
+---
+title: My Deck
+theme: monocle-brochure
+---
+```
 
 ## Customization
 
@@ -145,10 +152,14 @@ my-deck/
 
 ## Docs
 
-- [Slide Format](docs/slide-format.md) -- frontmatter, markdown, content rules
-- [Layouts](docs/layouts.md) -- built-in layouts, creating custom layouts
+- [Slide Format](docs/slide-format.md) -- frontmatter, markdown, slots
+- [Layouts](docs/layouts.md) -- built-in layouts + authoring custom HTML templates
 - [Styling](docs/styling.md) -- theme variables, CSS utilities, print/PDF
-- [Architecture](docs/architecture.md) -- how it works under the hood
+- [Theme Contract](docs/theme-contract.md) -- standard CSS tokens themes should define
+- [Registry](docs/registry-design.md) -- how the theme registry works
+- [Architecture](docs/architecture.md) -- the SSR pipeline
+- [Migration v0.6 → v0.7](docs/migration-v0.7.md) -- upgrade guide
+- [CHANGELOG](CHANGELOG.md) -- release history
 
 ## License
 

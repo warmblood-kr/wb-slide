@@ -18,8 +18,8 @@ Git으로 버전 관리하기 쉽고, diff로 변경사항 확인하기 쉽고, 
 AI에게 슬라이드 작성을 요청하고 결과를 `slides.md`에 그대로 붙여넣으면 됩니다.
 PowerPoint에 복사/붙여넣기할 필요가 없습니다.
 
-**필요할 때 확장 가능.** 커스텀 레이아웃은 Web Components입니다.
-`layouts/` 폴더에 `.js` 파일을 넣으면 됩니다. 스타일은 `styles/`에 넣으면 됩니다.
+**필요할 때 확장 가능.** 커스텀 레이아웃은 HTML 템플릿입니다.
+`layouts/` 폴더에 `.html` 파일을 넣으면 됩니다. 스타일은 `styles/`에 넣으면 됩니다.
 기본 제공 레이아웃으로 90%는 충분하고, 나머지 10%를 위한 확장이 준비되어 있습니다.
 
 ## 설치
@@ -96,7 +96,7 @@ wb-slide update                        # 최신 버전으로 자동 업데이트
 | `slide-image-full` | 전체 이미지 |
 | `slide-quote` | 인용문 |
 
-커스텀 레이아웃이 필요하면 `layouts/`에 `.js` 파일을 넣으세요. [docs/layouts.md](docs/layouts.md) 참조.
+커스텀 레이아웃이 필요하면 `layouts/`에 `.html` 템플릿 파일을 넣으세요. [docs/layouts.md](docs/layouts.md) 참조.
 
 ## 스타일 커스터마이징
 
@@ -122,10 +122,14 @@ my-deck/
 
 ## 문서
 
-- [슬라이드 포맷](docs/slide-format.md) -- frontmatter, 마크다운, 콘텐츠 규칙
-- [레이아웃](docs/layouts.md) -- 빌트인 레이아웃, 커스텀 레이아웃 만들기
+- [슬라이드 포맷](docs/slide-format.md) -- frontmatter, 마크다운, 슬롯
+- [레이아웃](docs/layouts.md) -- 빌트인 레이아웃 + HTML 템플릿으로 커스텀 만들기
 - [스타일링](docs/styling.md) -- 테마 변수, CSS 유틸리티, 인쇄/PDF
-- [아키텍처](docs/architecture.md) -- 내부 동작 원리
+- [테마 컨트랙트](docs/theme-contract.md) -- 모든 테마가 정의해야 할 표준 CSS 토큰
+- [레지스트리](docs/registry-design.md) -- 테마 배포 모델
+- [아키텍처](docs/architecture.md) -- SSR 파이프라인
+- [v0.6 → v0.7 마이그레이션](docs/migration-v0.7.md) -- 업그레이드 가이드
+- [CHANGELOG](CHANGELOG.md) -- 릴리스 기록
 
 ## 라이선스
 

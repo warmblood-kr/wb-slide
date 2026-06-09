@@ -1,343 +1,230 @@
 # Layouts
 
-## Built-in Layouts
+A layout is the visual frame around a slide's content — title position, body
+grid, where the watermark and page number go. wb-slide ships eight built-in
+layouts and you can author your own.
 
-### `slide-cover`
+Since v0.7, layouts are **HTML templates** rendered server-side. (For the
+escape hatch — `.js` layouts rendered client-side — see [Escape hatch](#escape-hatch).)
 
-Title/cover slide. No watermark, footer, or page number.
+## Built-in layouts
 
+| Layout | Description |
+|---|---|
+| `slide-cover` | Centered content. No chrome (watermark/footer/page number hidden). For title slides. |
+| `slide-section` | Large centered text. For chapter dividers between sections. |
+| `slide-feature` | Title + optional subtitle on top, content area below. The everyday "title + body" slide. |
+| `slide-two-column` | Two-column body with `::left::` / `::right::` slots. Optional title above. |
+| `slide-image-full` | Full-bleed image. No chrome. |
+| `slide-quote` | Blockquote rendering. Use `quote` and `author` frontmatter fields. |
+| `slide-contact` | Left-aligned content. Good for contact / sources / endnotes. |
+| `slide-default` | Padded body with chrome but no title structure. Fallback for unknown layouts. |
+
+### Common frontmatter
+
+Most layouts accept these attributes in the slide frontmatter:
+
+| Field | Used by | Description |
+|---|---|---|
+| `layout` | all | Which layout to use. Default: `slide-default`. |
+| `heading` | `slide-feature`, `slide-two-column` | Slide title. |
+| `subtitle` | `slide-feature`, `slide-two-column` | Optional sub-title shown below the heading. |
+| `quote` | `slide-quote` | Quotation text. |
+| `author` | `slide-quote` | Attribution. |
+| `watermark` | all (chrome layouts) | Top-right corner text. Often set globally in the deck's first frontmatter block so every slide inherits. |
+| `footer` | all (chrome layouts) | Bottom-left HTML (e.g. logo, brand name). |
+
+The watermark, footer, and page number are automatically added to every layout
+unless the layout opts out with `chrome: false` in its template frontmatter.
+
+## Template format
+
+A layout template is an HTML file with mustache-style placeholders. Save it as
+`<layout-name>.html` either in your deck's `layouts/` directory or in a theme's
+`layouts/` directory.
+
+### Placeholders
+
+| Syntax | Meaning |
+|---|---|
+| `{{name}}` | Insert the attribute `name`, HTML-escaped. |
+| `{{{name}}}` | Insert the attribute `name` without escaping (use for trusted HTML). |
+| `{{{content}}}` | Insert the slide's body content (raw HTML, post-markdown). |
+| `{{slot:name}}` | Insert the named slot's content (e.g. `::left::` body). |
+| `{{#name}}…{{/name}}` | Render the block only if `name` is non-empty. |
+| `{{^name}}…{{/name}}` | Render the block only if `name` is empty. |
+
+### Example: a minimal layout
+
+`layouts/slide-greeting.html`:
+
+```html
+<div class="slide-greeting">
+  <h1>{{heading}}</h1>
+  {{#subtitle}}
+  <p class="muted">{{subtitle}}</p>
+  {{/subtitle}}
+  <div class="body">{{{content}}}</div>
+</div>
 ```
-+--------------------------------------------------+
-|                                                    |
-|                                                    |
-|              [centered content]                    |
-|                                                    |
-|                                                    |
-+--------------------------------------------------+
-```
+
+Use it from `slides.md`:
 
 ```markdown
 ---
-layout: slide-cover
+layout: slide-greeting
+heading: Hello, world!
+subtitle: A friendly opening
 ---
 
-# My Presentation
-
-Subtitle goes here
+This is the body content.
 ```
 
-### `slide-feature`
+### Frontmatter on templates
 
-The most common layout. Title + subtitle at the top, content below.
+A template can declare metadata in its own frontmatter block:
 
-```
-+--------------------------------------------------+
-| Heading                           Monocle AI      |
-| Subtitle text                                      |
-|                                                    |
-|              [content area]                        |
-|                                                    |
-| Warmblood                                    4     |
-+--------------------------------------------------+
-```
-
-**Attributes:** `heading`, `subtitle`
-
-```markdown
+```html
 ---
-layout: slide-feature
-heading: Feature Name
-subtitle: One-line description of the feature.
+chrome: false
 ---
-
-<img src="assets/screenshot.png" class="screenshot-frame" />
+<div class="cover">{{{content}}}</div>
 ```
 
-### `slide-section`
+Supported fields:
 
-Section divider. Large centered text.
+| Field | Default | Meaning |
+|---|---|---|
+| `chrome` | `true` | When `false`, the watermark, footer, and page number are not added around the layout. |
 
-```
-+--------------------------------------------------+
-|                                     Monocle AI     |
-|                                                    |
-|              [centered content]                    |
-|                                                    |
-| Warmblood                                    3     |
-+--------------------------------------------------+
-```
+### Examples from the built-ins
 
-```markdown
+`slide-cover.html`:
+
+```html
 ---
-layout: slide-section
+chrome: false
 ---
-
-# Section Title
+<div class="ms-cover-layout">{{{content}}}</div>
 ```
 
-### `slide-default`
+`slide-feature.html`:
 
-Generic padded content area.
-
-```
-+--------------------------------------------------+
-| +----------------------------------------------+ |
-| |                                     M. AI     | |
-| |  [content with 40px padding]                  | |
-| |                                               | |
-| |                                               | |
-| | Warmblood                                 2   | |
-| +----------------------------------------------+ |
-+--------------------------------------------------+
+```html
+<div class="ms-feature-layout">
+  <h1 class="ms-slide-title">{{heading}}</h1>
+  {{#subtitle}}<p class="ms-slide-subtitle">{{subtitle}}</p>{{/subtitle}}
+  <div class="ms-slot-area">{{{content}}}</div>
+</div>
 ```
 
-```markdown
----
-layout: slide-default
----
+`slide-two-column.html`:
 
-Any content here.
+```html
+<div class="ms-two-column-outer">
+  {{#heading}}<h1 class="ms-slide-title">{{heading}}</h1>{{/heading}}
+  {{#subtitle}}<p class="ms-slide-subtitle">{{subtitle}}</p>{{/subtitle}}
+  <div class="ms-two-column-layout">
+    <div class="ms-col">{{#slot:left}}{{slot:left}}{{/slot:left}}{{^slot:left}}{{{content}}}{{/slot:left}}</div>
+    <div class="ms-col">{{slot:right}}</div>
+  </div>
+</div>
 ```
 
-### `slide-two-column`
+The two-column layout uses an interesting pattern: if a `left` slot exists, use
+it; otherwise fall back to the default content. The right column always comes
+from the `right` slot.
 
-Two-column grid layout with named slots.
+## Resolution precedence
 
-```
-+--------------------------------------------------+
-| Heading (optional)                  Monocle AI     |
-| Subtitle (optional)                                |
-| +---------------------+  +---------------------+  |
-| |  ::left::           |  |  ::right::          |  |
-| |                     |  |                     |  |
-| +---------------------+  +---------------------+  |
-| Warmblood                                    5     |
-+--------------------------------------------------+
-```
+When a slide says `layout: slide-foo`, wb-slide searches in this order:
 
-**Attributes:** `heading` (optional), `subtitle` (optional)
+1. **Deck-local** — `<deck>/layouts/slide-foo.html` (or `.js`)
+2. **Theme** — layouts listed in the theme's `theme.json`
+3. **Built-in** — embedded in the wb-slide binary
 
-**Slots:** `left`, `right`
+The first match wins. To override a built-in, drop a same-named `.html` into
+your deck's `layouts/`.
+
+If both `slide-foo.html` and `slide-foo.js` exist at the same level, the
+`.html` wins.
+
+If the name doesn't match any layout, wb-slide falls back to `slide-default`.
+
+## Slots
+
+Slots let a slide body provide multiple regions of content to a layout. They're
+declared in `slides.md` using the `::slot-name::` syntax:
 
 ```markdown
 ---
 layout: slide-two-column
-heading: Comparison
+heading: Plan
 ---
 
 ::left::
 
 ## Before
 
-- Manual process
-- Error-prone
-- Slow
+Some bullet points about the current state.
 
 ::right::
 
 ## After
 
-- Automated
-- Reliable
-- Fast
+What we want it to look like.
 ```
 
-### `slide-contact`
+In the layout, reference each slot with `{{slot:left}}` (or `{{slot:right}}`).
+Slots are raw HTML — wb-slide already runs the slot contents through the
+markdown renderer before passing them to the template.
 
-Contact information layout. Left-aligned, top-to-bottom.
+The default slot (anything before the first `::name::` marker) is available as
+`{{{content}}}`.
 
-```
-+--------------------------------------------------+
-|                                     Monocle AI     |
-|  [content, left-aligned]                           |
-|                                                    |
-|                                                    |
-| Warmblood                                   15     |
-+--------------------------------------------------+
-```
+## Escape hatch
 
-```markdown
----
-layout: slide-contact
----
+If a layout genuinely needs JavaScript at render time — for example, to compute
+a dynamic value, run an animation, or wire up event handlers — you can still
+ship a `.js` Custom Element. wb-slide will emit `<slide-foo>` for that layout
+and rely on the browser to upgrade it.
 
-## Contact
+### Trade-offs
 
-**Company Name**
+`.js` layouts have known issues that `.html` templates avoid:
 
-https://example.com
+- May fail to upgrade in PDF export contexts, leaving raw `<slide-foo>` text.
+- Round-trip serialization of complex content (especially inline SVG) may
+  produce garbled output.
+- The exported HTML depends on `customElements` being available — file:// URLs
+  in some browsers don't run the JS.
 
-hello@example.com
-```
+If you can express the layout as an `.html` template, do so. The escape hatch
+exists only for cases where templates aren't enough.
 
-### `slide-image-full`
+### Format
 
-Full-bleed image. No watermark, footer, or page number.
+A `.js` layout is a class extending `SlideBase`:
 
-```
-+--------------------------------------------------+
-|                                                    |
-|           [image fills entire slide]               |
-|                                                    |
-+--------------------------------------------------+
-```
-
-```markdown
----
-layout: slide-image-full
----
-
-<img src="assets/hero-photo.jpg" />
-```
-
-### `slide-quote`
-
-Blockquote with optional attribution.
-
-```
-+--------------------------------------------------+
-|                                     Monocle AI     |
-|                                                    |
-|    | "Quote text goes here."                       |
-|    |                                               |
-|    -- Author Name                                  |
-|                                                    |
-| Warmblood                                   10     |
-+--------------------------------------------------+
-```
-
-**Attributes:** `quote`, `author`
-
-```markdown
----
-layout: slide-quote
-quote: The best way to predict the future is to invent it.
-author: Alan Kay
----
-```
-
----
-
-## Slots
-
-Slots let you place content into specific areas of a layout.
-
-### Syntax
-
-Use `::slot-name::` on its own line to start a named slot:
-
-```markdown
----
-layout: slide-two-column
----
-
-::left::
-
-Content for the left column.
-
-::right::
-
-Content for the right column.
-```
-
-Content before the first `::slot::` marker goes to the default slot.
-
-### Available Slots by Layout
-
-| Layout | Slots | Description |
-|--------|-------|-------------|
-| `slide-two-column` | `left`, `right` | Left and right columns |
-| All others | (default only) | Content goes to the main content area |
-
-Custom layouts can define their own slots.
-
----
-
-## Custom Layouts
-
-Create a `layouts/` directory in your slide deck. Drop any `.js` file there.
-
-### Example: Highlight Layout
-
-```javascript
-// layouts/slide-highlight.js
-class SlideHighlight extends SlideBase {
-  layoutTemplate(content, slots) {
-    const color = this.getAttribute('color') || '#2563EB';
-    return `
-      <div style="padding: 60px; height: 100%; background: ${color}; color: white;">
-        ${content}
-      </div>
-    `;
-  }
-
-  showChrome() {
-    return false;
-  }
-}
-
-customElements.define('slide-highlight', SlideHighlight);
-```
-
-Use it:
-
-```markdown
----
-layout: slide-highlight
-color: #1B4332
----
-
-# Key Takeaway
-
-The most important point of the presentation.
-```
-
-### Example: Layout with Custom Slots
-
-```javascript
-// layouts/slide-demo.js
-class SlideDemo extends SlideBase {
+```js
+class SlideAnimated extends SlideBase {
   layoutTemplate(content, slots) {
     const heading = this.getAttribute('heading') || '';
-    return `
-      <div style="padding: 40px; height: 100%; display: flex; flex-direction: column;">
-        ${heading ? `<h1 class="ms-slide-title">${heading}</h1>` : ''}
-        <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div>${slots.code || ''}</div>
-          <div>${slots.preview || content}</div>
-        </div>
-      </div>
-    `;
+    // ... arbitrary JS, can call this.querySelector, etc.
+    return `<div>...${content}...</div>`;
   }
+
+  showChrome() { return true; }
 }
-
-customElements.define('slide-demo', SlideDemo);
+customElements.define('slide-animated', SlideAnimated);
 ```
 
-Use it:
+Save as `layouts/slide-animated.js`. wb-slide bundles `SlideBase` automatically
+and protects against double-registration; you don't need to import anything.
 
-```markdown
----
-layout: slide-demo
-heading: Live Demo
----
+## See also
 
-::code::
-
-\`\`\`python
-print("Hello, world!")
-\`\`\`
-
-::preview::
-
-![Screenshot](assets/demo-output.png)
-```
-
-### Layout API
-
-| Method | Default | Description |
-|--------|---------|-------------|
-| `layoutTemplate(content, slots)` | Wraps in `<div>` | Returns HTML. `content` = default slot. `slots` = named slot object. |
-| `showChrome()` | `true` | Return `false` to hide watermark, footer, page number. |
-
-Attributes from frontmatter: `this.getAttribute('heading')`, etc.
+- [Slide format](./slide-format.md) — the `slides.md` syntax including frontmatter and slots
+- [Styling](./styling.md) — theme tokens, utility classes
+- [Theme contract](./theme-contract.md) — the standard CSS custom properties every theme should define
+- [Architecture](./architecture.md) — how the SSR pipeline works

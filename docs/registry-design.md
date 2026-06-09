@@ -40,7 +40,7 @@ wb-slide-registry/                            (repo root)
     monocle/
       theme.json                              → /themes/monocle/theme.json
       layouts/
-        slide-brochure-feature.js             → /themes/monocle/layouts/slide-brochure-feature.js
+        slide-brochure-feature.html             → /themes/monocle/layouts/slide-brochure-feature.html
       styles/
         custom.css                            → /themes/monocle/styles/custom.css
         fonts.css                             → /themes/monocle/styles/fonts.css
@@ -51,7 +51,7 @@ wb-slide-registry/                            (repo root)
   layouts/                                    (standalone layouts)
     slide-timeline/
       layout.json                             → /layouts/slide-timeline/layout.json
-      slide-timeline.js
+      slide-timeline.html
       slide-timeline.css
 ```
 
@@ -64,10 +64,10 @@ wb-slide-registry/                            (repo root)
   "description": "Brochure-style theme for Monocle decks",
   "author": "Warmblood",
   "license": "MIT",
-  "wb-slide": ">=0.5.0",
+  "wb-slide": ">=0.7.0",
   "layouts": [
-    "layouts/slide-brochure-feature.js",
-    "layouts/slide-brochure-cover.js"
+    "layouts/slide-brochure-feature.html",
+    "layouts/slide-brochure-cover.html"
   ],
   "styles": [
     "styles/fonts.css",
@@ -87,7 +87,7 @@ Explicit manifest > directory listing because GitHub Pages doesn't provide direc
   "component": "slide-timeline",
   "description": "Horizontal timeline layout",
   "files": {
-    "js": "slide-timeline.js",
+    "template": "slide-timeline.html",
     "css": "slide-timeline.css"
   }
 }
@@ -168,11 +168,14 @@ wb-slide show
    │
    ├── Fetch each listed file (parallel HTTP GETs)
    │
+   ├── Render each slide server-side via the layout templates
+   │
    ├── Inline everything into the generated HTML page
    │     <style>...framework css...</style>
    │     <style>...theme css...</style>
    │     <style>...local custom.css...</style>
-   │     <script>...framework js + layouts...</script>
+   │     <div>...pre-rendered slide containers...</div>
+   │     <script>...navigation/scaling JS only (~70 LOC)...</script>
    │
    └── Serve (self-contained HTML, no runtime fetches)
 ```
