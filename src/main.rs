@@ -11,6 +11,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 mod theme;
+mod template;
+mod render;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -208,60 +210,77 @@ fn get_fm(slide: &Slide, key: &str) -> Option<String> {
     slide.frontmatter.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
 }
 
-fn build_slides_json(slides: &[Slide], global_meta: &[(String, String)]) -> String {
+/// Server-side render every slide. Returns the assembled HTML + any client JS
+/// needed for `.js` escape-hatch layouts.
+fn render_all_slides(
+    slides: &[Slide],
+    global_meta: &[(String, String)],
+    layouts: &render::LayoutSet,
+) -> render::RenderedSlides {
     let global_watermark = global_meta.iter().find(|(k, _)| k == "watermark").map(|(_, v)| v.as_str()).unwrap_or("");
     let global_footer = global_meta.iter().find(|(k, _)| k == "footer").map(|(_, v)| v.as_str()).unwrap_or("");
 
-    let arr: Vec<String> = slides.iter().enumerate().map(|(i, slide)| {
-        let layout = get_fm(slide, "layout").unwrap_or_else(|| "slide-default".to_string());
-        let mut attrs: Vec<String> = slide.frontmatter.iter()
+    let total = slides.len();
+    let mut out = render::RenderedSlides::default();
+    // Deduplicate: same .js layout used by many slides should be inlined once.
+    let mut seen_js: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for (i, slide) in slides.iter().enumerate() {
+        let layout_name = get_fm(slide, "layout").unwrap_or_else(|| "slide-default".to_string());
+
+        let mut attrs: Vec<(String, String)> = slide.frontmatter.iter()
             .filter(|(k, _)| k != "layout")
-            .map(|(k, v)| {
-                let escaped_v = v.replace('\\', "\\\\").replace('"', "\\\"");
-                format!("\"{}\":\"{}\"", k, escaped_v)
-            })
+            .cloned()
             .collect();
         if !global_watermark.is_empty() && get_fm(slide, "watermark").is_none() {
-            attrs.push(format!("\"watermark\":\"{}\"", global_watermark));
+            attrs.push(("watermark".to_string(), global_watermark.to_string()));
         }
         if !global_footer.is_empty() && get_fm(slide, "footer").is_none() {
-            attrs.push(format!("\"footer\":\"{}\"", global_footer));
+            attrs.push(("footer".to_string(), global_footer.to_string()));
         }
-        let body_escaped = serde_json::to_string(&slide.body_html).unwrap();
-        let slots_json = if slide.slots.is_empty() {
-            "{}".to_string()
-        } else {
-            let slot_entries: Vec<String> = slide.slots.iter()
-                .map(|(name, html)| {
-                    let escaped = serde_json::to_string(html).unwrap();
-                    format!("\"{}\":{}", name, escaped)
-                })
-                .collect();
-            format!("{{{}}}", slot_entries.join(","))
-        };
-        format!(
-            "{{\"layout\":\"{}\",\"index\":{},\"attrs\":{{{}}},\"body\":{},\"slots\":{}}}",
-            layout,
+
+        let (html, maybe_js) = render::render_slide(
+            &layout_name,
+            &attrs,
+            &slide.slots,
+            &slide.body_html,
             i + 1,
-            attrs.join(","),
-            body_escaped,
-            slots_json
-        )
-    }).collect();
-    format!("[{}]", arr.join(","))
+            total,
+            layouts,
+        );
+        out.html.push_str(&html);
+        out.html.push('\n');
+
+        if let Some(js) = maybe_js {
+            if seen_js.insert(layout_name.clone()) {
+                // Need SlideBase if any .js layout is used. Emit it once at first sight.
+                if seen_js.len() == 1 {
+                    if let Some(file) = FrameworkAssets::get("slide-base.js") {
+                        let base = String::from_utf8_lossy(&file.data);
+                        out.client_js.push_str(&base);
+                        out.client_js.push('\n');
+                    }
+                }
+                let stripped = js
+                    .replace("import { SlideBase } from '../slide-base.js';", "")
+                    .replace("import { SlideBase } from './slide-base.js';", "");
+                let guarded = theme::guard_custom_elements_define(&stripped);
+                out.client_js.push_str(&theme::wrap_in_iife(&guarded));
+                out.client_js.push('\n');
+            }
+        }
+    }
+    out
 }
 
 struct HtmlOptions<'a> {
     title: &'a str,
-    slides_json: &'a str,
+    slides_html: &'a str,
     framework_css: &'a str,
     framework_js: &'a str,
-    slide_base_js: &'a str,
-    builtin_layouts_js: &'a str,
+    client_js: &'a str,
     theme_css: Option<&'a str>,
-    theme_js: Option<&'a str>,
     user_css: Option<&'a str>,
-    user_layouts: Option<&'a str>,
 }
 
 fn build_index_html(opts: &HtmlOptions) -> String {
@@ -271,12 +290,11 @@ fn build_index_html(opts: &HtmlOptions) -> String {
     let user_css_tag = opts.user_css
         .map(|css| format!("<style data-source=\"user\">{css}</style>"))
         .unwrap_or_default();
-    let theme_js_tag = opts.theme_js
-        .map(|js| format!("\n{js}"))
-        .unwrap_or_default();
-    let user_layouts_tag = opts.user_layouts
-        .map(|js| format!("\n{js}"))
-        .unwrap_or_default();
+    let client_js_tag = if opts.client_js.is_empty() {
+        String::new()
+    } else {
+        format!("<script type=\"module\">{}</script>", opts.client_js)
+    };
 
     format!(
         r#"<!DOCTYPE html>
@@ -290,19 +308,18 @@ fn build_index_html(opts: &HtmlOptions) -> String {
   {user_css_tag}
 </head>
 <body>
-  <monocle-slide></monocle-slide>
-  <script>window.__MONOCLE_SLIDES__ = {slides_json};</script>
-  <script type="module">{slide_base_js}
-{user_layouts_tag}{theme_js_tag}{builtin_layouts_js}
-
-{framework_js}</script>
+  <div id="monocle-slide-deck">
+    <div class="ms-viewport">
+{slides_html}
+    </div>
+  </div>
+  {client_js_tag}
+  <script>{framework_js}</script>
 </body>
 </html>"#,
         title = opts.title,
         framework_css = opts.framework_css,
-        slides_json = opts.slides_json,
-        slide_base_js = opts.slide_base_js,
-        builtin_layouts_js = opts.builtin_layouts_js,
+        slides_html = opts.slides_html,
         framework_js = opts.framework_js,
     )
 }
@@ -316,30 +333,6 @@ fn collect_framework_css() -> String {
         }
     }
     css
-}
-
-fn collect_slide_base_js() -> String {
-    if let Some(file) = FrameworkAssets::get("slide-base.js") {
-        return String::from_utf8_lossy(&file.data).into_owned();
-    }
-    String::new()
-}
-
-fn collect_builtin_layouts_js() -> String {
-    let mut js = String::new();
-    for name in FrameworkAssets::iter() {
-        if name.starts_with("layouts/") && name.ends_with(".js") {
-            if let Some(file) = FrameworkAssets::get(&name) {
-                let content = String::from_utf8_lossy(&file.data);
-                let content = content.replace("import { SlideBase } from '../slide-base.js';", "");
-                let guarded = theme::guard_custom_elements_define(&content);
-                let wrapped = theme::wrap_in_iife(&guarded);
-                js.push_str(&wrapped);
-                js.push('\n');
-            }
-        }
-    }
-    js
 }
 
 fn collect_framework_js() -> String {
@@ -365,29 +358,31 @@ async fn serve_index(
         .unwrap_or_else(|_| "---\ntitle: No slides found\n---\n\n# No slides.md found".to_string());
 
     let (global_meta, slides) = parse_slides(&raw);
-    let slides_json = build_slides_json(&slides, &global_meta);
     let title = global_meta.iter().find(|(k, _)| k == "title")
         .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
     let theme = load_theme_from_meta(&global_meta, state.refresh_themes).await;
     let user_css = collect_user_css(&state.work_dir);
-    let user_layouts = collect_user_layouts(&state.work_dir);
     let framework_css = collect_framework_css();
     let framework_js = collect_framework_js();
-    let slide_base_js = collect_slide_base_js();
-    let builtin_layouts_js = collect_builtin_layouts_js();
+
+    let mut layouts = render::LayoutSet::default();
+    layouts.load_builtin();
+    if let Some(t) = &theme {
+        layouts.load_theme(t);
+    }
+    layouts.load_local(&state.work_dir);
+
+    let rendered = render_all_slides(&slides, &global_meta, &layouts);
 
     Html(build_index_html(&HtmlOptions {
         title,
-        slides_json: &slides_json,
+        slides_html: &rendered.html,
         framework_css: &framework_css,
         framework_js: &framework_js,
-        slide_base_js: &slide_base_js,
-        builtin_layouts_js: &builtin_layouts_js,
+        client_js: &rendered.client_js,
         theme_css: theme.as_ref().map(|t| t.css.as_str()),
-        theme_js: theme.as_ref().map(|t| t.js.as_str()),
         user_css: user_css.as_deref(),
-        user_layouts: user_layouts.as_deref(),
     }))
 }
 
@@ -474,31 +469,6 @@ fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
     if css.is_empty() { None } else { Some(css) }
 }
 
-fn collect_user_layouts(work_dir: &std::path::Path) -> Option<String> {
-    let layouts_dir = work_dir.join("layouts");
-    if !layouts_dir.is_dir() {
-        return None;
-    }
-    let mut js = String::new();
-    if let Ok(entries) = std::fs::read_dir(&layouts_dir) {
-        let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
-        paths.sort();
-        for path in paths {
-            if path.extension().map_or(false, |ext| ext == "js") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    let content = content.replace("import { SlideBase } from '../slide-base.js';", "");
-                    let content = content.replace("import { SlideBase } from './slide-base.js';", "");
-                    let guarded = theme::guard_custom_elements_define(&content);
-                    let wrapped = theme::wrap_in_iife(&guarded);
-                    js.push_str(&wrapped);
-                    js.push('\n');
-                }
-            }
-        }
-    }
-    if js.is_empty() { None } else { Some(js) }
-}
-
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -540,29 +510,31 @@ async fn main() {
 
             let raw = std::fs::read_to_string(&state.slides_path).unwrap();
             let (global_meta, slides) = parse_slides(&raw);
-            let slides_json = build_slides_json(&slides, &global_meta);
             let title = global_meta.iter().find(|(k, _)| k == "title")
                 .map(|(_, v)| v.as_str()).unwrap_or("WB Slide");
 
             let theme = load_theme_from_meta(&global_meta, refresh_themes).await;
             let user_css = collect_user_css(&state.work_dir);
-            let user_layouts = collect_user_layouts(&state.work_dir);
             let framework_css = collect_framework_css();
             let framework_js = collect_framework_js();
-            let slide_base_js = collect_slide_base_js();
-            let builtin_layouts_js = collect_builtin_layouts_js();
+
+            let mut layouts = render::LayoutSet::default();
+            layouts.load_builtin();
+            if let Some(t) = &theme {
+                layouts.load_theme(t);
+            }
+            layouts.load_local(&state.work_dir);
+
+            let rendered = render_all_slides(&slides, &global_meta, &layouts);
 
             let html = build_index_html(&HtmlOptions {
                 title,
-                slides_json: &slides_json,
+                slides_html: &rendered.html,
                 framework_css: &framework_css,
                 framework_js: &framework_js,
-                slide_base_js: &slide_base_js,
-                builtin_layouts_js: &builtin_layouts_js,
+                client_js: &rendered.client_js,
                 theme_css: theme.as_ref().map(|t| t.css.as_str()),
-                theme_js: theme.as_ref().map(|t| t.js.as_str()),
                 user_css: user_css.as_deref(),
-                user_layouts: user_layouts.as_deref(),
             });
 
             let output_path = if output.is_absolute() {

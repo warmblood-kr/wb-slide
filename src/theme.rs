@@ -23,13 +23,16 @@ impl ThemeSpec {
     }
 }
 
-/// A loaded theme: aggregated JS and CSS ready to inline.
+/// A loaded theme.
 #[derive(Debug, Default, Clone)]
 pub struct LoadedTheme {
     pub name: String,
     pub version: String,
-    pub js: String,
+    /// CSS to inline into the page (concatenated from theme's styles[]).
     pub css: String,
+    /// Layout templates: name (without extension) → template source.
+    /// Files listed as `.html` in the theme manifest.
+    pub layouts: Vec<(String, String)>,
 }
 
 fn cache_dir() -> PathBuf {
@@ -219,24 +222,37 @@ pub async fn load_theme(spec: &ThemeSpec, refresh: bool) -> Result<LoadedTheme, 
         .map(|(prefix, _)| prefix.to_string())
         .unwrap_or_default();
 
-    let layouts = extract_string_array(&manifest, "layouts");
+    let layout_paths = extract_string_array(&manifest, "layouts");
     let styles = extract_string_array(&manifest, "styles");
 
     let mut loaded = LoadedTheme {
         name: name.clone(),
         version,
-        js: String::new(),
         css: String::new(),
+        layouts: Vec::new(),
     };
 
-    for rel in &layouts {
+    // Layouts are now template files (.html). Older JS layouts (.js) are
+    // ignored — they'd never have worked in SSR anyway.
+    for rel in &layout_paths {
+        if !rel.ends_with(".html") {
+            eprintln!(
+                "warning: theme {name} layout {rel} is not .html (skipped — only template layouts supported in SSR mode)"
+            );
+            continue;
+        }
         let url = format!("{base_url}/{rel}");
         let content = fetch_cached(&url, refresh).await
             .map_err(|e| format!("theme {name}: layout {rel}: {e}"))?;
-        let stripped = strip_slidebase_import(&content);
-        let guarded = guard_custom_elements_define(&stripped);
-        loaded.js.push_str(&wrap_in_iife(&guarded));
-        loaded.js.push('\n');
+        let layout_name = rel
+            .rsplit('/')
+            .next()
+            .and_then(|f| f.strip_suffix(".html"))
+            .unwrap_or("")
+            .to_string();
+        if !layout_name.is_empty() {
+            loaded.layouts.push((layout_name, content));
+        }
     }
 
     for rel in &styles {
@@ -248,13 +264,6 @@ pub async fn load_theme(spec: &ThemeSpec, refresh: bool) -> Result<LoadedTheme, 
     }
 
     Ok(loaded)
-}
-
-fn strip_slidebase_import(js: &str) -> String {
-    js.lines()
-        .filter(|line| !line.trim_start().starts_with("import "))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// Wrap a layout JS file in an IIFE so class declarations don't leak into the

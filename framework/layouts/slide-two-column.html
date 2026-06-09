@@ -1,0 +1,8 @@
+<div class="ms-two-column-outer">
+  {{#heading}}<h1 class="ms-slide-title">{{heading}}</h1>{{/heading}}
+  {{#subtitle}}<p class="ms-slide-subtitle">{{subtitle}}</p>{{/subtitle}}
+  <div class="ms-two-column-layout">
+    <div class="ms-col">{{#slot:left}}{{slot:left}}{{/slot:left}}{{^slot:left}}{{{content}}}{{/slot:left}}</div>
+    <div class="ms-col">{{slot:right}}</div>
+  </div>
+</div>

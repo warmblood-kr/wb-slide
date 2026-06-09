@@ -1,114 +1,84 @@
-import './layouts/slide-default.js';
-import './layouts/slide-feature.js';
-import './layouts/slide-cover.js';
-import './layouts/slide-section.js';
-import './layouts/slide-contact.js';
-import './layouts/slide-two-column.js';
-import './layouts/slide-image-full.js';
-import './layouts/slide-quote.js';
+// wb-slide: client-side navigation & scaling for SSR-rendered slides.
+// All slide layout HTML is rendered server-side by Rust.
+// This script only handles: viewport scaling, keyboard navigation, and hash routing.
+(function () {
+  'use strict';
+  var deck = document.getElementById('monocle-slide-deck');
+  if (!deck) return;
+  var viewport = deck.querySelector('.ms-viewport');
+  if (!viewport) return;
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.ms-slide-container'));
+  if (slides.length === 0) return;
 
-class MonocleSlide extends HTMLElement {
-  #currentSlide = 0;
-  #containers = [];
+  var current = 0;
 
-  connectedCallback() {
-    this.innerHTML = `<div class="ms-viewport"></div>`;
-    const viewport = this.querySelector('.ms-viewport');
-
-    const slides = window.__MONOCLE_SLIDES__ || [];
-
-    slides.forEach((slide) => {
-      const container = document.createElement('div');
-      container.className = 'ms-slide-container';
-
-      const el = document.createElement(slide.layout || 'slide-default');
-      el.setAttribute('slide-index', String(slide.index));
-      el.setAttribute('total-slides', String(slides.length));
-
-      for (const [key, value] of Object.entries(slide.attrs || {})) {
-        el.setAttribute(key, value);
-      }
-
-      el.innerHTML = slide.body || '';
-      if (slide.slots) {
-        el._slots = slide.slots;
-      }
-
-      container.appendChild(el);
-      viewport.appendChild(container);
-      this.#containers.push(container);
-    });
-
-    this.#setupScale();
-    this.#setupKeyboard();
-    this.#goTo(this.#slideFromHash());
+  function show(i) {
+    if (i < 0) i = 0;
+    if (i >= slides.length) i = slides.length - 1;
+    for (var k = 0; k < slides.length; k++) {
+      if (k === i) slides[k].classList.add('active');
+      else slides[k].classList.remove('active');
+    }
+    current = i;
+    var hash = '#/' + (i + 1);
+    if (window.location.hash !== hash) {
+      history.replaceState(null, '', hash);
+    }
   }
 
-  #goTo(index) {
-    if (index < 0) index = 0;
-    if (index >= this.#containers.length) index = this.#containers.length - 1;
-
-    this.#containers.forEach((c, i) => {
-      c.classList.toggle('active', i === index);
-    });
-
-    this.#currentSlide = index;
-    history.replaceState(null, '', `#/${index + 1}`);
-  }
-
-  #slideFromHash() {
-    const match = window.location.hash.match(/#\/(\d+)/);
-    if (match) return parseInt(match[1], 10) - 1;
+  function slideFromHash() {
+    var m = window.location.hash.match(/^#\/(\d+)/);
+    if (m) return parseInt(m[1], 10) - 1;
     return 0;
   }
 
-  #setupScale() {
-    const viewport = this.querySelector('.ms-viewport');
-    const rescale = () => {
-      const scaleX = window.innerWidth / 960;
-      const scaleY = window.innerHeight / 540;
-      const scale = Math.min(scaleX, scaleY);
-      viewport.style.transform = `translate(-50%, -50%) scale(${scale})`;
-    };
-    rescale();
-    window.addEventListener('resize', rescale);
+  function rescale() {
+    var sx = window.innerWidth / 960;
+    var sy = window.innerHeight / 540;
+    var s = Math.min(sx, sy);
+    viewport.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
   }
 
-  #setupKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      switch (e.key) {
-        case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown':
-          e.preventDefault();
-          this.#goTo(this.#currentSlide + 1);
-          break;
-        case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
-          e.preventDefault();
-          this.#goTo(this.#currentSlide - 1);
-          break;
-        case 'Home':
-          e.preventDefault();
-          this.#goTo(0);
-          break;
-        case 'End':
-          e.preventDefault();
-          this.#goTo(this.#containers.length - 1);
-          break;
-        case 'f': case 'F':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            document.fullscreenElement
-              ? document.exitFullscreen()
-              : document.documentElement.requestFullscreen();
-          }
-          break;
-      }
-    });
+  window.addEventListener('resize', rescale);
+  window.addEventListener('hashchange', function () {
+    var t = slideFromHash();
+    if (t !== current) show(t);
+  });
 
-    window.addEventListener('hashchange', () => {
-      const target = this.#slideFromHash();
-      if (target !== this.#currentSlide) this.#goTo(target);
-    });
-  }
-}
+  window.addEventListener('keydown', function (e) {
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+      case ' ':
+      case 'PageDown':
+        e.preventDefault();
+        show(current + 1);
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+      case 'PageUp':
+        e.preventDefault();
+        show(current - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        show(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        show(slides.length - 1);
+        break;
+      case 'f':
+      case 'F':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        }
+        break;
+    }
+  });
 
-customElements.define('monocle-slide', MonocleSlide);
+  rescale();
+  show(slideFromHash());
+})();
