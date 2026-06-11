@@ -2,6 +2,32 @@
 
 All notable changes to wb-slide.
 
+## v0.8.0 — 2026-06-12
+
+### Added
+
+- **`wb-slide validate`** — a static deck checker (no browser). Flags unknown
+  `layout:` names, indented/dropped frontmatter, blank lines inside raw HTML/SVG
+  blocks, missing local assets (an error), and slides likely to overflow the
+  fixed 960×540 canvas. `--strict` fails on warnings too — CI-friendly.
+- **`wb-slide export --embed`** — inline local images (`<img src>` and CSS
+  `url()`) as base64 data URIs, producing a single, fully portable HTML file.
+- **Presentation helper classes** in the framework, theme-independent and keyed
+  to the theme-contract tokens so they adopt any theme's accent: `.kicker`,
+  `.stat` / `.stat--accent` / `.stat-label`, `.takeaway`, `.source`, `.pos` /
+  `.neg`, and `.table-clean` (+ `.num` for right-aligned numerals).
+- **GFM Markdown extensions**: pipe tables, strikethrough (`~~x~~`), autolinks,
+  and task lists (previously Markdown tables rendered as literal `| text |`).
+- A rendered **layout gallery** plus ready-to-copy **consulting** and
+  **marketing** templates, published to GitHub Pages
+  (<https://warmblood-kr.github.io/wb-slide/>).
+
+### Fixed
+
+- **`slide-two-column`**: the heading rendered at the bottom of the slide and the
+  two columns collapsed to the left — the container was missing its
+  `grid-template-areas`, so the heading/subtitle fell into implicit rows.
+
 ## v0.7.0 — 2026-06-09
 
 ### Breaking changes
