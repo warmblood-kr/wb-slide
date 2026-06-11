@@ -1,0 +1,28 @@
+/* Gallery stylesheet — a clean, restrained look for the layout showcase.
+ * Self-contained (no external fetch). Overrides the 6 theme-contract tokens
+ * and includes the slide-two-column grid-area fix (also fixed upstream in
+ * framework/theme.css, PR #3) so the gallery renders correctly on any build. */
+
+:root {
+  --color-accent:     #1F6FEB;
+  --color-text:       #1F2A37;
+  --color-text-muted: #6B7280;
+  --color-border:     #D1D5DB;
+  --color-background: #FFFFFF;
+}
+
+* { box-shadow: none !important; }
+
+/* Top-anchor + left-align slide-feature body (the framework centers it). */
+.ms-slot-area {
+  place-items: start stretch;
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 0.8rem;
+}
+
+/* slide-two-column: declare the named areas the framework omits, so the
+ * heading stays at the top and the columns render full-width 50/50. */
+.ms-two-column-outer { grid-template-areas: "title" "subtitle" "cols"; }
+.ms-two-column-layout { grid-area: cols; width: 100%; }
+.ms-col { align-content: start; }

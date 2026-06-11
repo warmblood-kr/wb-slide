@@ -7,6 +7,9 @@ layouts and you can author your own.
 Since v0.7, layouts are **HTML templates** rendered server-side. (For the
 escape hatch — `.js` layouts rendered client-side — see [Escape hatch](#escape-hatch).)
 
+> See the [layout gallery](gallery.md) for a rendered thumbnail of each built-in
+> layout.
+
 ## Built-in layouts
 
 | Layout | Description |

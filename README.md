@@ -113,7 +113,8 @@ wb-slide update                        # Self-update to latest
 | `slide-image-full` | Full-bleed image |
 | `slide-quote` | Blockquote |
 
-Need a custom layout? Drop a `.html` template in `layouts/`. See [docs/layouts.md](docs/layouts.md).
+See each layout rendered in the [layout gallery](docs/gallery.md). Need a custom
+layout? Drop a `.html` template in `layouts/`. See [docs/layouts.md](docs/layouts.md).
 
 ## Themes
 
