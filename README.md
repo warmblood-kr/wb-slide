@@ -93,9 +93,19 @@ wb-slide export                        # Export to export.html
 wb-slide export -o presentation.html   # Custom output name
 wb-slide export --embed                # Inline images as base64 -> single portable file
 
+wb-slide validate                      # Check a deck for common problems
+wb-slide validate --strict             # ...and fail on warnings too
+
 wb-slide version                       # Check for updates
 wb-slide update                        # Self-update to latest
 ```
+
+`validate` statically checks `slides.md` (no browser needed) and reports:
+unknown `layout:` names, indented frontmatter that gets silently dropped, blank
+lines inside raw HTML/SVG blocks (which break rendering), missing local assets
+(an error), and slides dense enough to risk overflowing the fixed 960×540 canvas.
+Exit code is non-zero if there are errors (or any warnings under `--strict`) —
+handy in CI or a pre-export check.
 
 ## Keyboard
 
