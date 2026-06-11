@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wb-slide layout gallery</title>
+  <style>:root {
+  /* === Theme contract: standard tokens ===
+     Every theme should define these. Built-in layouts read from them. */
+  --color-accent: #2563EB;        /* primary brand color */
+  --color-text: #1F2937;          /* primary body text */
+  --color-text-muted: #6B7280;    /* secondary / muted text */
+  --color-border: #D1D5DB;        /* subtle borders, chrome elements */
+  --color-background: #FFFFFF;    /* slide background */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* === Backward-compat aliases (deprecated) ===
+     Renamed in v0.5+. Keep aliases for a few versions, then remove. */
+  --color-text-dark: var(--color-text);
+  --color-text-gray: var(--color-text-muted);
+  --color-header-gray: var(--color-border);
+  --color-white: var(--color-background);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; padding: 0; font-family: var(--font-family); background: #000; overflow: hidden; }
+
+#monocle-slide-deck {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.ms-viewport {
+  width: 960px;
+  height: 540px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+}
+
+.ms-slide-container {
+  width: 960px;
+  height: 540px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  overflow: hidden;
+}
+.ms-slide-container.active { display: block; }
+
+/* Backward compat: any remaining Custom Element references */
+slide-default, slide-feature, slide-cover, slide-section, slide-contact,
+slide-two-column, slide-image-full, slide-quote {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ms-watermark {
+  position: absolute;
+  top: 24px;
+  right: 40px;
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--color-border);
+  z-index: 10;
+}
+
+.ms-footer-logo {
+  position: absolute;
+  bottom: 24px;
+  left: 40px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  z-index: 10;
+}
+.ms-footer-logo i { font-style: italic; }
+.ms-footer-logo span { font-weight: 700; font-style: normal; }
+
+.ms-page-number {
+  position: absolute;
+  bottom: 24px;
+  right: 40px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  z-index: 10;
+}
+
+/* slide-default */
+.ms-default-layout {
+  display: grid;
+  grid-template-rows: 1fr;
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* slide-cover */
+.ms-cover-layout {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+/* slide-feature */
+.ms-feature-layout {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas:
+    "title"
+    "subtitle"
+    "content";
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+.ms-slide-title {
+  grid-area: title;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  line-height: 1.3;
+  margin: 0;
+}
+.ms-slide-subtitle {
+  grid-area: subtitle;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--color-text);
+  line-height: 1.6;
+  margin: 0;
+}
+.ms-slot-area {
+  grid-area: content;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* slide-section */
+.ms-section-layout {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
+  box-sizing: border-box;
+}
+
+/* slide-contact */
+.ms-contact-layout {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+/* slide-two-column */
+.ms-two-column-outer {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+.ms-two-column-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  min-height: 0;
+}
+.ms-col {
+  overflow: hidden;
+}
+
+/* slide-image-full */
+.ms-image-full-layout {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.ms-image-full-layout img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* slide-quote */
+.ms-quote-layout {
+  display: grid;
+  align-content: center;
+  padding: 60px 80px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+.ms-quote-text {
+  font-size: 1.8rem;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--color-text);
+  border-left: 4px solid var(--color-accent);
+  padding-left: 24px;
+  margin: 0 0 1.5rem 0;
+}
+.ms-quote-author {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  padding-left: 28px;
+}
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.h-full { height: 100%; }
+.w-10 { width: 2.5rem; }
+.h-7 { height: 1.75rem; }
+.h-8 { height: 2rem; }
+.h-10 { height: 2.5rem; }
+.h-12 { height: 3rem; }
+.h-16 { height: 4rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-5 { gap: 1.25rem; }
+.gap-6 { gap: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mt-12 { margin-top: 3rem; }
+.font-bold { font-weight: 700; }
+.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+.text-\[\#2D3436\] { color: #2D3436; }
+
+@media print {
+  @page {
+    size: 960px 540px;
+    margin: 0;
+  }
+
+  html, body {
+    background: white;
+    overflow: visible;
+    height: auto;
+    width: auto;
+  }
+
+  #monocle-slide-deck {
+    display: block;
+    width: 960px;
+    height: auto;
+    overflow: visible;
+    background: white;
+    position: static;
+  }
+
+  .ms-viewport {
+    position: static !important;
+    transform: none !important;
+    width: 960px;
+    height: auto;
+  }
+
+  .ms-slide-container {
+    display: block !important;
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    break-inside: avoid;
+    width: 960px;
+    height: 540px;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+  }
+
+  .ms-slide-container:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+</style>
+  
+  <style data-source="user">/* Gallery stylesheet — a clean, restrained look for the layout showcase.
+ * Self-contained (no external fetch). Overrides the 6 theme-contract tokens
+ * and includes the slide-two-column grid-area fix (also fixed upstream in
+ * framework/theme.css, PR #3) so the gallery renders correctly on any build. */
+
+:root {
+  --color-accent:     #1F6FEB;
+  --color-text:       #1F2A37;
+  --color-text-muted: #6B7280;
+  --color-border:     #D1D5DB;
+  --color-background: #FFFFFF;
+}
+
+* { box-shadow: none !important; }
+
+/* Top-anchor + left-align slide-feature body (the framework centers it). */
+.ms-slot-area {
+  place-items: start stretch;
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 0.8rem;
+}
+
+/* slide-two-column: declare the named areas the framework omits, so the
+ * heading stays at the top and the columns render full-width 50/50. */
+.ms-two-column-outer { grid-template-areas: "title" "subtitle" "cols"; }
+.ms-two-column-layout { grid-area: cols; width: 100%; }
+.ms-col { align-content: start; }
+
+</style>
+</head>
+<body>
+  <div id="monocle-slide-deck">
+    <div class="ms-viewport">
+<div class="ms-slide-container slide-cover active" data-slide-index="1"><div class="ms-cover-layout"><h1>wb-slide</h1>
+<p>A markdown-driven slide tool — one slide per built-in layout follows.</p>
+</div>
+</div>
+<div class="ms-slide-container slide-section" data-slide-index="2"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">2</div><div class="ms-section-layout"><h1>slide-section</h1>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="3"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">3</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">slide-feature is the workhorse — an action title plus a body</h1>
+  <p class="ms-slide-subtitle">heading + optional subtitle + Markdown/HTML content</p>
+  <div class="ms-slot-area"><ul>
+<li>One idea per slide, stated as a full-sentence title</li>
+<li>Body holds bullets, a table, a stat, or one visual</li>
+<li>The most common layout in a real deck</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-two-column" data-slide-index="4"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">4</div><div class="ms-two-column-outer">
+  <h1 class="ms-slide-title">slide-two-column places content side by side</h1>
+  <p class="ms-slide-subtitle">use ::left:: / ::right:: slot markers</p>
+  <div class="ms-two-column-layout">
+    <div class="ms-col"><h2>Before</h2>
+<ul>
+<li>Single column of text</li>
+<li>No comparison structure</li>
+</ul>
+</div>
+    <div class="ms-col"><h2>After</h2>
+<ul>
+<li>Two balanced columns</li>
+<li>Ideal for before/after, pros/cons</li>
+</ul>
+</div>
+  </div>
+</div>
+</div>
+<div class="ms-slide-container slide-image-full" data-slide-index="5"><div class="ms-image-full-layout"><p><img src="assets/sample.png" alt="A full-bleed image" /></p>
+</div>
+</div>
+<div class="ms-slide-container slide-quote" data-slide-index="6"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">6</div><div class="ms-quote-layout">
+  <blockquote class="ms-quote-text">Above all else show the data.</blockquote>
+  <cite class="ms-quote-author">— Edward R. Tufte</cite>
+  
+</div>
+</div>
+<div class="ms-slide-container slide-contact" data-slide-index="7"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">7</div><div class="ms-contact-layout"><h1>slide-contact</h1>
+<p>Use it for closing details, contacts, and sources.</p>
+<ul>
+<li>hello@example.com</li>
+<li>github.com/warmblood-kr/wb-slide</li>
+</ul>
+</div>
+</div>
+<div class="ms-slide-container slide-default" data-slide-index="8"><div class="ms-footer-logo"><b>wb-slide</b> · layout gallery</div><div class="ms-page-number">8</div><div class="ms-default-layout"><h1>slide-default</h1>
+<p>A generic padded body — the fallback for any unknown layout name.</p>
+</div>
+</div>
+
+    </div>
+  </div>
+  
+  <script>// wb-slide: client-side navigation & scaling for SSR-rendered slides.
+// All slide layout HTML is rendered server-side by Rust.
+// This script only handles: viewport scaling, keyboard navigation, and hash routing.
+(function () {
+  'use strict';
+  var deck = document.getElementById('monocle-slide-deck');
+  if (!deck) return;
+  var viewport = deck.querySelector('.ms-viewport');
+  if (!viewport) return;
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.ms-slide-container'));
+  if (slides.length === 0) return;
+
+  var current = 0;
+
+  function show(i) {
+    if (i < 0) i = 0;
+    if (i >= slides.length) i = slides.length - 1;
+    for (var k = 0; k < slides.length; k++) {
+      if (k === i) slides[k].classList.add('active');
+      else slides[k].classList.remove('active');
+    }
+    current = i;
+    var hash = '#/' + (i + 1);
+    if (window.location.hash !== hash) {
+      history.replaceState(null, '', hash);
+    }
+  }
+
+  function slideFromHash() {
+    var m = window.location.hash.match(/^#\/(\d+)/);
+    if (m) return parseInt(m[1], 10) - 1;
+    return 0;
+  }
+
+  function rescale() {
+    var sx = window.innerWidth / 960;
+    var sy = window.innerHeight / 540;
+    var s = Math.min(sx, sy);
+    viewport.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+
+  window.addEventListener('resize', rescale);
+  window.addEventListener('hashchange', function () {
+    var t = slideFromHash();
+    if (t !== current) show(t);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+      case ' ':
+      case 'PageDown':
+        e.preventDefault();
+        show(current + 1);
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+      case 'PageUp':
+        e.preventDefault();
+        show(current - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        show(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        show(slides.length - 1);
+        break;
+      case 'f':
+      case 'F':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        }
+        break;
+    }
+  });
+
+  rescale();
+  show(slideFromHash());
+})();
+</script>
+</body>
+</html>

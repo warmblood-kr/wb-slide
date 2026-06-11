@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wb-slide — layout gallery</title>
+<style>
+  :root {
+    --accent: #1F6FEB; --ink: #1F2A37; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 64px 24px 96px; }
+  header { text-align: center; margin-bottom: 40px; }
+  h1 { font-size: 3rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  h1 .bar { display: block; width: 72px; height: 5px; background: var(--accent); border-radius: 3px; margin: 16px auto 0; }
+  .tagline { font-size: 1.25rem; color: var(--muted); margin: 20px 0 0; }
+  .cta { display: inline-block; margin-top: 28px; padding: 12px 24px; background: var(--accent);
+         color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; }
+  .cta:hover { background: #1559c9; }
+  h2 { font-size: 1.4rem; margin: 56px 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; border: 1px solid var(--border); border-radius: 8px; }
+  figcaption { margin-top: 8px; }
+  figcaption code { font-size: 0.95rem; color: var(--accent); font-weight: 600; }
+  figcaption span { color: var(--muted); font-size: 0.9rem; }
+  footer { margin-top: 72px; text-align: center; color: var(--muted); font-size: 0.9rem; }
+  footer a { color: var(--accent); }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } h1 { font-size: 2.2rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>wb-slide<span class="bar"></span></h1>
+    <p class="tagline">Write slides in Markdown. Present in the browser, export to PDF.</p>
+    <a class="cta" href="gallery/live.html">▶ View the live slideshow</a>
+  </header>
+
+  <h2>Layout gallery</h2>
+  <p class="sub">Every built-in layout, rendered. Choose one per slide with the
+     <code>layout:</code> frontmatter key — see
+     <a href="layouts.md">layouts.md</a> for the syntax.</p>
+
+  <div class="grid">
+    <figure><img src="gallery/img/1-slide-cover.png" alt="slide-cover">
+      <figcaption><code>slide-cover</code> <span>— title / opening, centered, no chrome</span></figcaption></figure>
+    <figure><img src="gallery/img/2-slide-section.png" alt="slide-section">
+      <figcaption><code>slide-section</code> <span>— section divider</span></figcaption></figure>
+    <figure><img src="gallery/img/3-slide-feature.png" alt="slide-feature">
+      <figcaption><code>slide-feature</code> <span>— action title + body (the workhorse)</span></figcaption></figure>
+    <figure><img src="gallery/img/4-slide-two-column.png" alt="slide-two-column">
+      <figcaption><code>slide-two-column</code> <span>— side-by-side via ::left:: / ::right::</span></figcaption></figure>
+    <figure><img src="gallery/img/5-slide-image-full.png" alt="slide-image-full">
+      <figcaption><code>slide-image-full</code> <span>— full-bleed image</span></figcaption></figure>
+    <figure><img src="gallery/img/6-slide-quote.png" alt="slide-quote">
+      <figcaption><code>slide-quote</code> <span>— pull quote + author</span></figcaption></figure>
+    <figure><img src="gallery/img/7-slide-contact.png" alt="slide-contact">
+      <figcaption><code>slide-contact</code> <span>— closing / contacts / sources</span></figcaption></figure>
+    <figure><img src="gallery/img/8-slide-default.png" alt="slide-default">
+      <figcaption><code>slide-default</code> <span>— generic body / fallback</span></figcaption></figure>
+  </div>
+
+  <footer>
+    Rendered from <a href="https://github.com/warmblood-kr/wb-slide/tree/main/docs/gallery">docs/gallery/</a>
+    · <a href="https://github.com/warmblood-kr/wb-slide">wb-slide on GitHub</a>
+    · <a href="https://github.com/warmblood-kr/wb-slide/blob/main/docs/gallery.md">gallery (markdown)</a>
+  </footer>
+</div>
+</body>
+</html>
