@@ -156,6 +156,12 @@ fn render_markdown(text: &str) -> String {
     }
     let mut options = Options::default();
     options.render.unsafe_ = true;
+    // GFM extensions: tables (pipe syntax), strikethrough, autolinks, and
+    // task lists — the markdown features authors (and LLMs) expect by default.
+    options.extension.table = true;
+    options.extension.strikethrough = true;
+    options.extension.autolink = true;
+    options.extension.tasklist = true;
     markdown_to_html(text, &options)
 }
 
@@ -1429,5 +1435,19 @@ mod tests {
         let result = render_markdown(md);
         assert!(result.contains("<h2>"));
         assert!(result.contains("<strong>bold</strong>"));
+    }
+
+    #[test]
+    fn test_render_markdown_gfm_table() {
+        let md = "| A | B |\n| --- | ---: |\n| 1 | 2 |";
+        let result = render_markdown(md);
+        assert!(result.contains("<table>"), "GFM tables should render: {result}");
+        assert!(result.contains("<th"));
+        assert!(result.contains("<td"));
+    }
+
+    #[test]
+    fn test_render_markdown_gfm_strikethrough() {
+        assert!(render_markdown("~~gone~~").contains("<del>"));
     }
 }
