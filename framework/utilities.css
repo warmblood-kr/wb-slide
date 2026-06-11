@@ -20,3 +20,67 @@
 .font-bold { font-weight: 700; }
 .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
 .text-\[\#2D3436\] { color: #2D3436; }
+
+/* =========================================================================
+   Presentation components
+   Reusable building blocks for slide bodies, keyed to the theme-contract
+   tokens so they adopt whatever accent/text colors the active theme defines.
+   Theme-independent: work with the framework default, monocle-brochure, or
+   any custom theme.
+   ========================================================================= */
+
+/* Kicker — a small uppercase label above a block (slide furniture). */
+.kicker {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Stat hero — one dominant number per slide. */
+.stat {
+  font-size: 6rem;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+.stat--accent { color: var(--color-accent); }
+.stat-label {
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  margin-top: 0.5rem;
+}
+
+/* Takeaway callout — the "so what", marked with the accent. */
+.takeaway {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.9rem;
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+/* Source / footnote line — small, muted, bottom-of-block. */
+.source {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.4rem;
+  margin-top: 0.8rem;
+}
+
+/* Semantic emphasis for deltas. Themes may override the colors. */
+.pos { color: var(--color-positive, #1F8A3E); font-weight: 600; }
+.neg { color: var(--color-negative, #C53030); font-weight: 600; }
+
+/* Clean data table (opt-in via class) — whitespace over rules.
+   Add class="num" to right-align numeric cells with tabular figures. */
+.table-clean { border-collapse: collapse; width: 100%; }
+.table-clean th,
+.table-clean td { padding: 0.45rem 0.8rem; text-align: left; }
+.table-clean td.num,
+.table-clean th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-clean thead th { border-bottom: 2px solid var(--color-text); font-weight: 600; }
+.table-clean tbody tr + tr td { border-top: 1px solid var(--color-border); }
