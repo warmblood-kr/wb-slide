@@ -49,6 +49,10 @@ enum Commands {
         /// Bypass theme cache and re-fetch from registry
         #[arg(long)]
         refresh_themes: bool,
+        /// Inline local assets (images referenced via <img src> and CSS url())
+        /// as base64 data URIs, producing a single fully portable HTML file
+        #[arg(long)]
+        embed: bool,
     },
     /// Show version and check for updates
     Version,
@@ -351,6 +355,95 @@ fn collect_framework_js() -> String {
     String::new()
 }
 
+/// Turn a local asset reference into a `data:` URI, or return None to leave it
+/// untouched (remote URLs, existing data URIs, anchors, or unreadable files).
+fn asset_to_data_uri(work_dir: &std::path::Path, raw: &str) -> Option<String> {
+    use base64::Engine as _;
+    let p = raw.trim();
+    if p.is_empty()
+        || p.starts_with("data:")
+        || p.starts_with("http://")
+        || p.starts_with("https://")
+        || p.starts_with("//")
+        || p.starts_with('#')
+    {
+        return None;
+    }
+    let rel = p.strip_prefix("./").unwrap_or(p);
+    let path = work_dir.join(rel);
+    let bytes = std::fs::read(&path).ok()?;
+    let mime = mime_guess::from_path(&path).first_or_octet_stream();
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Some(format!("data:{mime};base64,{b64}"))
+}
+
+/// Replace every `<marker><value><close>` occurrence's value with a data URI
+/// when it points at a readable local asset (used for `src="`, `src='`).
+fn rewrite_attr(input: &str, marker: &str, close: char, work_dir: &std::path::Path) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(pos) = rest.find(marker) {
+        let (before, after) = rest.split_at(pos + marker.len());
+        out.push_str(before);
+        if let Some(end) = after.find(close) {
+            let value = &after[..end];
+            match asset_to_data_uri(work_dir, value) {
+                Some(uri) => out.push_str(&uri),
+                None => out.push_str(value),
+            }
+            rest = &after[end..]; // leave the closing delimiter for the next copy
+        } else {
+            out.push_str(after);
+            return out;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Replace `url(...)` references (with optional quotes) inside inlined CSS.
+fn rewrite_css_urls(input: &str, work_dir: &std::path::Path) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(pos) = rest.find("url(") {
+        let (before, after) = rest.split_at(pos + 4);
+        out.push_str(before);
+        if let Some(end) = after.find(')') {
+            let inner = after[..end].trim();
+            let quoted = inner.starts_with('"') || inner.starts_with('\'');
+            let value = if quoted && inner.len() >= 2 {
+                &inner[1..inner.len() - 1]
+            } else {
+                inner
+            };
+            match asset_to_data_uri(work_dir, value) {
+                Some(uri) if quoted => {
+                    out.push('"');
+                    out.push_str(&uri);
+                    out.push('"');
+                }
+                Some(uri) => out.push_str(&uri),
+                None => out.push_str(&after[..end]),
+            }
+            rest = &after[end..];
+        } else {
+            out.push_str(after);
+            return out;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Inline all local assets in the exported HTML as base64 data URIs so the
+/// output is a single, fully portable file. Remote URLs and existing data
+/// URIs are left untouched.
+fn embed_assets(html: &str, work_dir: &std::path::Path) -> String {
+    let html = rewrite_attr(html, "src=\"", '"', work_dir);
+    let html = rewrite_attr(&html, "src='", '\'', work_dir);
+    rewrite_css_urls(&html, work_dir)
+}
+
 async fn serve_index(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Html<String> {
@@ -500,7 +593,7 @@ async fn main() {
             axum::serve(listener, app).await.unwrap();
         }
 
-        Commands::Export { dir, output, refresh_themes } => {
+        Commands::Export { dir, output, refresh_themes, embed } => {
             let state = resolve_state(dir, refresh_themes);
 
             if !state.slides_path.exists() {
@@ -537,14 +630,24 @@ async fn main() {
                 user_css: user_css.as_deref(),
             });
 
+            let html = if embed {
+                embed_assets(&html, &state.work_dir)
+            } else {
+                html
+            };
+
             let output_path = if output.is_absolute() {
                 output
             } else {
                 state.work_dir.join(output)
             };
 
-            std::fs::write(&output_path, html).unwrap();
-            eprintln!("Exported to: {}", output_path.display());
+            std::fs::write(&output_path, &html).unwrap();
+            if embed {
+                eprintln!("Exported to: {} (assets embedded)", output_path.display());
+            } else {
+                eprintln!("Exported to: {}", output_path.display());
+            }
         }
 
         Commands::Version => {
@@ -874,6 +977,41 @@ fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_embed_skips_remote_and_data_uris() {
+        let dir = std::env::temp_dir();
+        let html = r#"<img src="https://x/y.png"><img src="data:image/png;base64,AAAA">"#;
+        // nothing local to read → unchanged
+        assert_eq!(embed_assets(html, &dir), html);
+    }
+
+    #[test]
+    fn test_embed_inlines_local_image() {
+        // a 1x1 transparent PNG
+        let png: &[u8] = &[
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+            0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+            0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+            0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+        ];
+        let dir = std::env::temp_dir().join("wbslide_embed_test");
+        std::fs::create_dir_all(dir.join("assets")).unwrap();
+        std::fs::write(dir.join("assets/pixel.png"), png).unwrap();
+
+        let html = r#"<img src="assets/pixel.png"><img src='./assets/pixel.png'>"#;
+        let out = embed_assets(html, &dir);
+        assert!(!out.contains("assets/pixel.png"), "local refs should be replaced");
+        assert_eq!(out.matches("data:image/png;base64,").count(), 2);
+
+        let css = "background: url(assets/pixel.png); mask: url('assets/pixel.png');";
+        let out_css = embed_assets(css, &dir);
+        assert_eq!(out_css.matches("data:image/png;base64,").count(), 2);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn test_parse_frontmatter_simple() {

@@ -91,6 +91,7 @@ wb-slide show --dir path/to/deck       # Different directory
 
 wb-slide export                        # Export to export.html
 wb-slide export -o presentation.html   # Custom output name
+wb-slide export --embed                # Inline images as base64 -> single portable file
 
 wb-slide version                       # Check for updates
 wb-slide update                        # Self-update to latest
