@@ -1861,6 +1861,7 @@ name = "wb-slide"
 version = "0.7.0"
 dependencies = [
  "axum",
+ "base64",
  "clap",
  "comrak",
  "mime_guess",
