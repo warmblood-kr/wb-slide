@@ -169,12 +169,21 @@ slide-two-column, slide-image-full, slide-quote {
 .ms-two-column-outer {
   display: grid;
   grid-template-rows: auto auto 1fr;
+  /* The heading/subtitle carry `grid-area: title/subtitle` (see .ms-slide-title
+   * / .ms-slide-subtitle). Without matching named areas here they fall into
+   * implicit rows AFTER the 1fr column row — the heading renders at the bottom
+   * and the columns collapse to the left. Declare the areas so the order holds. */
+  grid-template-areas:
+    "title"
+    "subtitle"
+    "cols";
   padding: 40px;
   height: 100%;
   box-sizing: border-box;
   gap: 0.5rem;
 }
 .ms-two-column-layout {
+  grid-area: cols;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 40px;
