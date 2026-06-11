@@ -27,6 +27,16 @@ screenshots, stat rows. For launches and pitches.
 [View live](gallery/templates/marketing/live.html) ·
 [Source](gallery/templates/marketing)
 
+## Components
+
+Reusable slide-body building blocks (panels, callouts, steps, comparison cards,
+flows, clusters, chips) so you don't hand-roll nested divs. Theme-aware. See
+[`components.md`](components.md) for the full reference.
+
+[![Components](templates/img/components.png)](gallery/components/live.html)
+
+[View live](gallery/components/live.html) · [Reference](components.md)
+
 ## Layout reference
 
 A visual reference for wb-slide's built-in layouts — the rendered companion to

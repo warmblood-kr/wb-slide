@@ -2,6 +2,30 @@
 
 All notable changes to wb-slide.
 
+## v0.9.0 — 2026-06-12
+
+### Added
+
+- **Content component classes** (issue #1) in `framework/utilities.css` — reusable
+  slide-body building blocks so authors stop hand-rolling nested divs + inline
+  styles (which bloat decks and break print/PDF). Theme-token-keyed:
+  `.cols`/`.col`, `.panel`/`.panel-label`, `.info-box`/`.warn-box`,
+  `.step-row`/`.step-num`/`.step-content`, `.compare-bad`/`.compare-good`,
+  `.flow`/`.flow-step`/`.flow-connector`, `.cluster-grid`/`.cluster`,
+  `.risk-item`, `.attn-bar`, `.mono-chip`.
+- **`.cover-stack`** helper + docs for layered covers (background / decoration /
+  content layers that each fill the cover).
+- A **components gallery** showcase and [`docs/components.md`](docs/components.md).
+
+### Fixed
+
+- **`slide-cover`** (issue #2): `.ms-cover-layout` is now `position: relative`, so
+  layered / full-bleed children fill the cover instead of collapsing under the
+  centering grid. Simple centered covers are unchanged.
+- **`build.rs`**: rebuild and re-embed framework assets whenever `framework/`
+  changes. Release builds embed assets at compile time, so an edited CSS/HTML/JS
+  asset could previously be silently missing from an incremental build.
+
 ## v0.8.0 — 2026-06-12
 
 ### Added

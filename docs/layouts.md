@@ -23,6 +23,26 @@ escape hatch — `.js` layouts rendered client-side — see [Escape hatch](#esca
 | `slide-contact` | Left-aligned content. Good for contact / sources / endnotes. |
 | `slide-default` | Padded body with chrome but no title structure. Fallback for unknown layouts. |
 
+### Layered covers
+
+`.ms-cover-layout` centers simple flow content (a title + tagline) and is a
+positioning context, so you can stack full-bleed layers — a background, a
+decoration SVG, and the content — with the `.cover-stack` helper. Each child
+fills the cover and overlaps in source order:
+
+```html
+<div class="cover-stack">
+  <div style="background:linear-gradient(135deg,#1F6FEB,#0B3D6B)"></div>
+  <div class="cover-content" style="color:#fff">
+    <div style="font-size:1.9rem;font-weight:700">Layered cover</div>
+  </div>
+</div>
+```
+
+(Keep each element contiguous — a blank line inside a raw HTML block ends it.)
+Prefer this over a `height:100%` child, which can collapse inside the centering
+grid when multiple layers are present.
+
 ### Common frontmatter
 
 Most layouts accept these attributes in the slide frontmatter:

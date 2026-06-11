@@ -105,6 +105,10 @@ slide-two-column, slide-image-full, slide-quote {
   height: 100%;
   box-sizing: border-box;
   padding: 40px;
+  /* Positioning context for layered covers: a `.cover-stack` (or any
+   * position:absolute child) fills the cover instead of collapsing. Simple
+   * flow content is still centered by place-items. See docs/layouts.md. */
+  position: relative;
 }
 
 /* slide-feature */
