@@ -54,6 +54,18 @@ enum Commands {
         #[arg(long)]
         embed: bool,
     },
+    /// Statically check a deck for common problems (unknown layouts, dropped
+    /// frontmatter, raw-HTML blank lines, missing assets, likely overflow)
+    Validate {
+        #[arg(short, long)]
+        dir: Option<PathBuf>,
+        /// Bypass theme cache and re-fetch from registry
+        #[arg(long)]
+        refresh_themes: bool,
+        /// Exit non-zero on warnings too, not only errors
+        #[arg(long)]
+        strict: bool,
+    },
     /// Show version and check for updates
     Version,
     /// Update to the latest version
@@ -444,6 +456,238 @@ fn embed_assets(html: &str, work_dir: &std::path::Path) -> String {
     rewrite_css_urls(&html, work_dir)
 }
 
+// ---------------------------------------------------------------------------
+// Deck validation (`wb-slide validate`)
+// ---------------------------------------------------------------------------
+
+#[derive(PartialEq, Clone, Copy)]
+enum Severity {
+    Error,
+    Warning,
+}
+
+struct Diagnostic {
+    severity: Severity,
+    slide: Option<usize>,
+    message: String,
+}
+
+/// True if a blank line appears while inside an unclosed block-level HTML tag
+/// (svg/table/div/ul/ol/g). comrak ends the HTML block at that blank line, so
+/// everything after it renders as literal text (the inline-SVG footgun).
+fn raw_html_blank_line(body: &str) -> bool {
+    let opens = ["<svg", "<table", "<div", "<ul", "<ol", "<g ", "<g>"];
+    let closes = ["</svg>", "</table>", "</div>", "</ul>", "</ol>", "</g>"];
+    let mut depth: i32 = 0;
+    for line in body.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            if depth > 0 {
+                return true;
+            }
+            continue;
+        }
+        for o in opens {
+            if t.contains(o) {
+                depth += 1;
+            }
+        }
+        for c in closes {
+            if t.contains(c) {
+                depth -= 1;
+            }
+        }
+        if depth < 0 {
+            depth = 0;
+        }
+    }
+    false
+}
+
+fn is_local_ref(p: &str) -> bool {
+    let p = p.trim();
+    !(p.is_empty()
+        || p.starts_with("http://")
+        || p.starts_with("https://")
+        || p.starts_with("//")
+        || p.starts_with("data:")
+        || p.starts_with('#')
+        || p.starts_with("mailto:"))
+}
+
+fn refs_between(text: &str, marker: &str, close: char) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(pos) = rest.find(marker) {
+        let after = &rest[pos + marker.len()..];
+        if let Some(end) = after.find(close) {
+            out.push(after[..end].to_string());
+            rest = &after[end..];
+        } else {
+            break;
+        }
+    }
+    out
+}
+
+/// All local asset paths referenced in a slide body: `<img src>`, CSS `url()`,
+/// and Markdown images `![](path)`.
+fn collect_local_refs(body: &str) -> Vec<String> {
+    let mut refs = Vec::new();
+    refs.extend(refs_between(body, "src=\"", '"'));
+    refs.extend(refs_between(body, "src='", '\''));
+    for u in refs_between(body, "url(", ')') {
+        let v = u.trim().trim_matches('"').trim_matches('\'').to_string();
+        refs.push(v);
+    }
+    // Markdown images: ![alt](path "title")
+    let mut rest = body;
+    while let Some(bang) = rest.find("![") {
+        let after = &rest[bang..];
+        if let Some(op) = after.find("](") {
+            let tail = &after[op + 2..];
+            if let Some(cp) = tail.find(')') {
+                let raw = tail[..cp].trim();
+                let path = raw.split_whitespace().next().unwrap_or(raw);
+                refs.push(path.to_string());
+                rest = &tail[cp..];
+                continue;
+            }
+        }
+        rest = &after[2..];
+    }
+    refs.into_iter().filter(|r| is_local_ref(r)).collect()
+}
+
+/// Warn about indented frontmatter lines (silently dropped — flat keys only).
+fn check_frontmatter_indent(block: &str, slide: Option<usize>, diags: &mut Vec<Diagnostic>) {
+    for line in block.lines() {
+        if line.trim().is_empty() {
+            break; // end of the frontmatter region
+        }
+        if line.starts_with(' ') || line.starts_with('\t') {
+            let t = line.trim();
+            if t.contains(':') && t.chars().next().map_or(false, |c| c.is_alphanumeric()) {
+                diags.push(Diagnostic {
+                    severity: Severity::Warning,
+                    slide,
+                    message: format!(
+                        "indented frontmatter is ignored (use flat `key: value` only): `{t}`"
+                    ),
+                });
+            }
+        }
+    }
+}
+
+fn check_slide(
+    no: usize,
+    layout: Option<&str>,
+    body: &str,
+    work_dir: &std::path::Path,
+    layouts: &render::LayoutSet,
+    diags: &mut Vec<Diagnostic>,
+) {
+    let lname = layout.unwrap_or("slide-default");
+    if layouts.resolve(lname).is_none() {
+        diags.push(Diagnostic {
+            severity: Severity::Warning,
+            slide: Some(no),
+            message: format!("unknown layout `{lname}` — wb-slide falls back to slide-default"),
+        });
+    }
+    if raw_html_blank_line(body) {
+        diags.push(Diagnostic {
+            severity: Severity::Warning,
+            slide: Some(no),
+            message: "blank line inside a raw HTML/SVG block — content after it renders as literal text".to_string(),
+        });
+    }
+    for r in collect_local_refs(body) {
+        let rel = r.trim_start_matches("./");
+        if !work_dir.join(rel).exists() {
+            diags.push(Diagnostic {
+                severity: Severity::Error,
+                slide: Some(no),
+                message: format!("asset not found: `{r}`"),
+            });
+        }
+    }
+    // Overflow heuristic — the canvas is a fixed 960x540 with overflow:hidden.
+    let sparse = matches!(
+        lname,
+        "slide-cover" | "slide-section" | "slide-image-full" | "slide-quote"
+    );
+    let chars = body.chars().count();
+    let lines = body.lines().filter(|l| !l.trim().is_empty()).count();
+    if !sparse && (chars > 1100 || lines > 22) {
+        diags.push(Diagnostic {
+            severity: Severity::Warning,
+            slide: Some(no),
+            message: "slide looks dense and may overflow the 960x540 canvas (heuristic) — consider splitting".to_string(),
+        });
+    }
+}
+
+/// Run all static checks over a deck's raw `slides.md`.
+fn validate_deck(
+    raw: &str,
+    work_dir: &std::path::Path,
+    layouts: &render::LayoutSet,
+) -> Vec<Diagnostic> {
+    let mut diags = Vec::new();
+    let blocks: Vec<&str> = raw.split("\n---\n").collect();
+
+    let global_block = blocks
+        .first()
+        .copied()
+        .unwrap_or("")
+        .trim_start_matches("---\n")
+        .trim_start_matches("---\r\n");
+    let (global_meta, _) = parse_frontmatter(global_block);
+    let global_layout = global_meta
+        .iter()
+        .find(|(k, _)| k == "layout")
+        .map(|(_, v)| v.clone());
+    check_frontmatter_indent(global_block, None, &mut diags);
+
+    let mut slide_no = 0;
+    // Slide 1: body is blocks[1], layout inherited from global frontmatter.
+    if blocks.len() > 1 {
+        slide_no += 1;
+        check_slide(
+            slide_no,
+            global_layout.as_deref(),
+            blocks[1].trim(),
+            work_dir,
+            layouts,
+            &mut diags,
+        );
+    }
+    // Remaining slides: (frontmatter, body) pairs.
+    let mut i = 2;
+    while i < blocks.len() {
+        slide_no += 1;
+        let (fm, inline_body) = parse_frontmatter(blocks[i]);
+        check_frontmatter_indent(blocks[i], Some(slide_no), &mut diags);
+        let layout = fm.iter().find(|(k, _)| k == "layout").map(|(_, v)| v.as_str());
+        let body = if i + 1 < blocks.len() {
+            let next = blocks[i + 1].trim();
+            if inline_body.is_empty() {
+                next.to_string()
+            } else {
+                format!("{inline_body}\n{next}")
+            }
+        } else {
+            inline_body
+        };
+        check_slide(slide_no, layout, &body, work_dir, layouts, &mut diags);
+        i += 2;
+    }
+
+    diags
+}
+
 async fn serve_index(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Html<String> {
@@ -647,6 +891,49 @@ async fn main() {
                 eprintln!("Exported to: {} (assets embedded)", output_path.display());
             } else {
                 eprintln!("Exported to: {}", output_path.display());
+            }
+        }
+
+        Commands::Validate { dir, refresh_themes, strict } => {
+            let state = resolve_state(dir, refresh_themes);
+
+            if !state.slides_path.exists() {
+                eprintln!("Error: No slides.md found in {}", state.work_dir.display());
+                std::process::exit(1);
+            }
+
+            let raw = std::fs::read_to_string(&state.slides_path).unwrap();
+            let (global_meta, _) = parse_slides(&raw);
+
+            let theme = load_theme_from_meta(&global_meta, refresh_themes).await;
+            let mut layouts = render::LayoutSet::default();
+            layouts.load_builtin();
+            if let Some(t) = &theme {
+                layouts.load_theme(t);
+            }
+            layouts.load_local(&state.work_dir);
+
+            let diags = validate_deck(&raw, &state.work_dir, &layouts);
+            let errors = diags.iter().filter(|d| d.severity == Severity::Error).count();
+            let warnings = diags.iter().filter(|d| d.severity == Severity::Warning).count();
+
+            for d in &diags {
+                let tag = match d.severity {
+                    Severity::Error => "error",
+                    Severity::Warning => "warn ",
+                };
+                let loc = d.slide.map(|n| format!("slide {n}")).unwrap_or_else(|| "global".to_string());
+                eprintln!("  [{tag}] {loc}: {}", d.message);
+            }
+
+            if diags.is_empty() {
+                println!("\u{2713} {} — no issues found", state.slides_path.display());
+            } else {
+                eprintln!("\n{errors} error(s), {warnings} warning(s)");
+            }
+
+            if errors > 0 || (strict && warnings > 0) {
+                std::process::exit(1);
             }
         }
 
@@ -977,6 +1264,36 @@ fn self_replace(new_binary: &std::path::Path, self_path: &std::path::Path) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_raw_html_blank_line() {
+        assert!(raw_html_blank_line("<svg>\n<rect/>\n\n<rect/>\n</svg>"));
+        assert!(!raw_html_blank_line("<svg>\n<rect/>\n<rect/>\n</svg>"));
+        assert!(!raw_html_blank_line("# Heading\n\nA paragraph.\n\nAnother."));
+    }
+
+    #[test]
+    fn test_collect_local_refs() {
+        let body = r#"<img src="assets/a.png"> ![x](assets/b.png) <img src="https://h/c.png">
+<style>.x{background:url('assets/d.png')}</style> [link](https://x)"#;
+        let refs = collect_local_refs(body);
+        assert!(refs.contains(&"assets/a.png".to_string()));
+        assert!(refs.contains(&"assets/b.png".to_string()));
+        assert!(refs.contains(&"assets/d.png".to_string()));
+        assert!(!refs.iter().any(|r| r.starts_with("http")));
+    }
+
+    #[test]
+    fn test_validate_deck_flags_issues() {
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let work_dir = std::env::temp_dir(); // assets won't exist here
+        let raw = "---\ntitle: T\nfonts:\n  sans: Inter\nlayout: slide-cover\n---\n\n# Hi\n\n---\nlayout: slide-nope\n---\n\n![c](assets/missing.png)";
+        let diags = validate_deck(raw, &work_dir, &layouts);
+        assert!(diags.iter().any(|d| d.message.contains("indented frontmatter")));
+        assert!(diags.iter().any(|d| d.message.contains("unknown layout")));
+        assert!(diags.iter().any(|d| d.severity == Severity::Error && d.message.contains("asset not found")));
+    }
 
     #[test]
     fn test_embed_skips_remote_and_data_uris() {
