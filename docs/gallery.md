@@ -1,4 +1,33 @@
-# Layout gallery
+# Gallery & templates
+
+> Browse it rendered at **<https://warmblood-kr.github.io/wb-slide/>**.
+
+## Templates
+
+Ready-to-copy decks for common needs — copy the deck's `slides.md` + `styles/`
+(and `assets/`) as a starting point, or open the live version in a browser.
+
+### Consulting / analytical
+
+Restrained corporate look — action titles, stat heroes, Tufte-clean tables. For
+reviews, board decks, and recommendations.
+
+[![Consulting template](gallery/templates/img/consulting.png)](gallery/templates/consulting/live.html)
+
+[View live](gallery/templates/consulting/live.html) ·
+[Source](gallery/templates/consulting)
+
+### Marketing / product
+
+Expressive brochure style (the `monocle-brochure` theme) — bold cover, framed
+screenshots, stat rows. For launches and pitches.
+
+[![Marketing template](gallery/templates/img/marketing.png)](gallery/templates/marketing/live.html)
+
+[View live](gallery/templates/marketing/live.html) ·
+[Source](gallery/templates/marketing)
+
+## Layout reference
 
 A visual reference for wb-slide's built-in layouts — the rendered companion to
 [`layouts.md`](layouts.md), which documents the syntax. Every image below was

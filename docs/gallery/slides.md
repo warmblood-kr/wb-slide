@@ -14,6 +14,8 @@ layout: slide-section
 
 # slide-section
 
+A divider that announces the next part of the deck.
+
 ---
 layout: slide-feature
 heading: slide-feature is the workhorse — an action title plus a body
@@ -71,4 +73,14 @@ layout: slide-default
 
 # slide-default
 
-A generic padded body — the fallback for any unknown layout name.
+A generic padded body for content that doesn't fit a more specific layout —
+and the automatic fallback for any unknown layout name.
+
+- Plain Markdown: headings, **bold**, lists, and links
+- Raw HTML and the framework helper classes (`.stat`, `.takeaway`, `.kicker`)
+- A sensible default when you just want a heading and some text
+
+Use it for mixed prose; reach for `slide-feature` for action-title slides and
+`slide-image-full` for a standalone visual.
+
+> Tip: most slides should use `slide-feature`; `slide-default` is the catch-all.

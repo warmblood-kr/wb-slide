@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Q3 Business Review</title>
+  <style>:root {
+  /* === Theme contract: standard tokens ===
+     Every theme should define these. Built-in layouts read from them. */
+  --color-accent: #2563EB;        /* primary brand color */
+  --color-text: #1F2937;          /* primary body text */
+  --color-text-muted: #6B7280;    /* secondary / muted text */
+  --color-border: #D1D5DB;        /* subtle borders, chrome elements */
+  --color-background: #FFFFFF;    /* slide background */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* === Backward-compat aliases (deprecated) ===
+     Renamed in v0.5+. Keep aliases for a few versions, then remove. */
+  --color-text-dark: var(--color-text);
+  --color-text-gray: var(--color-text-muted);
+  --color-header-gray: var(--color-border);
+  --color-white: var(--color-background);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; padding: 0; font-family: var(--font-family); background: #000; overflow: hidden; }
+
+#monocle-slide-deck {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.ms-viewport {
+  width: 960px;
+  height: 540px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+}
+
+.ms-slide-container {
+  width: 960px;
+  height: 540px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  overflow: hidden;
+}
+.ms-slide-container.active { display: block; }
+
+/* Backward compat: any remaining Custom Element references */
+slide-default, slide-feature, slide-cover, slide-section, slide-contact,
+slide-two-column, slide-image-full, slide-quote {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ms-watermark {
+  position: absolute;
+  top: 24px;
+  right: 40px;
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--color-border);
+  z-index: 10;
+}
+
+.ms-footer-logo {
+  position: absolute;
+  bottom: 24px;
+  left: 40px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  z-index: 10;
+}
+.ms-footer-logo i { font-style: italic; }
+.ms-footer-logo span { font-weight: 700; font-style: normal; }
+
+.ms-page-number {
+  position: absolute;
+  bottom: 24px;
+  right: 40px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  z-index: 10;
+}
+
+/* slide-default */
+.ms-default-layout {
+  display: grid;
+  grid-template-rows: 1fr;
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* slide-cover */
+.ms-cover-layout {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 40px;
+}
+
+/* slide-feature */
+.ms-feature-layout {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas:
+    "title"
+    "subtitle"
+    "content";
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+.ms-slide-title {
+  grid-area: title;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  line-height: 1.3;
+  margin: 0;
+}
+.ms-slide-subtitle {
+  grid-area: subtitle;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--color-text);
+  line-height: 1.6;
+  margin: 0;
+}
+.ms-slot-area {
+  grid-area: content;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* slide-section */
+.ms-section-layout {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
+  box-sizing: border-box;
+}
+
+/* slide-contact */
+.ms-contact-layout {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+/* slide-two-column */
+.ms-two-column-outer {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  /* The heading/subtitle carry `grid-area: title/subtitle` (see .ms-slide-title
+   * / .ms-slide-subtitle). Without matching named areas here they fall into
+   * implicit rows AFTER the 1fr column row — the heading renders at the bottom
+   * and the columns collapse to the left. Declare the areas so the order holds. */
+  grid-template-areas:
+    "title"
+    "subtitle"
+    "cols";
+  padding: 40px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+.ms-two-column-layout {
+  grid-area: cols;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  min-height: 0;
+}
+.ms-col {
+  overflow: hidden;
+}
+
+/* slide-image-full */
+.ms-image-full-layout {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.ms-image-full-layout img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* slide-quote */
+.ms-quote-layout {
+  display: grid;
+  align-content: center;
+  padding: 60px 80px;
+  height: 100%;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+.ms-quote-text {
+  font-size: 1.8rem;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--color-text);
+  border-left: 4px solid var(--color-accent);
+  padding-left: 24px;
+  margin: 0 0 1.5rem 0;
+}
+.ms-quote-author {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  padding-left: 28px;
+}
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.h-full { height: 100%; }
+.w-10 { width: 2.5rem; }
+.h-7 { height: 1.75rem; }
+.h-8 { height: 2rem; }
+.h-10 { height: 2.5rem; }
+.h-12 { height: 3rem; }
+.h-16 { height: 4rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-5 { gap: 1.25rem; }
+.gap-6 { gap: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mt-12 { margin-top: 3rem; }
+.font-bold { font-weight: 700; }
+.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+.text-\[\#2D3436\] { color: #2D3436; }
+
+/* =========================================================================
+   Presentation components
+   Reusable building blocks for slide bodies, keyed to the theme-contract
+   tokens so they adopt whatever accent/text colors the active theme defines.
+   Theme-independent: work with the framework default, monocle-brochure, or
+   any custom theme.
+   ========================================================================= */
+
+/* Kicker — a small uppercase label above a block (slide furniture). */
+.kicker {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Stat hero — one dominant number per slide. */
+.stat {
+  font-size: 6rem;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+.stat--accent { color: var(--color-accent); }
+.stat-label {
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  margin-top: 0.5rem;
+}
+
+/* Takeaway callout — the "so what", marked with the accent. */
+.takeaway {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.9rem;
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+/* Source / footnote line — small, muted, bottom-of-block. */
+.source {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.4rem;
+  margin-top: 0.8rem;
+}
+
+/* Semantic emphasis for deltas. Themes may override the colors. */
+.pos { color: var(--color-positive, #1F8A3E); font-weight: 600; }
+.neg { color: var(--color-negative, #C53030); font-weight: 600; }
+
+/* Clean data table (opt-in via class) — whitespace over rules.
+   Add class="num" to right-align numeric cells with tabular figures. */
+.table-clean { border-collapse: collapse; width: 100%; }
+.table-clean th,
+.table-clean td { padding: 0.45rem 0.8rem; text-align: left; }
+.table-clean td.num,
+.table-clean th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-clean thead th { border-bottom: 2px solid var(--color-text); font-weight: 600; }
+.table-clean tbody tr + tr td { border-top: 1px solid var(--color-border); }
+
+@media print {
+  @page {
+    size: 960px 540px;
+    margin: 0;
+  }
+
+  html, body {
+    background: white;
+    overflow: visible;
+    height: auto;
+    width: auto;
+  }
+
+  #monocle-slide-deck {
+    display: block;
+    width: 960px;
+    height: auto;
+    overflow: visible;
+    background: white;
+    position: static;
+  }
+
+  .ms-viewport {
+    position: static !important;
+    transform: none !important;
+    width: 960px;
+    height: auto;
+  }
+
+  .ms-slide-container {
+    display: block !important;
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    break-inside: avoid;
+    width: 960px;
+    height: 540px;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+  }
+
+  .ms-slide-container:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+</style>
+  
+  <style data-source="user">/* slide-gen — default "consulting" stylesheet for wb-slide.
+ *
+ * Drop this into a deck's `styles/` directory (wb-slide auto-loads every
+ * .css there, sorted by filename). It overrides the 6 wb-slide theme-contract
+ * tokens that the 8 built-in layouts read, and adds a small set of helper
+ * classes for consulting-style slides that the built-ins don't provide.
+ *
+ * Aesthetic: restrained, corporate, office-worker-appropriate. One muted
+ * accent used ~10% of the time (60-30-10). No gradients, no shadows, no
+ * rounded corners, no neon. WCAG-AA contrast on every text/background pair.
+ *
+ * For product / marketing decks, use `theme: monocle-brochure` instead of
+ * this file (see references/styling.md).
+ */
+
+:root {
+  --color-background: #FFFFFF;
+  --color-text:       #1F2A37; /* near-black slate — body + headings */
+  --color-text-muted: #6B7280; /* subtitles, captions, sources       */
+  --color-border:     #D1D5DB; /* hairlines, table rules             */
+  --color-accent:     #1F6FEB; /* ONE muted blue — emphasis only     */
+
+  /* Pretendard (Korean + Latin) with a system fallback stack. The CDN import
+   * below is optional; the fallback alone already looks professional. */
+  --font-family: 'Pretendard', Inter, -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  /* Secondary accent + semantic colors, for the helper classes below.
+   * (These are extra tokens, not part of the wb-slide contract.) */
+  --color-accent-deep: #0B3D6B;
+  --color-positive:    #1F8A3E;
+  --color-negative:    #C53030;
+}
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
+/* --- Global restraint ----------------------------------------------------- */
+/* Sharp corners and flat surfaces — the consulting look, not the brochure
+ * look. Built-in layouts already read the tokens above; these rules just
+ * strip any decoration. */
+* { box-shadow: none !important; }
+img, figure, table, blockquote { border-radius: 0; }
+
+/* --- Action title emphasis ------------------------------------------------ */
+/* The slide-feature heading is the action title. Keep it tight and readable. */
+.ms-slide-title { line-height: 1.15; letter-spacing: -0.01em; }
+.ms-slide-subtitle { color: var(--color-text-muted); }
+
+/* --- Layout corrections (left/top-align + two-column fix) ----------------- */
+/* The framework centers slide-feature body content (`.ms-slot-area`) on BOTH
+ * axes, which floats short content in the middle of the slide with large dead
+ * gaps and centers text. Consulting decks align to a grid: top-anchored,
+ * left-aligned, full width. Override the placement. Opt back into centering on
+ * a specific slide with the `.center` helper below. */
+.ms-slot-area {
+  place-items: start stretch;   /* align-items:start, justify-items:stretch */
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+  padding-bottom: 8px;          /* keep content clear of the bottom chrome   */
+}
+
+/* Fix the built-in `slide-two-column`: the framework assigns
+ * `grid-area: title/subtitle` to the heading/subtitle but defines NO
+ * `grid-template-areas` on `.ms-two-column-outer`, so they land in implicit
+ * rows AFTER the columns (heading renders at the BOTTOM) and the two columns
+ * collapse to the left. Re-establish the intended row order and full width.
+ * (Upstream bug in wb-slide framework/theme.css — reported separately.) */
+.ms-two-column-outer { grid-template-areas: "title" "subtitle" "cols"; }
+.ms-two-column-layout { grid-area: cols; width: 100%; }
+.ms-col { align-content: start; }
+
+/* `slide-contact` wraps all content in a single grid cell with
+ * `grid-template-rows: auto 1fr`, so multi-block markdown (heading + list +
+ * callout) spills into implicit rows and the last block lands at the very
+ * bottom, overlapping the footer chrome. Flow it as a normal block, top-
+ * anchored, with clearance for the bottom footer/page-number. */
+.ms-contact-layout {
+  display: block;
+  align-content: start;
+  padding-bottom: 56px;
+}
+
+/* Opt-in centering for the occasional hero/stat slide that wants it. */
+.center { text-align: center; place-self: center; }
+
+/* --- Consulting helper classes (use inside slide body HTML) --------------- */
+
+/* Kicker: small uppercase label above a title or block (slide furniture). */
+.kicker {
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Stat hero: one dominant number per slide (board / exec density). */
+.stat        { font-size: 6rem; font-weight: 300; line-height: 1;
+               color: var(--color-text); letter-spacing: -0.02em; }
+.stat--accent { color: var(--color-accent); }
+.stat-label  { font-size: 1.1rem; color: var(--color-text-muted);
+               margin-top: 0.5rem; }
+
+/* Takeaway callout: the "so what" highlighted with the single accent. */
+.takeaway {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.9rem; color: var(--color-text);
+  font-size: 1.15rem;
+}
+
+/* Source / footnote line: bottom-anchored, small, muted (MBB convention). */
+.source {
+  font-size: 0.72rem; color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.4rem; margin-top: 0.8rem;
+}
+
+/* Semantic emphasis for deltas in text/tables. */
+.pos { color: var(--color-positive); font-weight: 600; }
+.neg { color: var(--color-negative); font-weight: 600; }
+
+/* --- Tables: whitespace over rules (Tufte) -------------------------------- */
+table { border-collapse: collapse; width: 100%; font-size: 1rem; }
+th, td { padding: 0.45rem 0.8rem; text-align: left; }
+/* numbers right-align with tabular figures so digits scan vertically */
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+thead th { border-bottom: 2px solid var(--color-text); font-weight: 600; }
+tbody tr + tr td { border-top: 1px solid var(--color-border); }
+/* no vertical rules, no zebra striping — spacing carries the structure */
+
+</style>
+</head>
+<body>
+  <div id="monocle-slide-deck">
+    <div class="ms-viewport">
+<div class="ms-slide-container slide-cover active" data-slide-index="1"><div class="ms-cover-layout"><h1>Q3 Business Review</h1>
+<p class="stat-label">Growth is strong, margin is slipping — and three cost actions recover most of it.</p>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="2"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">2</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">Revenue grew 38% in Q3 to $48.2M, led by EU expansion</h1>
+  
+  <div class="ms-slot-area"><div class="kicker">Situation</div>
+<div class="stat stat--accent">$48.2M</div>
+<div class="stat-label">Q3 revenue · up 38% YoY from $34.9M</div>
+<div class="takeaway" style="margin-top:1.4rem">EU expansion drove roughly 60% of the new revenue.</div>
+<div class="source">Source: Q3 finance close (FY2026). YoY vs. Q3 prior year.</div>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="3"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">3</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">But gross margin fell 6 points, from 71% to 65%</h1>
+  
+  <div class="ms-slot-area"><div class="kicker">Complication</div>
+<table>
+  <thead>
+    <tr><th>Metric</th><th class="num">Q3 last year</th><th class="num">Q3 this year</th><th class="num">Change</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Revenue</td><td class="num">$34.9M</td><td class="num">$48.2M</td><td class="num pos">+38%</td></tr>
+    <tr><td>Gross margin</td><td class="num">71%</td><td class="num">65%</td><td class="num neg">−6 pts</td></tr>
+  </tbody>
+</table>
+<div class="takeaway" style="margin-top:1.2rem">We are growing the top line while giving back margin — the question is why, and what to do.</div>
+<div class="source">Source: Q3 finance close (FY2026).</div>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="4"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">4</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">Three cost actions can recover 4 of the 6 lost margin points by Q1</h1>
+  
+  <div class="ms-slot-area"><div class="kicker">Recommendation</div>
+<ul style="font-size:1.2rem; line-height:1.7">
+  <li><b>Commit infra reservations</b> — cut cloud unit cost ~20%.</li>
+  <li><b>Freeze support hiring</b> — until utilization exceeds 75%.</li>
+  <li><b>Add FX hedging</b> — on EU-billed contracts.</li>
+</ul>
+<div class="takeaway" style="margin-top:1.2rem">Target: recover <b>4 of the 6</b> lost margin points by Q1.</div>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="5"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">5</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">Three cost drivers explain the entire 6-point margin drop</h1>
+  
+  <div class="ms-slot-area"><table>
+  <thead>
+    <tr><th>Cost driver</th><th>What happened</th><th class="num">Margin impact</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Cloud / infra</td><td>Cost up 52%, scaling ahead of usage</td><td class="num neg">largest</td></tr>
+    <tr><td>Support headcount</td><td>Up 40% for new markets, not yet productive</td><td class="num neg">material</td></tr>
+    <tr><td>FX headwind</td><td>EU-billed contracts revalued</td><td class="num neg">~1.5 pts</td></tr>
+  </tbody>
+</table>
+<div class="source">Source: Q3 cost-of-revenue analysis. Drivers are MECE and sum to the full 6-point drop.</div>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-two-column" data-slide-index="6"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">6</div><div class="ms-two-column-outer">
+  <h1 class="ms-slide-title">Each driver maps to one specific, time-bound action</h1>
+  
+  <div class="ms-two-column-layout">
+    <div class="ms-col"><h2>The driver</h2>
+<ul>
+<li>Cloud cost up 52%, ahead of usage</li>
+<li>Support headcount up 40%, low utilization</li>
+<li>FX swing on EU contracts (~1.5 pts)</li>
+</ul>
+</div>
+    <div class="ms-col"><h2>The action</h2>
+<ul>
+<li>Commit infra reservations → ~20% lower unit cost</li>
+<li>Freeze hiring until utilization &gt; 75%</li>
+<li>Hedge EU-billed contracts to remove FX swing</li>
+</ul>
+</div>
+  </div>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="7"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">7</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">Demand stayed healthy — the problem is cost, not growth</h1>
+  
+  <div class="ms-slot-area"><div class="flex gap-6" style="margin-top:0.6rem">
+  <div>
+    <div class="stat stat--accent">118%</div>
+    <div class="stat-label">Net revenue retention</div>
+  </div>
+  <div>
+    <div class="stat">1,240</div>
+    <div class="stat-label">Customers · +22% YoY</div>
+  </div>
+</div>
+<div class="takeaway" style="margin-top:1.4rem">Customers are expanding, not churning — so we fix margin without touching the growth engine.</div>
+<div class="source">Source: Q3 finance close (FY2026).</div>
+</div>
+</div>
+</div>
+<div class="ms-slide-container slide-feature" data-slide-index="8"><div class="ms-footer-logo"><b>Q3 Business Review</b> &nbsp;·&nbsp; Leadership · Confidential</div><div class="ms-page-number">8</div><div class="ms-feature-layout">
+  <h1 class="ms-slide-title">Three decisions are needed now to start recovery this quarter</h1>
+  
+  <div class="ms-slot-area"><ul style="font-size:1.2rem; line-height:1.7">
+  <li><b>Approve</b> infra reservation commitment — Finance + Eng, this quarter.</li>
+  <li><b>Approve</b> support-hiring freeze until utilization > 75% — People Ops.</li>
+  <li><b>Approve</b> FX hedging on EU contracts — Treasury.</li>
+</ul>
+<div class="takeaway" style="margin-top:1.2rem">Together these recover 4 of the 6 lost margin points by Q1.</div>
+</div>
+</div>
+</div>
+
+    </div>
+  </div>
+  
+  <script>// wb-slide: client-side navigation & scaling for SSR-rendered slides.
+// All slide layout HTML is rendered server-side by Rust.
+// This script only handles: viewport scaling, keyboard navigation, and hash routing.
+(function () {
+  'use strict';
+  var deck = document.getElementById('monocle-slide-deck');
+  if (!deck) return;
+  var viewport = deck.querySelector('.ms-viewport');
+  if (!viewport) return;
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.ms-slide-container'));
+  if (slides.length === 0) return;
+
+  var current = 0;
+
+  function show(i) {
+    if (i < 0) i = 0;
+    if (i >= slides.length) i = slides.length - 1;
+    for (var k = 0; k < slides.length; k++) {
+      if (k === i) slides[k].classList.add('active');
+      else slides[k].classList.remove('active');
+    }
+    current = i;
+    var hash = '#/' + (i + 1);
+    if (window.location.hash !== hash) {
+      history.replaceState(null, '', hash);
+    }
+  }
+
+  function slideFromHash() {
+    var m = window.location.hash.match(/^#\/(\d+)/);
+    if (m) return parseInt(m[1], 10) - 1;
+    return 0;
+  }
+
+  function rescale() {
+    var sx = window.innerWidth / 960;
+    var sy = window.innerHeight / 540;
+    var s = Math.min(sx, sy);
+    viewport.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+
+  window.addEventListener('resize', rescale);
+  window.addEventListener('hashchange', function () {
+    var t = slideFromHash();
+    if (t !== current) show(t);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+      case ' ':
+      case 'PageDown':
+        e.preventDefault();
+        show(current + 1);
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+      case 'PageUp':
+        e.preventDefault();
+        show(current - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        show(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        show(slides.length - 1);
+        break;
+      case 'f':
+      case 'F':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        }
+        break;
+    }
+  });
+
+  rescale();
+  show(slideFromHash());
+})();
+</script>
+</body>
+</html>
