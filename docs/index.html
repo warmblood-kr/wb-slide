@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wb-slide — layout gallery</title>
+<title>wb-slide — gallery & templates</title>
 <style>
   :root {
     --accent: #1F6FEB; --ink: #1F2A37; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
@@ -15,24 +15,36 @@
     line-height: 1.5;
   }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 64px 24px 96px; }
-  header { text-align: center; margin-bottom: 40px; }
+  header { text-align: center; margin-bottom: 48px; }
   h1 { font-size: 3rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
   h1 .bar { display: block; width: 72px; height: 5px; background: var(--accent); border-radius: 3px; margin: 16px auto 0; }
   .tagline { font-size: 1.25rem; color: var(--muted); margin: 20px 0 0; }
-  .cta { display: inline-block; margin-top: 28px; padding: 12px 24px; background: var(--accent);
-         color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; }
-  .cta:hover { background: #1559c9; }
-  h2 { font-size: 1.4rem; margin: 56px 0 8px; }
+  h2 { font-size: 1.5rem; margin: 56px 0 6px; }
   .sub { color: var(--muted); margin: 0 0 24px; }
+
+  /* Template cards */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .card > a.thumb { display: block; }
+  .card img { width: 100%; display: block; border-bottom: 1px solid var(--border); }
+  .card .body { padding: 18px 20px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.2rem; }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
+  .links a { font-weight: 600; text-decoration: none; color: var(--accent); margin-right: 16px; font-size: 0.95rem; }
+  .links a:hover { text-decoration: underline; }
+  .links .live::before { content: "\25B6  "; }
+
+  /* Layout grid */
   .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
   figure { margin: 0; }
   figure img { width: 100%; display: block; border: 1px solid var(--border); border-radius: 8px; }
   figcaption { margin-top: 8px; }
   figcaption code { font-size: 0.95rem; color: var(--accent); font-weight: 600; }
   figcaption span { color: var(--muted); font-size: 0.9rem; }
+
   footer { margin-top: 72px; text-align: center; color: var(--muted); font-size: 0.9rem; }
   footer a { color: var(--accent); }
-  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } h1 { font-size: 2.2rem; } }
+  @media (max-width: 720px) { .cards, .grid { grid-template-columns: 1fr; } h1 { font-size: 2.2rem; } }
 </style>
 </head>
 <body>
@@ -40,13 +52,43 @@
   <header>
     <h1>wb-slide<span class="bar"></span></h1>
     <p class="tagline">Write slides in Markdown. Present in the browser, export to PDF.</p>
-    <a class="cta" href="gallery/live.html">▶ View the live slideshow</a>
   </header>
 
-  <h2>Layout gallery</h2>
+  <h2>Templates</h2>
+  <p class="sub">Ready-to-copy decks for common needs. Open one live, or copy its
+     <code>slides.md</code> + <code>styles/</code> as a starting point.</p>
+
+  <div class="cards">
+    <div class="card">
+      <a class="thumb" href="gallery/templates/consulting/live.html"><img src="gallery/templates/img/consulting.png" alt="Consulting template"></a>
+      <div class="body">
+        <h3>Consulting / analytical</h3>
+        <p>Restrained corporate look — action titles, stat heroes, Tufte-clean
+           tables. For reviews, board decks, and recommendations.</p>
+        <div class="links">
+          <a class="live" href="gallery/templates/consulting/live.html">View live</a>
+          <a href="https://github.com/warmblood-kr/wb-slide/tree/main/docs/gallery/templates/consulting">Source</a>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <a class="thumb" href="gallery/templates/marketing/live.html"><img src="gallery/templates/img/marketing.png" alt="Marketing template"></a>
+      <div class="body">
+        <h3>Marketing / product</h3>
+        <p>Expressive brochure style (the <code>monocle-brochure</code> theme) —
+           bold cover, framed screenshots, stat rows. For launches and pitches.</p>
+        <div class="links">
+          <a class="live" href="gallery/templates/marketing/live.html">View live</a>
+          <a href="https://github.com/warmblood-kr/wb-slide/tree/main/docs/gallery/templates/marketing">Source</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Layout reference</h2>
   <p class="sub">Every built-in layout, rendered. Choose one per slide with the
-     <code>layout:</code> frontmatter key — see
-     <a href="layouts.md">layouts.md</a> for the syntax.</p>
+     <code>layout:</code> frontmatter key — see <a href="layouts.md">layouts.md</a>
+     for the syntax, or <a href="gallery/live.html">open the layout deck live</a>.</p>
 
   <div class="grid">
     <figure><img src="gallery/img/1-slide-cover.png" alt="slide-cover">

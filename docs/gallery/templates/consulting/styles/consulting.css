@@ -1,0 +1,128 @@
+/* slide-gen — default "consulting" stylesheet for wb-slide.
+ *
+ * Drop this into a deck's `styles/` directory (wb-slide auto-loads every
+ * .css there, sorted by filename). It overrides the 6 wb-slide theme-contract
+ * tokens that the 8 built-in layouts read, and adds a small set of helper
+ * classes for consulting-style slides that the built-ins don't provide.
+ *
+ * Aesthetic: restrained, corporate, office-worker-appropriate. One muted
+ * accent used ~10% of the time (60-30-10). No gradients, no shadows, no
+ * rounded corners, no neon. WCAG-AA contrast on every text/background pair.
+ *
+ * For product / marketing decks, use `theme: monocle-brochure` instead of
+ * this file (see references/styling.md).
+ */
+
+:root {
+  --color-background: #FFFFFF;
+  --color-text:       #1F2A37; /* near-black slate — body + headings */
+  --color-text-muted: #6B7280; /* subtitles, captions, sources       */
+  --color-border:     #D1D5DB; /* hairlines, table rules             */
+  --color-accent:     #1F6FEB; /* ONE muted blue — emphasis only     */
+
+  /* Pretendard (Korean + Latin) with a system fallback stack. The CDN import
+   * below is optional; the fallback alone already looks professional. */
+  --font-family: 'Pretendard', Inter, -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  /* Secondary accent + semantic colors, for the helper classes below.
+   * (These are extra tokens, not part of the wb-slide contract.) */
+  --color-accent-deep: #0B3D6B;
+  --color-positive:    #1F8A3E;
+  --color-negative:    #C53030;
+}
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
+/* --- Global restraint ----------------------------------------------------- */
+/* Sharp corners and flat surfaces — the consulting look, not the brochure
+ * look. Built-in layouts already read the tokens above; these rules just
+ * strip any decoration. */
+* { box-shadow: none !important; }
+img, figure, table, blockquote { border-radius: 0; }
+
+/* --- Action title emphasis ------------------------------------------------ */
+/* The slide-feature heading is the action title. Keep it tight and readable. */
+.ms-slide-title { line-height: 1.15; letter-spacing: -0.01em; }
+.ms-slide-subtitle { color: var(--color-text-muted); }
+
+/* --- Layout corrections (left/top-align + two-column fix) ----------------- */
+/* The framework centers slide-feature body content (`.ms-slot-area`) on BOTH
+ * axes, which floats short content in the middle of the slide with large dead
+ * gaps and centers text. Consulting decks align to a grid: top-anchored,
+ * left-aligned, full width. Override the placement. Opt back into centering on
+ * a specific slide with the `.center` helper below. */
+.ms-slot-area {
+  place-items: start stretch;   /* align-items:start, justify-items:stretch */
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+  padding-bottom: 8px;          /* keep content clear of the bottom chrome   */
+}
+
+/* Fix the built-in `slide-two-column`: the framework assigns
+ * `grid-area: title/subtitle` to the heading/subtitle but defines NO
+ * `grid-template-areas` on `.ms-two-column-outer`, so they land in implicit
+ * rows AFTER the columns (heading renders at the BOTTOM) and the two columns
+ * collapse to the left. Re-establish the intended row order and full width.
+ * (Upstream bug in wb-slide framework/theme.css — reported separately.) */
+.ms-two-column-outer { grid-template-areas: "title" "subtitle" "cols"; }
+.ms-two-column-layout { grid-area: cols; width: 100%; }
+.ms-col { align-content: start; }
+
+/* `slide-contact` wraps all content in a single grid cell with
+ * `grid-template-rows: auto 1fr`, so multi-block markdown (heading + list +
+ * callout) spills into implicit rows and the last block lands at the very
+ * bottom, overlapping the footer chrome. Flow it as a normal block, top-
+ * anchored, with clearance for the bottom footer/page-number. */
+.ms-contact-layout {
+  display: block;
+  align-content: start;
+  padding-bottom: 56px;
+}
+
+/* Opt-in centering for the occasional hero/stat slide that wants it. */
+.center { text-align: center; place-self: center; }
+
+/* --- Consulting helper classes (use inside slide body HTML) --------------- */
+
+/* Kicker: small uppercase label above a title or block (slide furniture). */
+.kicker {
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Stat hero: one dominant number per slide (board / exec density). */
+.stat        { font-size: 6rem; font-weight: 300; line-height: 1;
+               color: var(--color-text); letter-spacing: -0.02em; }
+.stat--accent { color: var(--color-accent); }
+.stat-label  { font-size: 1.1rem; color: var(--color-text-muted);
+               margin-top: 0.5rem; }
+
+/* Takeaway callout: the "so what" highlighted with the single accent. */
+.takeaway {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.9rem; color: var(--color-text);
+  font-size: 1.15rem;
+}
+
+/* Source / footnote line: bottom-anchored, small, muted (MBB convention). */
+.source {
+  font-size: 0.72rem; color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.4rem; margin-top: 0.8rem;
+}
+
+/* Semantic emphasis for deltas in text/tables. */
+.pos { color: var(--color-positive); font-weight: 600; }
+.neg { color: var(--color-negative); font-weight: 600; }
+
+/* --- Tables: whitespace over rules (Tufte) -------------------------------- */
+table { border-collapse: collapse; width: 100%; font-size: 1rem; }
+th, td { padding: 0.45rem 0.8rem; text-align: left; }
+/* numbers right-align with tabular figures so digits scan vertically */
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+thead th { border-bottom: 2px solid var(--color-text); font-weight: 600; }
+tbody tr + tr td { border-top: 1px solid var(--color-border); }
+/* no vertical rules, no zebra striping — spacing carries the structure */
