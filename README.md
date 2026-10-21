@@ -4,6 +4,9 @@
 
 Lightweight slide presentation framework. Markdown in, slides out.
 
+Optional [PNG/PDF rendering and Korean font checks](docs/rendering.md) are
+available for exported HTML. The Rust HTML CLI stays browser-independent.
+
 ## Why WB Slide?
 
 **Single binary, zero dependencies.** Download one file and you're done.

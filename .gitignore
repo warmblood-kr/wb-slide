@@ -14,6 +14,8 @@ package-lock.json
 # IDE / tools
 .gstack/
 .projectile
+.venv-render/
+__pycache__/
 
 # Source files
 *.pdf
