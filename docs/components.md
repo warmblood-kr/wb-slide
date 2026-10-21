@@ -19,7 +19,7 @@ registration, Shadow DOM, hydration or extra client script is used.
 | Tag | Properties | Output |
 |---|---|---|
 | `wb-columns` | none | `.cols`; requires two or three `wb-column` children |
-| `wb-column` | none | `.col`; must be within `wb-columns` |
+| `wb-column` | none | `.col`; must be a direct child of `wb-columns` |
 | `wb-panel` | optional `label` | `.panel` with an optional `.panel-label` |
 | `wb-kpi` | required `value`, `label` | `.stat` and `.stat-label`; body may supply context/source |
 | `wb-callout` | `tone="info"` (default) or `"warning"` | `.info-box` or `.warn-box` |
@@ -33,7 +33,8 @@ registration, Shadow DOM, hydration or extra client script is used.
 
 Use explicit closing tags, including for an empty KPI. Attributes are text,
 not HTML. Unknown tags/properties, invalid tones, missing KPI values and
-unclosed components fail `validate`, `export` and the preview response.
+unclosed components, unknown/unmatched closing tags and ordinary HTML wrappers
+between columns and their parent fail `validate`, `export` and preview.
 Keep component blocks on contiguous lines. Children are HTML or text; write
 `<strong>` rather than assuming nested `**Markdown**` is parsed. Normal
 Markdown outside these blocks and named Markdown slots continue to work.
