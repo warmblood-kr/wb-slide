@@ -1,0 +1,2 @@
+-r requirements-render.txt
+Pillow==12.3.0

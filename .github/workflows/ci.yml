@@ -23,3 +23,35 @@ jobs:
         run: cargo test
       - name: Build
         run: cargo build --release
+
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo build --locked
+      - run: python -m pip install -r tools/requirements-render-test.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: Fetch pinned Korean test font
+        run: |
+          curl --fail --location --output "$RUNNER_TEMP/NotoSansKR.ttf" 'https://raw.githubusercontent.com/google/fonts/b38c5c93af322c45f633e17ac440ec1e6c94d489/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf'
+          echo "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252  $RUNNER_TEMP/NotoSansKR.ttf" | sha256sum --check
+      - name: Synthetic Korean render and failure checks
+        env:
+          WB_RENDER_FONT: ${{ runner.temp }}/NotoSansKR.ttf
+          WB_RENDER_ARTIFACTS: render-smoke
+        run: python -m unittest discover -s tools -p test_render.py -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-render
+          path: render-smoke/
