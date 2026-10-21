@@ -52,6 +52,9 @@ Office files; PDF/PNG fidelity does not establish editability or native wrapping
 
 ## Checks
 
+Install Poppler's `pdfinfo` for the PDF page-count test (`poppler-utils` on
+Ubuntu, `poppler` on Homebrew). The renderer itself does not require Poppler.
+
 ```sh
 .venv-render/bin/python -m pip install -r tools/requirements-render-test.txt
 WB_RENDER_FONT=/path/to/licensed/NotoSansKR-Variable.ttf \
@@ -62,7 +65,7 @@ Optional environment: `WB_RENDER_BROWSER`, `WB_SLIDE_BIN`. Compare the compact
 sample with `samples/static-components-raw`: exported HTML must match exactly;
 PNG comparison permits only a one-level RGB difference in at most 32 pixels
 per 1920×1080 image, for browser glyph-edge raster noise. Verify Korean text,
-PNG dimensions/fonts and failure without output for
+PNG dimensions/fonts, actual PDF page count and failure without output for
 JavaScript errors, missing/network assets, missing glyphs, empty decks and
 unresolved elements. Existing outputs are preserved. CI downloads a hash-pinned
 public Noto Sans KR font and uploads only the synthetic render artifact.

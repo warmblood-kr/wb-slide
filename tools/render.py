@@ -33,7 +33,7 @@ def font_policy(path):
         axis = axes["wght"]
         coverage = {cp for cp, glyph in font.getBestCmap().items() if glyph != ".notdef"}
         policy = {"file": path.name, "sha256": digest(data),
-                  "family": font["name"].getDebugName(1),
+                  "family": font["name"].getDebugName(16) or font["name"].getDebugName(1),
                   "weight_min": axis.minValue, "weight_max": axis.maxValue}
     return data, coverage, policy
 

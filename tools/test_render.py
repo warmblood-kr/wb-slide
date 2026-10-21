@@ -53,7 +53,11 @@ class RenderTest(unittest.TestCase):
                 self.assertTrue(all(f["isCustomFont"] for f in slide["fonts"]))
                 png = (self.root / name / slide["file"]).read_bytes()
                 self.assertEqual(struct.unpack(">II", png[16:24]), (1920, 1080))
-            self.assertTrue((self.root / name / "deck.pdf").read_bytes().startswith(b"%PDF-"))
+            pdf_info = subprocess.run(["pdfinfo", self.root / name / "deck.pdf"],
+                                      check=True, capture_output=True, text=True, timeout=15,
+                                      env={**os.environ, "LC_ALL": "C"})
+            pages = next(line for line in pdf_info.stdout.splitlines() if line.startswith("Pages:"))
+            self.assertEqual(int(pages.split(":", 1)[1].strip()), 2)
             outputs.append(manifest)
         for index in range(1, 3):
             filename = f"slide-{index:03}.png"
