@@ -1,6 +1,8 @@
 //! Optional authoring tags lowered to plain HTML, without client registration.
 //! This is a component compiler for trusted decks, not an HTML sanitizer.
-use lol_html::{element, end_tag, rewrite_str, RewriteStrSettings};
+use lol_html::{
+    doc_comments, doc_text, doctype, element, end_tag, rewrite_str, RewriteStrSettings,
+};
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 const MAX_BYTES: usize = 2 * 1024 * 1024;
@@ -14,14 +16,13 @@ struct State {
     direct_columns: HashSet<usize>,
 }
 
-// A streaming rewrite handler sees matched elements, but cannot see orphan
-// end tags. Tokenize first so unknown/unmatched component closes cannot pass
-// through. Raw-text states keep script/style/textarea examples out of the
-// component grammar; comments and escaped code are not tags.
+// A streaming element handler cannot see orphan end tags. Pair tokens after
+// the rewriter has masked its own text/comment/doctype ranges. Do NOT enable
+// the tokenizer's independent raw-text guesses: HTML versus SVG/MathML text
+// decisions must come from the same parser that performs the rewrite.
 fn check_pairs(html: &str) -> Result<(), String> {
     use html5gum::{DefaultEmitter, Token, Tokenizer};
-    let mut emitter = DefaultEmitter::<usize>::new_with_span();
-    emitter.naively_switch_states(true);
+    let emitter = DefaultEmitter::<usize>::new_with_span();
     let mut stack = Vec::new();
     for token in Tokenizer::new_with_emitter(html, emitter) {
         let token = token.map_err(|error| error.to_string())?;
@@ -84,14 +85,32 @@ pub fn expand(html: &str) -> Result<String, String> {
     if html.len() > MAX_BYTES {
         return Err("component input exceeds 2 MiB per slide".into());
     }
-    check_pairs(html)?;
     let state = Rc::new(RefCell::new(State::default()));
     let shared = state.clone();
     let direct = state.clone();
     let source = Rc::new(html.to_string());
+    // Preserve offsets and let lol_html determine which source bytes are
+    // text, including raw-text elements and foreign-content CDATA. Replacing
+    // these bytes with spaces leaves only real tag syntax for pair checking.
+    let markup = Rc::new(RefCell::new(html.as_bytes().to_vec()));
+    let text_markup = markup.clone();
+    let comment_markup = markup.clone();
+    let doctype_markup = markup.clone();
     let output = rewrite_str(
         html,
         RewriteStrSettings::new()
+            .append_document_content_handler(doc_text!(move |token| {
+                text_markup.borrow_mut()[token.source_location().bytes()].fill(b' ');
+                Ok(())
+            }))
+            .append_document_content_handler(doc_comments!(move |token| {
+                comment_markup.borrow_mut()[token.source_location().bytes()].fill(b' ');
+                Ok(())
+            }))
+            .append_document_content_handler(doctype!(move |token| {
+                doctype_markup.borrow_mut()[token.source_location().bytes()].fill(b' ');
+                Ok(())
+            }))
             // Use the HTML parser's actual direct-parent relationship, rather
             // than the component-only ancestor stack used for expansion limits.
             .append_element_content_handler(element!("wb-columns > wb-column", move |el| {
@@ -221,6 +240,9 @@ pub fn expand(html: &str) -> Result<String, String> {
             })),
     )
     .map_err(|error| error.to_string())?;
+    let markup = markup.borrow();
+    let markup = std::str::from_utf8(&markup).map_err(|error| error.to_string())?;
+    check_pairs(markup)?;
     if let Some((name, _)) = state.borrow().stack.last() {
         return Err(format!(
             "unclosed component <{name}>; use an explicit closing tag"
@@ -304,6 +326,38 @@ mod tests {
         }
         let literal = "<wb-panel>body</wb-panel><!-- </wb-missing> --><script>const example = '</wb-panel>';</script><style>/* </wb-missing> */</style><textarea></wb-missing></textarea><div title='</wb-missing>'>text</div>";
         assert!(expand(literal).is_ok());
+    }
+
+    #[test]
+    fn pairing_uses_rewriter_raw_text_and_foreign_content_decisions() {
+        for input in [
+            "<div><noframe><wb-panel>A</wb-panel></wb-panel></noframe></div>",
+            "<svg><title></wb-missing></title></svg>",
+            "<svg><style></wb-missing></style></svg>",
+            "<svg><textarea></wb-missing></textarea></svg>",
+            "<math><title></wb-missing></title></math>",
+            "<math><style></wb-missing></style></math>",
+            "<math><textarea></wb-missing></textarea></math>",
+        ] {
+            assert!(
+                expand(input).is_err(),
+                "must reject real orphan tag: {input}"
+            );
+        }
+        for input in [
+            "<noframes><wb-panel>A</wb-panel></wb-panel></noframes>",
+            "<noframes></wb-missing></noframes>",
+            "<title></wb-missing></title>",
+            "<style></wb-missing></style>",
+            "<textarea></wb-missing></textarea>",
+            "<svg><![CDATA[</wb-missing>]]></svg>",
+        ] {
+            assert_eq!(
+                expand(input).unwrap(),
+                input,
+                "literal content must stay literal"
+            );
+        }
     }
 
     #[test]
