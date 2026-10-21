@@ -602,6 +602,18 @@ fn check_slide(
             message: format!("unknown layout `{lname}` — wb-slide falls back to slide-default"),
         });
     }
+    if let Some(render::Layout { source: render::LayoutSource::Script(js), .. }) = layouts.resolve(lname) {
+        // A conservative source check, not a JavaScript parser. The old
+        // SlideBase asset is no longer bundled; whitespace may span lines.
+        let words: Vec<&str> = js.split_whitespace().collect();
+        if words.windows(2).any(|pair| pair[0] == "extends" && pair[1].trim_end_matches('{') == "SlideBase") {
+            diags.push(Diagnostic {
+                severity: Severity::Warning,
+                slide: Some(no),
+                message: format!("layout `{lname}` references legacy SlideBase, which is no longer bundled — migrate to layouts/{lname}.html (see docs/migration-v0.7.md)"),
+            });
+        }
+    }
     if raw_html_blank_line(body) {
         diags.push(Diagnostic {
             severity: Severity::Warning,
@@ -1299,6 +1311,36 @@ mod tests {
         assert!(diags.iter().any(|d| d.message.contains("indented frontmatter")));
         assert!(diags.iter().any(|d| d.message.contains("unknown layout")));
         assert!(diags.iter().any(|d| d.severity == Severity::Error && d.message.contains("asset not found")));
+    }
+
+    #[test]
+    fn test_validate_used_legacy_layout_and_template_override() {
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        layouts.local.insert("slide-x".to_string(), render::Layout::parse_script(
+            "slide-x", "class SlideX extends\n  SlideBase{ }",
+        ));
+        let raw = "---\nlayout: slide-default\n---\n\nBody\n\n---\nlayout: slide-x\n---\n\nBody";
+        let work_dir = std::env::temp_dir();
+        let diags = validate_deck(raw, &work_dir, &layouts);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].slide, Some(2));
+        assert!(diags[0].severity == Severity::Warning);
+        assert!(diags[0].message.contains("SlideBase"));
+
+        // Unused legacy files must not warn, and a resolved HTML override is safe.
+        let default_deck = "---\nlayout: slide-default\n---\n\nBody";
+        assert!(validate_deck(default_deck, &work_dir, &layouts).is_empty());
+        layouts.local.insert("slide-x".to_string(), render::Layout::parse_template(
+            "slide-x", "<div>{{{content}}}</div>",
+        ));
+        assert!(validate_deck(raw, &work_dir, &layouts).is_empty());
+
+        // Self-contained Custom Elements do not require the removed base class.
+        layouts.local.insert("slide-x".to_string(), render::Layout::parse_script(
+            "slide-x", "class SlideX extends HTMLElement { }",
+        ));
+        assert!(validate_deck(raw, &work_dir, &layouts).is_empty());
     }
 
     #[test]
