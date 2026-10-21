@@ -101,7 +101,8 @@ wb-slide update                        # Self-update to latest
 ```
 
 `validate` statically checks `slides.md` (no browser needed) and reports:
-unknown `layout:` names, indented frontmatter that gets silently dropped, blank
+legacy `SlideBase` references in selected local JS layouts, unknown `layout:` names,
+indented frontmatter that gets silently dropped, blank
 lines inside raw HTML/SVG blocks (which break rendering), missing local assets
 (an error), and slides dense enough to risk overflowing the fixed 960×540 canvas.
 Exit code is non-zero if there are errors (or any warnings under `--strict`) —

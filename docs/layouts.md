@@ -225,25 +225,27 @@ and rely on the browser to upgrade it.
 If you can express the layout as an `.html` template, do so. The escape hatch
 exists only for cases where templates aren't enough.
 
-### Format
+### Legacy `SlideBase` layouts
 
-A `.js` layout is a class extending `SlideBase`:
+`SlideBase` is no longer bundled in v0.7+. An old local layout using
+`class SlideAnimated extends SlideBase` fails in the browser with
+`ReferenceError: SlideBase is not defined`, even though `export` exits successfully.
+`wb-slide validate` warns when a selected JS layout contains whitespace-separated
+`extends SlideBase`; `validate --strict` fails on that warning. This is a source
+heuristic, not a complete JavaScript check, and does not run automatically during
+`show` or `export`.
 
-```js
-class SlideAnimated extends SlideBase {
-  layoutTemplate(content, slots) {
-    const heading = this.getAttribute('heading') || '';
-    // ... arbitrary JS, can call this.querySelector, etc.
-    return `<div>...${content}...</div>`;
-  }
+Migrate static layouts to HTML templates. For example, replace the old
+`layoutTemplate(content)` implementation with `layouts/slide-animated.html`:
 
-  showChrome() { return true; }
-}
-customElements.define('slide-animated', SlideAnimated);
+```html
+<div class="animated-layout">{{{content}}}</div>
 ```
 
-Save as `layouts/slide-animated.js`. wb-slide bundles `SlideBase` automatically
-and protects against double-registration; you don't need to import anything.
+See the [migration guide](migration-v0.7.md) for attributes and named slots.
+A local `.js` escape hatch must supply its own Custom Element implementation
+and dependencies; it cannot rely on the removed `SlideBase`. Registry themes
+currently load only `.html` layouts and skip `.js` files with a warning.
 
 ## See also
 
