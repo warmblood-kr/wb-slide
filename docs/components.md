@@ -10,6 +10,41 @@ See them rendered: [components gallery](gallery/components/live.html).
 
 ![Components](templates/img/components.png)
 
+## Optional static tags
+
+`wb-slide` also accepts the following HTML-shaped tags. Rust lowers them to
+ordinary `div` elements before the browser opens the deck. No Custom Element
+registration, Shadow DOM, hydration or extra client script is used.
+
+| Tag | Properties | Output |
+|---|---|---|
+| `wb-columns` | none | `.cols`; requires two or three `wb-column` children |
+| `wb-column` | none | `.col`; must be within `wb-columns` |
+| `wb-panel` | optional `label` | `.panel` with an optional `.panel-label` |
+| `wb-kpi` | required `value`, `label` | `.stat` and `.stat-label`; body may supply context/source |
+| `wb-callout` | `tone="info"` (default) or `"warning"` | `.info-box` or `.warn-box` |
+
+```html
+<wb-columns>
+<wb-column><wb-panel label="근거"><p>가상 비교 자료입니다.</p></wb-panel></wb-column>
+<wb-column><wb-callout tone="warning">확인되지 않은 조건을 함께 표시합니다.</wb-callout></wb-column>
+</wb-columns>
+```
+
+Use explicit closing tags, including for an empty KPI. Attributes are text,
+not HTML. Unknown tags/properties, invalid tones, missing KPI values and
+unclosed components fail `validate`, `export` and the preview response.
+Keep component blocks on contiguous lines. Children are HTML or text; write
+`<strong>` rather than assuming nested `**Markdown**` is parsed. Normal
+Markdown outside these blocks and named Markdown slots continue to work.
+Fenced code examples are displayed literally. Components in HTML layout
+templates also expand. Legacy class authoring remains available.
+
+Component-bearing slides are limited to 2 MiB input/output, 16 component
+levels and 1,000 instances. The compiler validates component properties; it
+does not sanitize trusted raw HTML, script tags or local JavaScript layouts.
+These tags use the existing visual styles, not a new visual theme.
+
 ## Classes
 
 | Class(es) | Purpose |

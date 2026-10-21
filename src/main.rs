@@ -13,6 +13,7 @@ use std::path::PathBuf;
 mod theme;
 mod template;
 mod render;
+mod components;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -243,7 +244,7 @@ fn render_all_slides(
     slides: &[Slide],
     global_meta: &[(String, String)],
     layouts: &render::LayoutSet,
-) -> render::RenderedSlides {
+) -> Result<render::RenderedSlides, String> {
     let global_watermark = global_meta.iter().find(|(k, _)| k == "watermark").map(|(_, v)| v.as_str()).unwrap_or("");
     let global_footer = global_meta.iter().find(|(k, _)| k == "footer").map(|(_, v)| v.as_str()).unwrap_or("");
 
@@ -275,6 +276,7 @@ fn render_all_slides(
             total,
             layouts,
         );
+        let html = components::expand(&html).map_err(|error| format!("slide {}: {error}", i + 1))?;
         out.html.push_str(&html);
         out.html.push('\n');
 
@@ -297,7 +299,7 @@ fn render_all_slides(
             }
         }
     }
-    out
+    Ok(out)
 }
 
 struct HtmlOptions<'a> {
@@ -715,7 +717,7 @@ fn validate_deck(
 
 async fn serve_index(
     axum::extract::State(state): axum::extract::State<AppState>,
-) -> Html<String> {
+) -> Response {
     let raw = std::fs::read_to_string(&state.slides_path)
         .unwrap_or_else(|_| "---\ntitle: No slides found\n---\n\n# No slides.md found".to_string());
 
@@ -735,7 +737,10 @@ async fn serve_index(
     }
     layouts.load_local(&state.work_dir);
 
-    let rendered = render_all_slides(&slides, &global_meta, &layouts);
+    let rendered = match render_all_slides(&slides, &global_meta, &layouts) {
+        Ok(rendered) => rendered,
+        Err(error) => return (StatusCode::BAD_REQUEST, format!("Deck render error: {error}")).into_response(),
+    };
 
     Html(build_index_html(&HtmlOptions {
         title,
@@ -745,7 +750,7 @@ async fn serve_index(
         client_js: &rendered.client_js,
         theme_css: theme.as_ref().map(|t| t.css.as_str()),
         user_css: user_css.as_deref(),
-    }))
+    })).into_response()
 }
 
 async fn load_theme_from_meta(
@@ -887,7 +892,13 @@ async fn main() {
             }
             layouts.load_local(&state.work_dir);
 
-            let rendered = render_all_slides(&slides, &global_meta, &layouts);
+            let rendered = match render_all_slides(&slides, &global_meta, &layouts) {
+                Ok(rendered) => rendered,
+                Err(error) => {
+                    eprintln!("Error: {error}");
+                    std::process::exit(1);
+                }
+            };
 
             let html = build_index_html(&HtmlOptions {
                 title,
@@ -939,6 +950,11 @@ async fn main() {
             layouts.load_local(&state.work_dir);
 
             let diags = validate_deck(&raw, &state.work_dir, &layouts);
+            let (_, slides) = parse_slides(&raw);
+            if let Err(error) = render_all_slides(&slides, &global_meta, &layouts) {
+                eprintln!("Error: {error}");
+                std::process::exit(1);
+            }
             let errors = diags.iter().filter(|d| d.severity == Severity::Error).count();
             let warnings = diags.iter().filter(|d| d.severity == Severity::Warning).count();
 
@@ -1476,7 +1492,7 @@ mod tests {
         let (meta, slides) = parse_slides(raw);
         let mut layouts = render::LayoutSet::default();
         layouts.load_builtin();
-        let rendered = render_all_slides(&slides, &meta, &layouts);
+        let rendered = render_all_slides(&slides, &meta, &layouts).unwrap();
         assert!(rendered.html.contains("첫 장 제목"));
         assert!(rendered.html.contains("설명"));
         assert_eq!(get_fm(&slides[0], "label").as_deref(), Some("Custom"));
@@ -1497,8 +1513,8 @@ mod tests {
         assert_eq!(crlf_slides.len(), 2);
         assert_eq!(lf_meta, crlf_meta);
         assert_eq!(
-            render_all_slides(&lf_slides, &lf_meta, &layouts).html,
-            render_all_slides(&crlf_slides, &crlf_meta, &layouts).html,
+            render_all_slides(&lf_slides, &lf_meta, &layouts).unwrap().html,
+            render_all_slides(&crlf_slides, &crlf_meta, &layouts).unwrap().html,
         );
         let dir = std::env::temp_dir();
         let lf_diags = validate_deck(lf, &dir, &layouts);
@@ -1514,6 +1530,20 @@ mod tests {
         let result = render_markdown(html);
         assert!(result.contains("<img"));
         assert!(result.contains("test.png"));
+    }
+
+    #[test]
+    fn test_component_tags_in_slots_and_code_examples() {
+        let raw = "---\nlayout: slide-two-column\n---\n\n::left::\n\n<wb-panel label=\"왼쪽\"><b>근거</b></wb-panel>\n\n::right::\n\n```html\n<wb-unknown></wb-unknown>\n```";
+        let (meta, slides) = parse_slides(raw);
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let rendered = render_all_slides(&slides, &meta, &layouts).unwrap();
+        assert!(rendered.html.contains("panel-label\">왼쪽</div><b>근거</b>"));
+        assert!(!rendered.html.contains("<wb-panel"));
+        assert!(rendered.html.contains("&lt;wb-unknown&gt;"));
+        let (meta, slides) = parse_slides("---\n---\n\n<wb-unknown></wb-unknown>");
+        assert!(render_all_slides(&slides, &meta, &layouts).unwrap_err().contains("slide 1"));
     }
 
     #[test]
