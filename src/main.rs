@@ -166,6 +166,10 @@ fn render_markdown(text: &str) -> String {
 }
 
 fn parse_slides(raw: &str) -> (Vec<(String, String)>, Vec<Slide>) {
+    // The deck delimiter is line-oriented; Windows line endings must not
+    // silently turn a valid deck into zero slides.
+    let normalized = raw.replace("\r\n", "\n");
+    let raw = normalized.as_str();
     let blocks: Vec<&str> = raw.split("\n---\n").collect();
 
     // blocks[0] = global frontmatter
@@ -178,12 +182,13 @@ fn parse_slides(raw: &str) -> (Vec<(String, String)>, Vec<Slide>) {
 
     let mut slides = Vec::new();
 
-    // Slide 1: layout from global frontmatter, body from blocks[1]
+    // The first block contains deck settings AND the first slide's context.
+    // Only title/theme are deck-only; custom layout attributes must survive.
     if blocks.len() > 1 {
-        let mut fm: Vec<(String, String)> = Vec::new();
-        if let Some(layout) = global_meta.iter().find(|(k, _)| k == "layout") {
-            fm.push(layout.clone());
-        }
+        let fm = global_meta.iter()
+            .filter(|(key, _)| !matches!(key.as_str(), "title" | "theme"))
+            .cloned()
+            .collect();
         let (default_body, slot_parts) = parse_slots(blocks[1].trim());
         let slots = slot_parts.into_iter()
             .map(|(name, content)| (name, render_markdown(&content)))
@@ -654,6 +659,8 @@ fn validate_deck(
     layouts: &render::LayoutSet,
 ) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
+    let normalized = raw.replace("\r\n", "\n");
+    let raw = normalized.as_str();
     let blocks: Vec<&str> = raw.split("\n---\n").collect();
 
     let global_block = blocks
@@ -1461,6 +1468,44 @@ mod tests {
         assert!(slides[1].slots[0].1.contains("Left content"));
         assert_eq!(slides[1].slots[1].0, "right");
         assert!(slides[1].slots[1].1.contains("Right content"));
+    }
+
+    #[test]
+    fn test_first_slide_context_reaches_template() {
+        let raw = "---\ntitle: Deck tab\ntheme: test-theme\nlayout: slide-feature\nheading: 첫 장 제목\nsubtitle: 설명\nlabel: Custom\nfooter: Team\n---\n\nBody\n\n---\nlayout: slide-feature\nheading: Next\n---\n\nSecond body";
+        let (meta, slides) = parse_slides(raw);
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let rendered = render_all_slides(&slides, &meta, &layouts);
+        assert!(rendered.html.contains("첫 장 제목"));
+        assert!(rendered.html.contains("설명"));
+        assert_eq!(get_fm(&slides[0], "label").as_deref(), Some("Custom"));
+        assert!(get_fm(&slides[0], "title").is_none());
+        assert!(get_fm(&slides[0], "theme").is_none());
+        assert!(get_fm(&slides[1], "label").is_none());
+        assert_eq!(rendered.html.matches("ms-footer-logo\">Team").count(), 2);
+    }
+
+    #[test]
+    fn test_windows_line_endings_match_rendering_and_validation() {
+        let lf = "---\ntitle: Test\nlayout: slide-feature\nheading: 첫 장\n---\n\nBody\n\n---\nlayout: missing-layout\n---\n\n::left::\n\n왼쪽\n\n::right::\n\n오른쪽";
+        let crlf = lf.replace('\n', "\r\n");
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let (lf_meta, lf_slides) = parse_slides(lf);
+        let (crlf_meta, crlf_slides) = parse_slides(&crlf);
+        assert_eq!(crlf_slides.len(), 2);
+        assert_eq!(lf_meta, crlf_meta);
+        assert_eq!(
+            render_all_slides(&lf_slides, &lf_meta, &layouts).html,
+            render_all_slides(&crlf_slides, &crlf_meta, &layouts).html,
+        );
+        let dir = std::env::temp_dir();
+        let lf_diags = validate_deck(lf, &dir, &layouts);
+        let crlf_diags = validate_deck(&crlf, &dir, &layouts);
+        assert_eq!(lf_diags.len(), 1);
+        assert_eq!(lf_diags[0].message, crlf_diags[0].message);
+        assert_eq!(crlf_diags[0].slide, Some(2));
     }
 
     #[test]

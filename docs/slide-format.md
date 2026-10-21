@@ -25,7 +25,11 @@ Body content (HTML or Markdown).
 
 ## Global Frontmatter
 
-The first `---` block sets deck-wide defaults.
+The first `---` block sets deck-wide defaults and the first slide's layout
+attributes (for example `heading`, `subtitle`, and custom template keys).
+`title` and `theme` are deck-only. Other first-block keys are passed to the
+first slide; `watermark` and `footer` also remain defaults for later slides.
+Both LF and Windows CRLF line endings are supported.
 
 | Key | Description |
 |-----|-------------|
@@ -38,13 +42,15 @@ The first `---` block sets deck-wide defaults.
 
 | Key | Description |
 |-----|-------------|
-| `layout` | Web Component tag name (e.g., `slide-feature`) |
+| `layout` | Layout name (e.g., `slide-feature`) |
 | `heading` | Slide title (for `slide-feature`) |
 | `subtitle` | Slide subtitle (for `slide-feature`) |
 | `quote` | Quote text (for `slide-quote`) |
 | `author` | Attribution (for `slide-quote`) |
 
-Any additional key is passed as an HTML attribute to the layout component.
+Any additional key is available to the layout template as `{{key}}` (or as an
+HTML attribute for a local JavaScript layout). Metadata uses flat `key: value`
+lines; nested YAML is not supported.
 
 ## Content
 
