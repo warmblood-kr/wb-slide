@@ -14,6 +14,7 @@ mod theme;
 mod template;
 mod render;
 mod components;
+mod spec;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -45,6 +46,9 @@ enum Commands {
     Export {
         #[arg(short, long)]
         dir: Option<PathBuf>,
+        /// Export a closed, versioned JSON slide spec using built-ins only
+        #[arg(long, conflicts_with_all = ["dir", "refresh_themes", "embed"])]
+        spec: Option<PathBuf>,
         #[arg(short, long, default_value = "export.html")]
         output: PathBuf,
         /// Bypass theme cache and re-fetch from registry
@@ -346,7 +350,7 @@ fn build_index_html(opts: &HtmlOptions) -> String {
   <script>{framework_js}</script>
 </body>
 </html>"#,
-        title = opts.title,
+        title = template::html_escape(opts.title),
         framework_css = opts.framework_css,
         slides_html = opts.slides_html,
         framework_js = opts.framework_js,
@@ -836,6 +840,30 @@ fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
     if css.is_empty() { None } else { Some(css) }
 }
 
+fn export_spec(path: &std::path::Path, output: &std::path::Path) -> Result<(), String> {
+    use std::io::Write;
+    let (meta, slides) = spec::load(path)?;
+    let mut layouts = render::LayoutSet::default();
+    layouts.load_builtin();
+    let rendered = render_all_slides(&slides, &meta, &layouts)?;
+    let html = build_index_html(&HtmlOptions {
+        title: &meta[0].1, slides_html: &rendered.html,
+        framework_css: &collect_framework_css(), framework_js: &collect_framework_js(),
+        client_js: "", theme_css: None, user_css: None,
+    });
+    let mut name = output.file_name().ok_or("output must name a file")?.to_os_string();
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+    name.push(format!(".tmp-{}-{nonce}", std::process::id()));
+    let temporary = output.with_file_name(name);
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&temporary)
+        .map_err(|e| format!("cannot stage output: {e}"))?;
+    let result = file.write_all(html.as_bytes()).and_then(|_| file.sync_all());
+    drop(file);
+    let result = result.and_then(|_| std::fs::rename(&temporary, output));
+    if result.is_err() { let _ = std::fs::remove_file(&temporary); }
+    result.map_err(|e| format!("cannot publish output: {e}"))
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -867,7 +895,15 @@ async fn main() {
             axum::serve(listener, app).await.unwrap();
         }
 
-        Commands::Export { dir, output, refresh_themes, embed } => {
+        Commands::Export { dir, spec, output, refresh_themes, embed } => {
+            if let Some(path) = spec {
+                if let Err(error) = export_spec(&path, &output) {
+                    eprintln!("Error: {error}");
+                    std::process::exit(1);
+                }
+                eprintln!("Exported to: {}", output.display());
+                return;
+            }
             let state = resolve_state(dir, refresh_themes);
 
             if !state.slides_path.exists() {

@@ -1,5 +1,6 @@
 """Synthetic browser integration checks; no model service is used."""
 import os
+import json
 from pathlib import Path
 import shutil
 import struct
@@ -40,9 +41,10 @@ class RenderTest(unittest.TestCase):
 
     def test_korean_raw_and_compact_decks_match(self):
         outputs = []
-        for name, sample in [("compact", "static-components"), ("raw", "static-components-raw")]:
+        for name, sample in [("compact", "static-components"), ("raw", "static-components-raw"), ("spec", "static-components")]:
             source = self.root / f"{name}.html"
-            subprocess.run([self.binary, "export", "-d", ROOT / "samples" / sample, "-o", source], check=True)
+            arguments = ["--spec", ROOT / "samples" / sample / "deck.json"] if name == "spec" else ["-d", ROOT / "samples" / sample]
+            subprocess.run([self.binary, "export", *arguments, "-o", source], check=True)
             manifest = self.run_render(source, name, pdf=True)
             self.assertEqual(manifest["slide_count"], 2)
             self.assertIn("시범 운영", manifest["slides"][0]["text"])
@@ -59,15 +61,15 @@ class RenderTest(unittest.TestCase):
             pages = next(line for line in pdf_info.stdout.splitlines() if line.startswith("Pages:"))
             self.assertEqual(int(pages.split(":", 1)[1].strip()), 2)
             outputs.append(manifest)
-        for index in range(1, 3):
-            filename = f"slide-{index:03}.png"
-            with Image.open(self.root / "compact" / filename) as compact, Image.open(self.root / "raw" / filename) as raw:
-                diff = ImageChops.difference(compact.convert("RGB"), raw.convert("RGB"))
-                # Chromium can vary one color level at a handful of glyph
-                # edge pixels between contexts; do not tolerate layout drift.
-                self.assertLessEqual(max(high for _, high in diff.getextrema()), 1)
-                self.assertLessEqual(sum(pixel != (0, 0, 0) for pixel in diff.get_flattened_data()), 32)
-        self.assertEqual((self.root / "compact.html").read_bytes(), (self.root / "raw.html").read_bytes())
+        for other in ["raw", "spec"]:
+            for index in range(1, 3):
+                filename = f"slide-{index:03}.png"
+                with Image.open(self.root / "compact" / filename) as compact, Image.open(self.root / other / filename) as raw:
+                    diff = ImageChops.difference(compact.convert("RGB"), raw.convert("RGB"))
+                    # Permit only the existing narrow glyph-edge raster noise.
+                    self.assertLessEqual(max(high for _, high in diff.getextrema()), 1)
+                    self.assertLessEqual(sum(pixel != (0, 0, 0) for pixel in diff.get_flattened_data()), 32)
+            self.assertEqual((self.root / "compact.html").read_bytes(), (self.root / f"{other}.html").read_bytes())
         artifacts = os.environ.get("WB_RENDER_ARTIFACTS")
         if artifacts:
             shutil.copytree(self.root / "compact", artifacts)
@@ -109,6 +111,37 @@ class RenderTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "already exists"):
             self.run_render(self.html('<div class="ms-slide-container">본문</div>'))
         self.assertEqual((existing / "keep.txt").read_text(), "keep")
+
+    def test_spec_errors_preserve_output_and_skip_local_code(self):
+        sample = ROOT / "samples/static-components/deck.json"
+        data = json.loads(sample.read_text(encoding="utf-8"))
+        source, output = self.root / "request.json", self.root / "out.html"
+        output.write_text("previous output")
+        data["slides"][0]["blocks"][0]["columns"][0]["blocks"][0]["paragraphs"][0] = 42
+        source.write_text(json.dumps(data), encoding="utf-8")
+        result = subprocess.run([self.binary, "export", "--spec", source, "-o", output], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("$.slides[0].blocks[0].columns[0].blocks[0].paragraphs[0]: expected string", result.stderr)
+        self.assertEqual(output.read_text(), "previous output")
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ["out.html", "request.json"])
+        for folder, filename in [("layouts", "slide-feature.html"), ("styles", "evil.css")]:
+            directory = self.root / folder
+            directory.mkdir()
+            (directory / filename).write_text("LOCAL_CODE_MUST_NOT_LOAD")
+        (self.root / "layouts/slide-feature.js").write_text("throw Error('LOCAL_JS_MUST_NOT_LOAD')")
+        data = json.loads(sample.read_text(encoding="utf-8"))
+        data["title"] = '</title><script>SPEC_EXECUTED</script>'
+        data["slides"][0]["heading"] = '<script>SPEC_EXECUTED</script>'
+        data["slides"][0]["blocks"] = [{"type":"text","text":"한글 **literal** {{heading}} <script>SPEC_EXECUTED</script>"}]
+        source.write_text(json.dumps(data), encoding="utf-8")
+        subprocess.run([self.binary, "export", "--spec", source, "-o", output], cwd=self.root, check=True)
+        exported = output.read_text(encoding="utf-8")
+        self.assertNotIn("LOCAL_CODE", exported)
+        self.assertNotIn("LOCAL_JS", exported)
+        self.assertNotIn("<script>SPEC_EXECUTED", exported)
+        self.assertIn("&lt;/title&gt;", exported)
+        manifest = self.run_render(output)
+        self.assertIn("한글 **literal** {{heading}} <script>SPEC_EXECUTED</script>", manifest["slides"][0]["text"])
 
 
 if __name__ == "__main__":
