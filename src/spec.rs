@@ -13,6 +13,7 @@ enum Block {
     Panel(Option<String>, Vec<String>),
     Callout(String, Vec<String>),
     Kpi(String, String, Option<String>),
+    List(Vec<String>),
     Columns(Vec<Vec<Block>>),
 }
 
@@ -74,11 +75,15 @@ fn items<'a>(
 }
 
 fn paragraphs(o: &Object, path: &str) -> Result<Vec<String>> {
-    items(o, "paragraphs", path, 1, 16)?
+    strings(o, "paragraphs", path)
+}
+
+fn strings(o: &Object, key: &str, path: &str) -> Result<Vec<String>> {
+    items(o, key, path, 1, 16)?
         .iter()
         .enumerate()
         .map(|(i, value)| {
-            let p = format!("{path}.paragraphs[{i}]");
+            let p = format!("{path}.{key}[{i}]");
             let text = value.as_str().ok_or_else(|| error(&p, "expected string"))?;
             if text.trim().is_empty() || text.chars().count() > 2000 {
                 return Err(error(&p, "expected 1–2000 characters, not blank"));
@@ -103,12 +108,13 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize) -> R
                 "panel" => &["type", "label", "paragraphs"],
                 "callout" => &["type", "tone", "paragraphs"],
                 "kpi" => &["type", "value", "label", "note"],
+                "list" => &["type", "items"],
                 "columns" if columns_allowed => &["type", "columns"],
                 "columns" => return Err(error(&format!("{p}.type"), "columns cannot nest")),
                 _ => {
                     return Err(error(
                         &format!("{p}.type"),
-                        "expected text, panel, callout, kpi or columns",
+                        "expected text, panel, callout, kpi, list or columns",
                     ))
                 }
             };
@@ -134,6 +140,7 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize) -> R
                     string(b, "label", &p)?,
                     optional(b, "note", &p)?,
                 )),
+                "list" => Ok(Block::List(strings(b, "items", &p)?)),
                 "columns" => {
                     let cols = items(b, "columns", &p, 2, 3)?
                         .iter()
@@ -182,6 +189,10 @@ impl Block {
                     escape(value),
                     escape(label)
                 )
+            }
+            Self::List(items) => {
+                let li: String = items.iter().map(|t| format!("<li>{}</li>", escape(t))).collect();
+                format!("<ul class=\"wb-list\">{li}</ul>")
             }
             Self::Columns(cols) => {
                 let children = cols
@@ -326,6 +337,18 @@ mod tests {
             .err()
             .unwrap()
             .contains("at most 64 leaf"));
+    }
+
+    #[test]
+    fn list_items_are_escaped_and_bounded() {
+        let mut v = base();
+        v["slides"][0]["blocks"] = json!([{"type":"list","items":["a<b","둘"]}]);
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<ul class=\"wb-list\"><li>a&lt;b</li><li>둘</li></ul>");
+        v["slides"][0]["blocks"] = json!([{"type":"list","items":[]}]);
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains(".items: expected 1–16"));
+        v["slides"][0]["blocks"] = json!([{"type":"list","items":[" "]}]);
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains(".items[0]"));
     }
 
     #[test]
