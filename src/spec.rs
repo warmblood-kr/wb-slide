@@ -5,11 +5,15 @@ use std::{fs::File, io::Read, path::Path};
 
 const MAX_IMAGE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_IMAGES: usize = 8;
+const MAX_DIAGRAMS: usize = 16;
 
-/// Where local images may come from, and how many were embedded so far.
+/// Where local images may come from, the diagram preset theme, and how many
+/// images/diagrams were embedded so far.
 struct Ctx<'a> {
     base: Option<&'a Path>,
+    theme: Option<&'a str>,
     images: usize,
+    diagrams: usize,
 }
 
 const MAX_BYTES: usize = 64 * 1024;
@@ -24,6 +28,7 @@ enum Block {
     Kpi(String, String, Option<String>),
     List(Vec<String>),
     Image(String, String),
+    Diagram(String),
     Columns(Vec<Vec<Block>>),
 }
 
@@ -145,6 +150,26 @@ fn image(src: &str, p: &str, ctx: &mut Ctx) -> Result<String> {
     Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
+/// Render a diagram block to inline SVG; data errors gain the block path.
+fn diagram(b: &Object, p: &str, ctx: &mut Ctx) -> Result<String> {
+    let alt = string(b, "alt", p)?;
+    let kind = string(b, "diagram", p)?;
+    if !crate::diagram::TYPES.contains(&kind.as_str()) {
+        return Err(error(&format!("{p}.diagram"), &format!("expected one of {}", crate::diagram::TYPES.join(", "))));
+    }
+    ctx.diagrams += 1;
+    if ctx.diagrams > MAX_DIAGRAMS {
+        return Err(error(p, "at most 16 diagrams per deck"));
+    }
+    let data = field(b, "data", p)?;
+    let svg = crate::diagram::render(&kind, data, ctx.theme).map_err(|e| match e.strip_prefix('$') {
+        Some(rest) => format!("{p}.data{rest}"),
+        None => error(&format!("{p}.data"), &e),
+    })?;
+    let attrs = format!("<svg class=\"wb-diagram\" role=\"img\" aria-label=\"{}\" ", escape(&alt));
+    Ok(svg.trim_end().replacen("<svg ", &attrs, 1))
+}
+
 fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx: &mut Ctx) -> Result<Vec<Block>> {
     items(o, "blocks", path, 1, 64)?
         .iter()
@@ -162,12 +187,13 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx:
                 "kpi" => &["type", "value", "label", "note"],
                 "list" => &["type", "items"],
                 "image" => &["type", "src", "alt"],
+                "diagram" => &["type", "diagram", "alt", "data"],
                 "columns" if columns_allowed => &["type", "columns"],
                 "columns" => return Err(error(&format!("{p}.type"), "columns cannot nest")),
                 _ => {
                     return Err(error(
                         &format!("{p}.type"),
-                        "expected text, panel, callout, kpi, list, image or columns",
+                        "expected text, panel, callout, kpi, list, image, diagram or columns",
                     ))
                 }
             };
@@ -198,6 +224,7 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx:
                     let alt = string(b, "alt", &p)?;
                     Ok(Block::Image(image(&string(b, "src", &p)?, &p, ctx)?, alt))
                 }
+                "diagram" => Ok(Block::Diagram(diagram(b, &p, ctx)?)),
                 "columns" => {
                     let cols = items(b, "columns", &p, 2, 3)?
                         .iter()
@@ -250,6 +277,7 @@ impl Block {
             Self::Image(uri, alt) => {
                 format!("<img class=\"wb-image\" src=\"{}\" alt=\"{}\">", escape(uri), escape(alt))
             }
+            Self::Diagram(svg) => svg.clone(),
             Self::List(items) => {
                 let li: String = items.iter().map(|t| format!("<li>{}</li>", escape(t))).collect();
                 format!("<ul class=\"wb-list\">{li}</ul>")
@@ -272,12 +300,13 @@ fn html(blocks: &[Block]) -> String {
 
 #[cfg(test)]
 pub fn parse(bytes: &[u8]) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
-    parse_in(bytes, None)
+    parse_in(bytes, None, None)
 }
 
-/// Parse with local images resolved under `base` (the spec or markup directory).
-pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
-    let mut ctx = Ctx { base, images: 0 };
+/// Parse with local images resolved under `base` (the spec or markup directory)
+/// and diagrams drawn with preset `theme` (None = default).
+pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
+    let mut ctx = Ctx { base, theme, images: 0, diagrams: 0 };
     if bytes.len() > MAX_BYTES {
         return Err(error("$", "spec exceeds 64 KiB"));
     }
@@ -338,7 +367,7 @@ pub fn load(path: &Path) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
     File::open(path)
         .and_then(|f| f.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes))
         .map_err(|e| error("$", &format!("cannot read spec: {e}")))?;
-    parse_in(&bytes, Some(path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."))))
+    parse_in(&bytes, Some(path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."))), None)
 }
 
 #[cfg(test)]
@@ -448,7 +477,7 @@ mod tests {
             v["slides"][0]["blocks"] = json!([{"type":"image","src":src,"alt":"그림 \"<1>\""}]);
             v.to_string()
         };
-        let (_, slides) = parse_in(spec("img/a.svg").as_bytes(), Some(&inside)).unwrap();
+        let (_, slides) = parse_in(spec("img/a.svg").as_bytes(), Some(&inside), None).unwrap();
         assert!(slides[0].body_html.starts_with("<img class=\"wb-image\" src=\"data:image/svg+xml;base64,"));
         assert!(slides[0].body_html.ends_with("alt=\"그림 &quot;&lt;1&gt;&quot;\">"));
         assert!(parse(spec("img/a.svg").as_bytes()).err().unwrap().contains("need a spec file location"));
@@ -465,13 +494,47 @@ mod tests {
             ("pipe.png", "regular file"),
             ("dir.png", "regular file"),
         ] {
-            let err = parse_in(spec(src).as_bytes(), Some(&inside)).err().unwrap();
+            let err = parse_in(spec(src).as_bytes(), Some(&inside), None).err().unwrap();
             assert!(err.contains("$.slides[0].blocks[0].src") && err.contains(msg), "{src}: {err}");
         }
         let mut v = base();
         v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"img/a.svg","alt":"a"}); 9]);
-        assert!(parse_in(v.to_string().as_bytes(), Some(&inside)).err().unwrap().contains("at most 8 images"));
+        assert!(parse_in(v.to_string().as_bytes(), Some(&inside), None).err().unwrap().contains("at most 8 images"));
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn diagrams_render_inline_svg_with_limits() {
+        let q = json!({"quadrants":[{"title":"가"},{"title":"나"},{"title":"다"},{"title":"라"}]});
+        let block = |extra: Value| {
+            let mut b = json!({"type":"diagram","diagram":"quadrant","alt":"사분면 \"<1>\"","data":q});
+            b.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let mut v = base();
+            v["slides"][0]["blocks"] = json!([b]);
+            v.to_string()
+        };
+        let (_, slides) = parse(block(json!({})).as_bytes()).unwrap();
+        let html = &slides[0].body_html;
+        assert!(html.starts_with("<svg class=\"wb-diagram\" role=\"img\" aria-label=\"사분면 &quot;&lt;1&gt;&quot;\" xmlns="), "{html}");
+        assert!(html.contains("viewBox=\"0 0 960 540\"") && html.ends_with("</svg>"));
+        assert_eq!(parse(block(json!({})).as_bytes()).unwrap().1[0].body_html, *html);
+        let night = parse_in(block(json!({})).as_bytes(), None, Some("night")).unwrap().1;
+        assert_ne!(night[0].body_html, *html);
+        for (extra, msg) in [
+            (json!({"diagram":"pie"}), "$.slides[0].blocks[0].diagram: expected one of quadrant"),
+            (json!({"data":{"quadrants":[{"title":"가","x":1},{"title":"나"},{"title":"다"},{"title":"라"}]}}), "$.slides[0].blocks[0].data.quadrants[0].x: unknown field"),
+            (json!({"src":"a.svg"}), "$.slides[0].blocks[0].src: unknown field"),
+            (json!({"alt":" "}), "$.slides[0].blocks[0].alt"),
+        ] {
+            let err = parse(block(extra).as_bytes()).err().unwrap();
+            assert!(err.contains(msg), "{err}");
+        }
+        let one = json!({"type":"diagram","diagram":"quadrant","alt":"a","data":q});
+        let mut v = base();
+        v["slides"] = json!([{"blocks":vec![one.clone(); 8]}, {"blocks":vec![one.clone(); 8]}]);
+        assert!(parse(v.to_string().as_bytes()).is_ok());
+        v["slides"][1]["blocks"] = json!(vec![one; 9]);
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[1].blocks[8]: at most 16 diagrams"));
     }
 
     #[test]

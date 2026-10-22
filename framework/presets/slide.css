@@ -35,4 +35,5 @@
 /* Columns fill the content width with equal shares (see #22). */
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
+.wb-diagram { display: block; width: 100%; height: var(--wb-diagram-height); margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }

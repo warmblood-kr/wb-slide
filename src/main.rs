@@ -896,7 +896,7 @@ fn export_markup(path: &std::path::Path, theme: Option<&str>, output: &std::path
     let source = String::from_utf8(bytes).map_err(|_| "markup is not UTF-8".to_string())?;
     // Images resolve relative to the markup file, like the spec path.
     let base = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
-    let (meta, slides) = spec::parse_in(markup::compile(&source)?.as_bytes(), Some(base))?;
+    let (meta, slides) = spec::parse_in(markup::compile(&source)?.as_bytes(), Some(base), theme)?;
     write_spec_html(meta, slides, Some(&markup::preset_css(theme)?), output)
 }
 

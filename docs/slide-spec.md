@@ -50,6 +50,7 @@ are errors at every level.
 | kpi | value, label (both presentation strings) | note |
 | list | items: string array (bulleted) | none |
 | image | src (relative local path), alt | none |
+| diagram | diagram (type), alt, data (that type's JSON model) | none |
 | columns | columns: array of objects, each with blocks | none |
 
 Columns require 2–3 entries and cannot nest. The compiler maps these objects
@@ -73,6 +74,24 @@ or .svg, each file at most 2 MiB, with at most 8 images per deck. The file is
 embedded as a `data:` URI in an `<img>` with the escaped `alt`, so SVG scripts
 and external references do not run. Text inside an SVG uses whatever fonts the
 browser has, not the render font check.
+
+A `diagram` block draws one deterministic diagram from strict JSON
+([diagram-library.md](diagram-library.md) lists the types and data models):
+
+```json
+{"type":"diagram","diagram":"quadrant","alt":"가상 우선순위 사분면",
+ "data":{"quadrants":[{"title":"빠른 성과"},{"title":"주요 과제"},
+                      {"title":"보류"},{"title":"재검토"}]}}
+```
+
+Export renders the SVG in-process with the deck's preset theme (`--theme` for
+markup, default for `--spec`) and writes it inline as
+`<svg class="wb-diagram" role="img" aria-label="…">` (escaped `alt`), so the
+render font and checks see its text. No file is read. The slide preset
+(`export --markup`) sizes it with `--wb-diagram-height` (300px), keeping the
+aspect ratio. At most 16 diagrams
+per deck. An unknown type lists the valid ones; data errors carry the block
+path, e.g. `$.slides[0].blocks[0].data.quadrants[0].title: …`.
 
 The complete request is validated before any output is published. Invalid
 input returns nonzero with a field path and reason, for example:
