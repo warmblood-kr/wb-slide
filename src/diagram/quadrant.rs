@@ -3,6 +3,7 @@ use super::*;
 
 const GAP: f64 = 8.0;
 const INSET: f64 = 16.0;
+const INSET_Y: f64 = 12.0;
 const AXIS_BAND: f64 = 32.0;
 
 struct Axis {
@@ -55,14 +56,14 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         svg.node(cell, &t.card, on.then_some((t.accent.as_str(), 2.0)), 8.0);
         let inner = cw - 2.0 * INSET;
         let title = fit(&title, 20.0, inner, 2)?;
-        let items = fit_items(&items, inner - 16.0, ch - 2.0 * INSET - title.height() - 8.0)
+        let (items, gap) = fit_items(&items, inner - 16.0, ch - 2.0 * INSET_Y - title.height() - 8.0)
             .map_err(|e| format!("{path}.items: {e}"))?;
-        let mut cy = cell.y + INSET;
+        let mut cy = cell.y + INSET_Y;
         cy += svg.text(&title, Anchor::Start, cell.x + INSET, cy, 700, if on { &t.accent } else { &t.text }) + 8.0;
         for l in &items {
             let dot_y = cy + l.line_h() / 2.0;
             svg.dot(cell.x + INSET + 3.0, dot_y, 3.0, if on { &t.accent } else { &t.muted });
-            cy += svg.text(l, Anchor::Start, cell.x + INSET + 16.0, cy, 400, &t.text) + 8.0;
+            cy += svg.text(l, Anchor::Start, cell.x + INSET + 16.0, cy, 400, &t.text) + gap;
         }
     }
 
@@ -98,20 +99,17 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     Ok(())
 }
 
-/// Fit bullet items into `max_h`, stepping down the starting size for all items together.
-fn fit_items(items: &[String], w: f64, max_h: f64) -> Result<Vec<Label>> {
-    let mut size = 16.0;
-    loop {
+/// Fit bullet items into `max_h`: largest size first, then tighter item spacing, all items together.
+fn fit_items(items: &[String], w: f64, max_h: f64) -> Result<(Vec<Label>, f64)> {
+    for size in [16.0, 14.0, 12.0] {
         let labels: Vec<Label> = items.iter().map(|s| fit(s, size, w, 2)).collect::<Result<_>>()?;
-        let h: f64 = labels.iter().map(|l| l.height() + 8.0).sum::<f64>() - 8.0;
-        if h <= max_h {
-            return Ok(labels);
+        let text_h: f64 = labels.iter().map(Label::height).sum();
+        let gaps = labels.len().saturating_sub(1) as f64;
+        if let Some(gap) = [8.0, 4.0, 2.0].into_iter().find(|g| text_h + g * gaps <= max_h) {
+            return Ok((labels, gap));
         }
-        if size <= 12.0 {
-            return Err("items do not fit in the quadrant; shorten or remove some".into());
-        }
-        size -= 2.0;
     }
+    Err("items do not fit in the quadrant; shorten or remove some".into())
 }
 
 #[cfg(test)]
@@ -152,6 +150,37 @@ mod tests {
         match super::super::render("quadrant", &d, None) {
             Ok(_) => {}
             Err(e) => assert!(e.contains("do not fit") || e.contains("does not fit"), "{e}"),
+        }
+    }
+
+    #[test]
+    fn four_short_items_fit_with_and_without_axes() {
+        let q = json!({"title":"강점","items":["a","b","c","d"]});
+        let mut d = json!({"quadrants":[q,q,q,q]});
+        super::super::render("quadrant", &d, None).unwrap();
+        d["x"] = json!({"label":"노력","low":"낮음","high":"높음"});
+        d["y"] = json!({"label":"영향","low":"낮음","high":"높음"});
+        let s = super::super::render("quadrant", &d, None).unwrap();
+        assert!(!s.contains(r#"font-size="12""#), "4 short items should stay >=14px with axes");
+    }
+
+    #[test]
+    fn item_counts_and_lengths_never_break_layout() {
+        for axes in [false, true] {
+            for n in 1..=4 {
+                for len in 1..=80 {
+                    let item: String = "가나다 라마 바사아".chars().cycle().take(len).collect();
+                    let q = json!({"title":"제목","items":vec![item; n]});
+                    let mut d = json!({"quadrants":[q,q,q,q]});
+                    if axes {
+                        d["x"] = json!({"label":"x","low":"l","high":"h"});
+                        d["y"] = json!({"label":"y","low":"l","high":"h"});
+                    }
+                    if let Err(e) = super::super::render("quadrant", &d, None) {
+                        assert!(!e.starts_with("layout:"), "n={n} len={len} axes={axes}: {e}");
+                    }
+                }
+            }
         }
     }
 
