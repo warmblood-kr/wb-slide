@@ -170,6 +170,16 @@ fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
     Ok(slide)
 }
 
+/// First string value, depth-first, ignoring block `type` tags.
+fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
+    match v {
+        serde_json::Value::String(_) => Some(v),
+        serde_json::Value::Array(a) => a.iter().find_map(first_text),
+        serde_json::Value::Object(o) => o.iter().filter(|(k, _)| *k != "type").find_map(|(_, v)| first_text(v)),
+        _ => None,
+    }
+}
+
 /// Compile markup to typed spec JSON. Same input, same bytes.
 pub fn compile(markup: &str) -> Result<String> {
     let slides = tree(markup)?
@@ -182,9 +192,9 @@ pub fn compile(markup: &str) -> Result<String> {
         .enumerate()
         .map(|(i, e)| slide(e?, i))
         .collect::<Result<Vec<_>>>()?;
-    // Deck title: first heading, else the first slide's first text.
+    // Deck title: first heading, else the first text anywhere in the blocks.
     let first = slides.first().ok_or("no <wb-slide> found")?;
-    let deck_title = slides.iter().find_map(|s| s.get("heading")).unwrap_or(&first["blocks"][0]["text"]).clone();
+    let deck_title = slides.iter().find_map(|s| s.get("heading")).or_else(|| first_text(&first["blocks"])).cloned();
     let spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
@@ -282,6 +292,9 @@ mod tests {
         let s = spec("<wb-slide><wb-title>T</wb-title>앞\n<wb-list>\n <wb-item>하나</wb-item>\n <wb-item>둘 &amp; 셋</wb-item>\n</wb-list>\n뒤</wb-slide>");
         assert_eq!(s["slides"][0]["blocks"], json!([
             {"type":"text","text":"앞"}, {"type":"list","items":["하나","둘 & 셋"]}, {"type":"text","text":"뒤"}]));
+        let json = compile("<wb-slide><wb-list><wb-item>x</wb-item></wb-list></wb-slide>").unwrap();
+        assert!(crate::spec::parse(json.as_bytes()).is_ok());
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&json).unwrap()["title"], "x");
         for (m, msg) in [
             ("<wb-slide><wb-list>x</wb-list></wb-slide>", "takes only <wb-item>"),
             ("<wb-slide><wb-list></wb-list></wb-slide>", "empty <wb-list>"),
