@@ -172,6 +172,7 @@ class RenderTest(unittest.TestCase):
             png = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
             # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
             body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
+            self.assertIsNotNone(body)
             self.assertGreater(body[1], 120)
             corners[theme] = png.getpixel((4, 4))
         self.assertEqual(corners["default"], (255, 255, 255))

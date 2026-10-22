@@ -16,4 +16,4 @@
 --wb-safe-y: 48px;
 --wb-gap: 16px;
 --wb-image-height: 280px;
---wb-vertical: center;
+--wb-vertical: safe center;
