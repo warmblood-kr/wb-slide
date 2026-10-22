@@ -11,7 +11,7 @@ const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[])];
 
 enum Node {
     Text(String),
@@ -155,6 +155,17 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                     panel["label"] = json!(collapse(label));
                 }
                 blocks.push(panel);
+            }
+            Node::El(e) if e.name == "wb-columns" => {
+                let columns = children(e, "wb-column")?
+                    .into_iter()
+                    .map(|c| match body(&c.kids)? {
+                        b if b.is_empty() => Err(format!("empty <wb-column> at byte {}", c.pos)),
+                        b => Ok(json!({"blocks": b})),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                // The spec enforces 2–3 columns and no nesting, with a field path.
+                blocks.push(json!({"type": "columns", "columns": columns}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -341,6 +352,32 @@ mod tests {
         }
         // A blank label is left for the spec to reject with a field path.
         assert!(compile("<wb-slide><wb-card label=\" \">x</wb-card></wb-slide>").is_ok());
+    }
+
+    #[test]
+    fn columns_hold_body_content() {
+        let s = spec("<wb-slide><wb-title>T</wb-title><wb-columns>\n<wb-column>왼쪽<wb-list><wb-item>a</wb-item></wb-list></wb-column>\n<wb-column><wb-card label=\"L\">오른쪽</wb-card></wb-column>\n</wb-columns>끝</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"columns","columns":[
+                {"blocks":[{"type":"text","text":"왼쪽"},{"type":"list","items":["a"]}]},
+                {"blocks":[{"type":"panel","label":"L","paragraphs":["오른쪽"]}]}]},
+            {"type":"text","text":"끝"}]));
+        assert!(crate::spec::parse(compile("<wb-slide><wb-columns><wb-column>a</wb-column><wb-column>b</wb-column></wb-columns></wb-slide>").unwrap().as_bytes()).is_ok());
+        for (m, msg) in [
+            ("<wb-slide><wb-columns>x</wb-columns></wb-slide>", "takes only <wb-column>"),
+            ("<wb-slide><wb-columns><wb-column> </wb-column><wb-column>b</wb-column></wb-columns></wb-slide>", "empty <wb-column>"),
+            ("<wb-slide><wb-column>a</wb-column></wb-slide>", "unexpected <wb-column>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        // Count and nesting limits come from the spec, with a field path.
+        for (m, msg) in [
+            ("<wb-slide><wb-columns><wb-column>a</wb-column></wb-columns></wb-slide>", "$.slides[0].blocks[0].columns: expected 2–3"),
+            ("<wb-slide><wb-columns><wb-column><wb-columns><wb-column>a</wb-column><wb-column>b</wb-column></wb-columns></wb-column><wb-column>c</wb-column></wb-columns></wb-slide>", "columns cannot nest"),
+        ] {
+            let json = compile(m).unwrap();
+            assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains(msg), "{m}");
+        }
     }
 
     #[test]
