@@ -1,5 +1,7 @@
 # Slide markup: design note (issue #23)
 
+Authoring reference (for LLMs writing decks): [markup-dsl-guide.md](markup-dsl-guide.md).
+
 **Goal.** An author, often an LLM, writes small semantic markup. A slide
 preset supplies the opinions: type scale, palette, grid, spacing. A
 deterministic compiler lowers the markup to the typed spec
