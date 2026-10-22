@@ -21,6 +21,7 @@ All notable changes to wb-slide.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec
   directory only, embedded as data URIs; #22). Markup `<wb-columns>`/`<wb-column>`, `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).
+- Markup `<wb-stat value note?>caption</wb-stat>` (lowers to spec `kpi`, caption → `label`) and `<wb-callout tone="info|warning">` (lowers to `callout`); preset styles both from `--wb-*` tokens. No spec change.
 
 ## v0.9.0 — 2026-06-12
 

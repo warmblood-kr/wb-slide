@@ -13,7 +13,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -139,6 +139,26 @@ fn children<'a>(el: &'a El, name: &str) -> Result<Vec<&'a El>> {
     }).collect()
 }
 
+/// Text-only element (<wb-card>, <wb-callout>) -> paragraph strings.
+fn prose_of(e: &El) -> Result<Vec<serde_json::Value>> {
+    let mut texts = Vec::new();
+    for kid in &e.kids {
+        match kid {
+            Node::Text(t) => paragraphs(t, &mut texts),
+            Node::El(inner) => return Err(unexpected(inner)),
+        }
+    }
+    if texts.is_empty() {
+        return Err(format!("empty <{}> at byte {}", e.name, e.pos));
+    }
+    Ok(texts.into_iter().map(|t| t["text"].clone()).collect())
+}
+
+fn attr(e: &El, k: &str) -> Result<String> {
+    e.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
+        .ok_or(format!("<{}> at byte {} needs {k}=\"…\"", e.name, e.pos))
+}
+
 /// Body content -> spec blocks, in order.
 fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
     let mut blocks = Vec::new();
@@ -153,17 +173,7 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                 blocks.push(json!({"type": "list", "items": items}));
             }
             Node::El(e) if e.name == "wb-card" => {
-                let mut texts = Vec::new();
-                for kid in &e.kids {
-                    match kid {
-                        Node::Text(t) => paragraphs(t, &mut texts),
-                        Node::El(inner) => return Err(unexpected(inner)),
-                    }
-                }
-                if texts.is_empty() {
-                    return Err(format!("empty <wb-card> at byte {}", e.pos));
-                }
-                let mut panel = json!({"type": "panel", "paragraphs": texts.iter().map(|t| &t["text"]).collect::<Vec<_>>()});
+                let mut panel = json!({"type": "panel", "paragraphs": prose_of(e)?});
                 if let Some((_, label)) = e.attrs.iter().find(|(k, _)| k == "label") {
                     panel["label"] = json!(collapse(label));
                 }
@@ -187,9 +197,20 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                 if e.kids.iter().any(|k| !matches!(k, Node::Text(t) if blank(t))) {
                     return Err(format!("<wb-image> at byte {} takes no content; use alt=\"…\"", e.pos));
                 }
-                let attr = |k: &str| e.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
-                    .ok_or(format!("<wb-image> at byte {} needs {k}=\"…\"", e.pos));
-                blocks.push(json!({"type": "image", "src": attr("src")?, "alt": collapse(&attr("alt")?)}));
+                blocks.push(json!({"type": "image", "src": attr(e, "src")?, "alt": collapse(&attr(e, "alt")?)}));
+            }
+            Node::El(e) if e.name == "wb-stat" => {
+                // The caption is the spec kpi label.
+                let mut kpi = json!({"type": "kpi", "value": collapse(&attr(e, "value")?), "label": text_of(e)?});
+                if let Ok(note) = attr(e, "note") {
+                    kpi["note"] = json!(collapse(&note));
+                }
+                blocks.push(kpi);
+            }
+            Node::El(e) if e.name == "wb-callout" => {
+                // The spec rejects a tone other than info|warning with a field path.
+                let tone = attr(e, "tone")?;
+                blocks.push(json!({"type": "callout", "tone": tone, "paragraphs": prose_of(e)?}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -468,6 +489,43 @@ mod tests {
         for m in ["<wb-footer>a</wb-footer><wb-footer>b</wb-footer><wb-slide>x</wb-slide>", "<wb-slide><wb-footer>a</wb-footer>x</wb-slide>"] {
             assert!(compile(m).unwrap_err().contains("unexpected <wb-footer>"), "{m}");
         }
+    }
+
+    #[test]
+    fn stat_is_a_kpi_with_caption() {
+        let s = spec("<wb-slide><wb-columns><wb-column><wb-stat value=\"+38%\" note=\" 가상  수치 \"> 재방문\n 증가 </wb-stat></wb-column>\n<wb-column><wb-stat value=\"3주\">준비 기간</wb-stat></wb-column></wb-columns></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"][0]["columns"], json!([
+            {"blocks":[{"type":"kpi","value":"+38%","label":"재방문 증가","note":"가상 수치"}]},
+            {"blocks":[{"type":"kpi","value":"3주","label":"준비 기간"}]}]));
+        for (m, msg) in [
+            ("<wb-slide><wb-stat>x</wb-stat></wb-slide>", "<wb-stat> at byte 10 needs value="),
+            ("<wb-slide><wb-stat value=\"1\"> </wb-stat></wb-slide>", "empty <wb-stat> at byte 10"),
+            ("<wb-slide><wb-stat value=\"1\">a<wb-list></wb-list></wb-stat></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide><wb-stat value=\"1\"/></wb-slide>", "self-closing"),
+            ("<wb-slide><wb-stat value=\"1\" label=\"a\">x</wb-stat></wb-slide>", "unsupported attributes"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        assert!(crate::spec::parse(compile("<wb-slide><wb-stat value=\"1\">a</wb-stat></wb-slide>").unwrap().as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn callout_has_tone_and_paragraphs() {
+        let s = spec("<wb-slide><wb-callout tone=\"warning\">첫째\n\n둘째</wb-callout><wb-callout tone=\"info\">단독</wb-callout></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"callout","tone":"warning","paragraphs":["첫째","둘째"]},
+            {"type":"callout","tone":"info","paragraphs":["단독"]}]));
+        for (m, msg) in [
+            ("<wb-slide><wb-callout>x</wb-callout></wb-slide>", "<wb-callout> at byte 10 needs tone="),
+            ("<wb-slide><wb-callout tone=\"info\"> </wb-callout></wb-slide>", "empty <wb-callout>"),
+            ("<wb-slide><wb-callout tone=\"info\"><wb-list></wb-list></wb-callout></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide><wb-callout tone=\"info\"/></wb-slide>", "self-closing"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        // Another tone is left for the spec to reject with a field path.
+        let json = compile("<wb-slide><wb-callout tone=\"danger\">x</wb-callout></wb-slide>").unwrap();
+        assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains("$.slides[0].blocks[0].tone: expected info or warning"));
     }
 
     #[test]
