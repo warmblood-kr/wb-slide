@@ -13,7 +13,7 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         let c = obj(c, &path, &["category", "items"])?;
         let items = match c.get("items") {
             None => Vec::new(),
-            Some(_) => arr(c, "items", &path, 1, 4)?.iter().enumerate()
+            Some(_) => arr(c, "items", &path, 0, 4)?.iter().enumerate()
                 .map(|(j, v)| str_items(v, &format!("{path}.items[{j}]"), 80)).collect::<Result<_>>()?,
         };
         Ok((req_str(c, "category", &path, 40)?, items))
@@ -120,6 +120,13 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn empty_items_render_as_bare_category() {
+        let mut d = sample();
+        d["causes"][0]["items"] = json!([]);
+        assert!(render(&d, None).is_ok());
     }
 
     #[test]
