@@ -6,10 +6,11 @@ All notable changes to wb-slide.
 
 ### Added
 
-- Built-in preset themes `paper`, `graphite` and `signal` (design study), new tokens
+- **The default markup theme is now the design study's warm "paper" look** (alias `paper`); the earlier
+  white default is `--theme classic`. New built-in themes `graphite` and `signal`, new tokens
   `--wb-title-tracking`, `--wb-title-leading`, `--wb-measure`, `--wb-stat-size`, `--wb-label-size`,
   `--wb-inverse-bg` and `--wb-inverse-text`, and Korean `word-break: keep-all` in the preset.
-- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme default|night|tokens.css]`
+- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme NAME|tokens.css]`
   compiles `<wb-slide>`/`<wb-title>`/body text deterministically to the typed spec
   and applies a themeable slide preset (Pretendard, 32px title, safe areas). See
   `docs/markup-dsl.md`.

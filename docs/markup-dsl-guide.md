@@ -6,7 +6,7 @@ in [markup-dsl.md](markup-dsl.md).
 ## 1. Command
 
 ```sh
-wb-slide export --markup deck.html [--theme default|night|paper|graphite|signal|tokens.css] -o /absolute/out.html
+wb-slide export --markup deck.html [--theme default|classic|night|graphite|signal|tokens.css] -o /absolute/out.html
 python tools/render.py /absolute/out.html --output /absolute/new-dir \
   --font-file /path/to/licensed-variable.ttf [--pdf] [--scale 1|2] [--browser /path/to/chrome]
 ```
@@ -96,8 +96,9 @@ Slide I is the I-th `<wb-slide>` counting from 0. The render manifest counts fro
 
 ## 6. Themes
 
-`--theme default` (or omitted), a built-in `night`, `paper` (warm light editorial), `graphite` (dark product) or
-`signal` (bold indigo), or `--theme path/to/tokens.css`. The study themes hang the body from the top (`--wb-vertical: start`).
+`--theme default` (or omitted; warm off-white editorial, alias `paper`), a built-in `classic` (earlier white look),
+`night`, `graphite` (dark) or `signal` (bold indigo), or `--theme path/to/tokens.css` (a file named like a built-in
+needs a `./` prefix). default, graphite and signal hang the body from the top (`--wb-vertical: start`).
 A token file is one `--wb-name: value;` per line, each ending in `;`; blank lines allowed; no comments; unset tokens keep the default.
 Values must be plain: none of `( ) { } ; < > @ \ " / *`.
 Errors: `FILE:LINE: expected \`--wb-name: value;\``, `FILE:LINE: unknown token NAME`, `FILE:LINE: value must be plain …`,
@@ -109,7 +110,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 `--wb-accent`, `--wb-bg`, `--wb-card-bg`, `--wb-border`, `--wb-radius`, `--wb-safe-x`,
 `--wb-safe-y`, `--wb-gap`, `--wb-image-height`, `--wb-vertical`, `--wb-title-tracking`,
 `--wb-title-leading`, `--wb-measure` (max width of body text under a title), `--wb-stat-size`,
-`--wb-label-size`, `--wb-inverse-bg`, `--wb-inverse-text`.
+`--wb-label-size`, `--wb-inverse-bg`, `--wb-inverse-text` (the stat size and inverse colours are reserved; nothing reads them yet).
 
 `--wb-vertical` accepts only `start`, `safe center` or `space-evenly`.
 

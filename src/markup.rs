@@ -10,7 +10,7 @@ const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.cs
 /// Built-in themes beside default; each sets every token.
 const THEMES: &[(&str, &str)] = &[
     ("night", include_str!("../framework/presets/themes/night.css")),
-    ("paper", include_str!("../framework/presets/themes/paper.css")),
+    ("classic", include_str!("../framework/presets/themes/classic.css")),
     ("graphite", include_str!("../framework/presets/themes/graphite.css")),
     ("signal", include_str!("../framework/presets/themes/signal.css")),
 ];
@@ -324,7 +324,8 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
 /// Preset CSS: default tokens, then the chosen theme (built-in name or token file), then role styles.
 pub fn preset_css(theme: Option<&str>) -> Result<String> {
     let overrides = match theme {
-        None | Some("default") => String::new(),
+        // paper is the default look; the name stays as an alias.
+        None | Some("default") | Some("paper") => String::new(),
         Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
             tokens(THEMES.iter().find(|(n, _)| *n == name).unwrap().1, name)?
         }
@@ -517,15 +518,16 @@ mod tests {
     #[test]
     fn preset_defaults_and_theme_override() {
         let css = preset_css(None).unwrap();
-        assert!(css.contains("--wb-title-size: 32px;") && css.contains("--wb-font: Pretendard"));
+        assert!(css.contains("--wb-title-size: 40px;") && css.contains("--wb-font: Pretendard"));
         assert!(css.contains(".ms-slide-title") && css.contains("var(--wb-title-size)"));
         let night = preset_css(Some("night")).unwrap();
         // Overrides come after defaults inside :root, so the later value wins.
-        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 32px;").unwrap());
+        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 40px;").unwrap());
         for (name, source) in THEMES {
             assert_eq!(tokens(source, name).unwrap().lines().count(), token_names().len(), "{name}");
         }
-        assert!(preset_css(Some("paper")).unwrap().contains("--wb-bg: #F5F2EA;"));
+        assert_eq!(preset_css(Some("paper")).unwrap(), css);
+        assert!(preset_css(Some("classic")).unwrap().contains("--wb-title-size: 32px;"));
         assert!(tokens("--wb-vertical: start;", "t").is_ok());
         for (bad, msg) in [
             ("--wb-bg: url(http://x);", "must be plain"),

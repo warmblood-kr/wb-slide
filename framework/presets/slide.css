@@ -8,7 +8,7 @@
   --color-border: var(--wb-border);
 }
 /* Korean wraps between words, never inside one; very long tokens may still break. */
-.ms-slide-container { word-break: keep-all; overflow-wrap: break-word; }
+.ms-slide-container { word-break: keep-all; overflow-wrap: anywhere; }
 .ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
 .ms-slide-title {
   font-size: var(--wb-title-size);
