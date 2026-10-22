@@ -1,6 +1,6 @@
 //! Deterministic diagrams: compact JSON data -> SVG, themed by the slide preset tokens.
-//! Every render runs `Svg::check`: text inside the canvas, no overlaps, no edge
-//! through a label. A layout that cannot fit is an error, never clipped output.
+//! Every render runs `Svg::check`: text inside the canvas, no text or node overlaps.
+//! A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
 mod funnel;
@@ -43,10 +43,10 @@ pub struct Theme {
 impl Theme {
     pub fn load(theme: Option<&str>) -> Result<Self> {
         let values = crate::markup::token_values(theme)?;
-        let get = |n: &str| values.iter().find(|(k, _)| k == n).map(|(_, v)| esc(v)).unwrap_or_default();
+        let get = |n: &str| values.iter().find(|(k, _)| k == n).map(|(_, v)| esc(v)).ok_or(format!("theme lacks {n}"));
         Ok(Theme {
-            font: get("--wb-font"), text: get("--wb-text"), muted: get("--wb-muted"), accent: get("--wb-accent"),
-            bg: get("--wb-bg"), card: get("--wb-card-bg"), border: get("--wb-border"),
+            font: get("--wb-font")?, text: get("--wb-text")?, muted: get("--wb-muted")?, accent: get("--wb-accent")?,
+            bg: get("--wb-bg")?, card: get("--wb-card-bg")?, border: get("--wb-border")?,
         })
     }
 }
@@ -55,12 +55,16 @@ pub fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// Conservative advance width in em: wide (CJK/Hangul) 1.0, Latin 0.62, space 0.32.
-/// ponytail: no font metrics; overestimates Pretendard so fallback fonts still fit.
+/// Conservative advance width in em, sized for bold Pretendard: wide glyphs
+/// (Hangul jamo, U+2E80 and up: CJK, Hangul, fullwidth, emoji) 1.0, wide Latin 1.0,
+/// other capitals 0.75, everything else 0.62, space 0.32.
+/// ponytail: no font metrics; overestimates so fallback fonts still fit.
 fn char_em(c: char) -> f64 {
     match c {
         ' ' => 0.32,
-        '\u{1100}'..='\u{11FF}' | '\u{2E80}'..='\u{9FFF}' | '\u{AC00}'..='\u{D7AF}' | '\u{F900}'..='\u{FAFF}' | '\u{FF00}'..='\u{FFEF}' => 1.0,
+        '\u{1100}'..='\u{11FF}' | '\u{2E80}'.. => 1.0,
+        'M' | 'W' | 'm' | 'w' | '@' | '%' => 1.0,
+        'A'..='Z' => 0.75,
         _ => 0.62,
     }
 }
@@ -260,11 +264,7 @@ pub fn obj<'v>(v: &'v Value, path: &str, allowed: &[&str]) -> Result<&'v Map<Str
 }
 
 pub fn opt_str(m: &Map<String, Value>, key: &str, path: &str, max: usize) -> Result<Option<String>> {
-    match m.get(key) {
-        None => Ok(None),
-        Some(Value::String(s)) if !s.trim().is_empty() && s.chars().count() <= max => Ok(Some(s.trim().to_string())),
-        Some(_) => Err(format!("{path}.{key}: expected nonblank text of at most {max} characters")),
-    }
+    m.get(key).map(|v| str_items(v, &format!("{path}.{key}"), max)).transpose()
 }
 
 pub fn req_str(m: &Map<String, Value>, key: &str, path: &str, max: usize) -> Result<String> {
@@ -278,8 +278,11 @@ pub fn arr<'v>(m: &'v Map<String, Value>, key: &str, path: &str, min: usize, max
     }
 }
 
+/// One-line label text: nonblank, at most `max` characters, no control characters
+/// (they are not valid XML).
 pub fn str_items(v: &Value, path: &str, max: usize) -> Result<String> {
     match v {
+        Value::String(s) if s.chars().any(char::is_control) => Err(format!("{path}: control characters are not allowed")),
         Value::String(s) if !s.trim().is_empty() && s.chars().count() <= max => Ok(s.trim().to_string()),
         _ => Err(format!("{path}: expected nonblank text of at most {max} characters")),
     }
@@ -316,7 +319,15 @@ mod tests {
     }
 
     #[test]
-    fn theme_values_are_escaped_and_night_differs() {
+    fn controls_rejected_and_wide_glyphs_counted() {
+        let m = serde_json::json!({"a": "x\u{1}y"});
+        assert!(opt_str(m.as_object().unwrap(), "a", "$", 40).unwrap_err().contains("control"));
+        assert_eq!(width("😀", 10.0), 10.0);
+        assert_eq!(width("W", 10.0), 10.0);
+    }
+
+    #[test]
+    fn theme_values_load_and_night_differs() {
         let d = Theme::load(None).unwrap();
         let n = Theme::load(Some("night")).unwrap();
         assert_eq!(d.accent, "#2563EB");
