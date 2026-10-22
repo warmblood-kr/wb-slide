@@ -102,6 +102,7 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 
 - A file is one or more `<wb-slide>` elements. Only whitespace and comments may appear between them.
 - `<wb-title>` (optional, first child) becomes the slide `heading`, and the slide uses the title-top layout.
+- `<wb-subtitle>` (optional, directly after `<wb-title>`) becomes `subtitle`. It is sized by `--wb-subtitle-size` and coloured with `--wb-muted`.
 - A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
 - Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
@@ -109,6 +110,6 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 
 ## Next slices (one tag each)
 
-`wb-subtitle` → `subtitle`, `wb-list`, `wb-card` → panel, `wb-columns`,
+`wb-list`, `wb-card` → panel, `wb-columns`,
 `wb-image`/`wb-svg` (#22), `wb-notes`, `wb-footer`. Notes and footer need spec
 fields.

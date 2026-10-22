@@ -10,89 +10,161 @@ const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.cs
 const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
 
+/// Tags and the attributes each accepts. Everything else is an error.
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[])];
+
+enum Node {
+    Text(String),
+    El(El),
+}
+
+struct El {
+    name: String,
+    pos: usize,
+    kids: Vec<Node>,
+}
+
+fn unexpected(el: &El) -> String {
+    format!("unexpected <{}> at byte {}", el.name, el.pos)
+}
+
+/// Tokenize into a tree of known elements and text. Checks vocabulary and nesting only.
+fn tree(markup: &str) -> Result<Vec<Node>> {
+    let mut stack = vec![El { name: String::new(), pos: 0, kids: Vec::new() }];
+    let emitter = DefaultEmitter::<usize>::new_with_span();
+    for token in Tokenizer::new_with_emitter(markup, emitter) {
+        match token.map_err(|e| e.to_string())? {
+            Token::String(s) => {
+                let text = String::from_utf8_lossy(&s.value).to_string();
+                if stack.len() == 1 && !blank(&text) {
+                    return Err(format!("text outside <wb-slide> at byte {}", s.span.start));
+                }
+                // Merge runs split by comments so line breaks are judged on whole lines.
+                match stack.last_mut().unwrap().kids.last_mut() {
+                    Some(Node::Text(prev)) => prev.push_str(&text),
+                    _ => stack.last_mut().unwrap().kids.push(Node::Text(text)),
+                }
+            }
+            Token::Comment(_) | Token::Doctype(_) => {}
+            Token::Error(e) => return Err(format!("markup error at byte {}: {}", e.span.start, e.value)),
+            Token::StartTag(t) => {
+                let name = String::from_utf8_lossy(&t.name).to_string();
+                let allowed = TAGS.iter().find(|(n, _)| *n == name).map(|(_, a)| *a);
+                let allowed = allowed.ok_or(format!("unexpected <{name}> at byte {}", t.span.start))?;
+                let bad = t.attributes.keys().any(|k| !allowed.contains(&String::from_utf8_lossy(k).as_ref()));
+                if bad || t.self_closing {
+                    return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
+                }
+                stack.push(El { name, pos: t.span.start, kids: Vec::new() });
+            }
+            Token::EndTag(t) => {
+                let name = String::from_utf8_lossy(&t.name).to_string();
+                if stack.len() == 1 || stack.last().unwrap().name != name {
+                    return Err(format!("unexpected closing <{name}> at byte {}", t.span.start));
+                }
+                let el = stack.pop().unwrap();
+                stack.last_mut().unwrap().kids.push(Node::El(el));
+            }
+        }
+    }
+    if stack.len() > 1 {
+        return Err(format!("unclosed <{}> at end of input", stack.last().unwrap().name));
+    }
+    Ok(stack.pop().unwrap().kids)
+}
+
+/// HTML whitespace is ASCII only; U+00A0 (&nbsp;) is content.
+fn blank(s: &str) -> bool {
+    s.bytes().all(|b| b.is_ascii_whitespace())
+}
+
 fn collapse(s: &str) -> String {
     s.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn finish(heading: Option<String>, body: &str, index: usize) -> Result<serde_json::Value> {
-    // Blank lines separate paragraphs; other whitespace collapses as in HTML.
-    let mut paragraphs = vec![String::new()];
-    for line in body.lines() {
-        if line.trim().is_empty() {
-            paragraphs.push(String::new());
-        } else {
-            let last = paragraphs.last_mut().unwrap();
-            last.push(' ');
-            last.push_str(line);
+/// Inline text of an element that may contain only text.
+fn text_of(el: &El) -> Result<String> {
+    let mut text = String::new();
+    for kid in &el.kids {
+        match kid {
+            Node::Text(t) => text.push_str(t),
+            Node::El(e) => return Err(unexpected(e)),
         }
     }
-    let blocks: Vec<_> = paragraphs
+    let text = collapse(&text);
+    if text.is_empty() {
+        return Err(format!("empty <{}> at byte {}", el.name, el.pos));
+    }
+    Ok(text)
+}
+
+/// Body content -> spec blocks. Blank lines separate paragraphs; other whitespace collapses.
+fn body(kids: &[&Node]) -> Result<Vec<serde_json::Value>> {
+    let mut paragraphs = vec![String::new()];
+    for kid in kids {
+        match kid {
+            Node::Text(t) => {
+                for (i, line) in t.split('\n').enumerate() {
+                    if i > 0 && blank(line) {
+                        paragraphs.push(String::new());
+                    } else {
+                        let last = paragraphs.last_mut().unwrap();
+                        last.push(' ');
+                        last.push_str(line);
+                    }
+                }
+            }
+            Node::El(e) => return Err(unexpected(e)),
+        }
+    }
+    Ok(paragraphs
         .iter()
         .map(|p| collapse(p))
         .filter(|p| !p.is_empty())
         .map(|text| json!({"type": "text", "text": text}))
-        .collect();
+        .collect())
+}
+
+fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
+    let mut slide = json!({});
+    // Optional head, before any body: <wb-title>, then optional <wb-subtitle>.
+    let mut at = 0;
+    let mut take = |name: &str| {
+        let j = at + el.kids[at..].iter().position(|k| !matches!(k, Node::Text(t) if blank(t)))?;
+        match &el.kids[j] {
+            Node::El(e) if e.name == name => {
+                at = j + 1;
+                Some(e)
+            }
+            _ => None,
+        }
+    };
+    if let Some(title) = take("wb-title") {
+        slide["heading"] = json!(text_of(title)?);
+        if let Some(sub) = take("wb-subtitle") {
+            slide["subtitle"] = json!(text_of(sub)?);
+        }
+    }
+    let blocks = body(&el.kids[at..].iter().collect::<Vec<_>>())?;
     if blocks.is_empty() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
-    let mut slide = json!({"blocks": blocks});
-    if let Some(heading) = heading {
-        slide["heading"] = json!(heading);
-    }
+    slide["blocks"] = json!(blocks);
     Ok(slide)
 }
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
 pub fn compile(markup: &str) -> Result<String> {
-    enum At { Deck, Slide, Title }
-    let mut at = At::Deck;
-    let (mut slides, mut heading, mut title, mut body) = (Vec::new(), None, String::new(), String::new());
-    let emitter = DefaultEmitter::<usize>::new_with_span();
-    for token in Tokenizer::new_with_emitter(markup, emitter) {
-        let token = token.map_err(|e| e.to_string())?;
-        let (name, pos, is_end) = match &token {
-            Token::String(s) => {
-                let text = String::from_utf8_lossy(&s.value);
-                match at {
-                    At::Deck if text.trim().is_empty() => {}
-                    At::Deck => return Err(format!("text outside <wb-slide> at byte {}", s.span.start)),
-                    At::Slide => body.push_str(&text),
-                    At::Title => title.push_str(&text),
-                }
-                continue;
-            }
-            Token::Comment(_) | Token::Doctype(_) => continue,
-            Token::Error(e) => return Err(format!("markup error at byte {}: {}", e.span.start, e.value)),
-            Token::StartTag(t) => {
-                if !t.attributes.is_empty() || t.self_closing {
-                    return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
-                }
-                (String::from_utf8_lossy(&t.name).to_string(), t.span.start, false)
-            }
-            Token::EndTag(t) => (String::from_utf8_lossy(&t.name).to_string(), t.span.start, true),
-        };
-        at = match (at, name.as_str(), is_end) {
-            (At::Deck, "wb-slide", false) => At::Slide,
-            (At::Slide, "wb-title", false) if heading.is_none() && body.trim().is_empty() => At::Title,
-            (At::Title, "wb-title", true) => {
-                let t = collapse(&title);
-                if t.is_empty() {
-                    return Err(format!("empty <wb-title> at byte {pos}"));
-                }
-                heading = Some(t);
-                At::Slide
-            }
-            (At::Slide, "wb-slide", true) => {
-                slides.push(finish(heading.take(), &body, slides.len())?);
-                (title, body) = (String::new(), String::new());
-                At::Deck
-            }
-            _ => return Err(format!("unexpected {}<{name}> at byte {pos}", if is_end { "closing " } else { "" })),
-        };
-    }
-    if !matches!(at, At::Deck) {
-        return Err("unclosed <wb-slide> or <wb-title> at end of input".into());
-    }
+    let slides = tree(markup)?
+        .iter()
+        .filter_map(|n| match n {
+            Node::El(e) if e.name == "wb-slide" => Some(Ok(e)),
+            Node::El(e) => Some(Err(unexpected(e))),
+            Node::Text(_) => None,
+        })
+        .enumerate()
+        .map(|(i, e)| slide(e?, i))
+        .collect::<Result<Vec<_>>>()?;
     // Deck title: first heading, else the first slide's first text.
     let first = slides.first().ok_or("no <wb-slide> found")?;
     let deck_title = slides.iter().find_map(|s| s.get("heading")).unwrap_or(&first["blocks"][0]["text"]).clone();
@@ -160,6 +232,9 @@ mod tests {
         let s = spec("<wb-slide><wb-title>T</wb-title>a\r\n  \r\nb&nbsp;c</wb-slide>");
         assert_eq!(s["slides"][0]["blocks"][0]["text"], "a");
         assert_eq!(s["slides"][0]["blocks"][1]["text"], "b\u{a0}c");
+        let s = spec("<wb-slide><wb-title>T</wb-title>a\n<!-- c -->b\n<!-- c -->\nd</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"a b"},{"type":"text","text":"d"}]));
+        assert!(compile("&nbsp;<wb-slide>x</wb-slide>").unwrap_err().contains("text outside"));
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
@@ -174,6 +249,15 @@ mod tests {
         let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
         assert_eq!(slides[0].frontmatter[0].1, "slide-section");
         assert_eq!(spec("<wb-slide>hello</wb-slide>")["title"], "hello");
+    }
+
+    #[test]
+    fn subtitle_follows_title() {
+        let s = spec("<wb-slide><wb-title>T</wb-title>\n <wb-subtitle> 부제 </wb-subtitle>본문</wb-slide>");
+        assert_eq!((s["slides"][0]["subtitle"].as_str(), s["slides"][0]["blocks"][0]["text"].as_str()), (Some("부제"), Some("본문")));
+        for m in ["<wb-slide><wb-subtitle>S</wb-subtitle>x</wb-slide>", "<wb-slide><wb-title>T</wb-title>x<wb-subtitle>S</wb-subtitle></wb-slide>"] {
+            assert!(compile(m).unwrap_err().contains("unexpected <wb-subtitle>"), "{m}");
+        }
     }
 
     #[test]
