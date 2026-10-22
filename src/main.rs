@@ -17,6 +17,7 @@ mod components;
 mod spec;
 mod markup;
 mod diagram;
+mod narrative;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -102,6 +103,11 @@ enum Commands {
         #[command(subcommand)]
         command: DiagramCommand,
     },
+    /// Built-in narrative strategies (story structures for decks)
+    Narrative {
+        #[command(subcommand)]
+        action: NarrativeAction,
+    },
     /// Show version and check for updates
     Version,
     /// Update to the latest version
@@ -112,6 +118,14 @@ enum Commands {
         #[arg(short, long, default_value = "3030")]
         port: u16,
     },
+}
+
+#[derive(Subcommand)]
+enum NarrativeAction {
+    /// List strategy ids
+    List,
+    /// Print one strategy as JSON
+    Show { id: String },
 }
 
 struct Slide {
@@ -1093,6 +1107,20 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Narrative { action } => {
+            let out = match action {
+                NarrativeAction::List => narrative::list(),
+                NarrativeAction::Show { id } => narrative::show(&id),
+            };
+            match out {
+                Ok(text) => println!("{}", text.trim_end()),
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+
         Commands::Version => {
             let current = env!("CARGO_PKG_VERSION");
             println!("wb-slide v{current}");
