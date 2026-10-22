@@ -293,10 +293,14 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
         .enumerate()
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
-            let s = object(v, &p, &["heading", "subtitle", "blocks"])?;
+            let s = object(v, &p, &["heading", "subtitle", "blocks", "notes"])?;
             let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
-            let body = blocks(s, &p, true, &mut 0, &mut ctx)?;
+            let mut body_html = html(&blocks(s, &p, true, &mut 0, &mut ctx)?);
+            // Speaker notes ride along in the slide, hidden: no layout, no paint, no innerText.
+            if let Some(notes) = optional(s, "notes", &p)? {
+                body_html.push_str(&format!("<aside class=\"wb-notes\" hidden>{}</aside>", escape(&notes)));
+            }
             // No heading: content alone, centered (slide-section).
             let mut fm = match heading {
                 Some(heading) => vec![
@@ -313,7 +317,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             }
             Ok(Slide {
                 frontmatter: fm,
-                body_html: html(&body),
+                body_html,
                 slots: Vec::new(),
             })
         })
@@ -478,6 +482,18 @@ mod tests {
         assert_eq!(meta[1], ("footer".to_string(), "&lt;b&gt;팀&lt;/b&gt; &amp; 가상".to_string()));
         v["footer"] = json!("x".repeat(201));
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.footer"));
+    }
+
+    #[test]
+    fn notes_are_hidden_escaped_slide_text() {
+        let mut v = base();
+        v["slides"][0]["notes"] = json!("<b>말할 것</b> & 확인");
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<p>자료</p><aside class=\"wb-notes\" hidden>&lt;b&gt;말할 것&lt;/b&gt; &amp; 확인</aside>");
+        for bad in [json!(" "), json!("x".repeat(2001)), json!(1)] {
+            v["slides"][0]["notes"] = bad;
+            assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].notes"));
+        }
     }
 
     #[test]
