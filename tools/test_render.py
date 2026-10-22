@@ -150,13 +150,16 @@ class RenderTest(unittest.TestCase):
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 4)
+            self.assertEqual(manifest["slide_count"], 5)
             self.assertIn("안녕하세요", manifest["slides"][0]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][1]["text"])
             self.assertIn("기능 확인용 합성 자료", manifest["slides"][1]["text"])
             self.assertIn("카드와 단 나누기", manifest["slides"][2]["text"])
             self.assertIn("라벨이 붙은 패널", manifest["slides"][2]["text"])
             self.assertIn("준비 6주", manifest["slides"][3]["text"])
+            # The local SVG is embedded and painted: its solid #2563EB box shows up.
+            flow = Image.open(self.root / theme / manifest["slides"][4]["file"]).convert("RGB")
+            self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
