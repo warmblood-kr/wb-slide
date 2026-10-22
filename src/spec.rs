@@ -130,6 +130,10 @@ fn image(src: &str, p: &str, ctx: &mut Ctx) -> Result<String> {
     if !full.starts_with(&base) {
         return Err(error(&at, "image resolves outside the spec directory"));
     }
+    // A FIFO or device would block or never end; only regular files are read.
+    if !full.metadata().map(|m| m.is_file()).unwrap_or(false) {
+        return Err(error(&at, "expected a regular file"));
+    }
     let mut bytes = Vec::new();
     File::open(&full)
         .and_then(|f| f.take(MAX_IMAGE_BYTES + 1).read_to_end(&mut bytes))
@@ -432,6 +436,9 @@ mod tests {
         std::fs::write(inside.join("big.png"), vec![0u8; MAX_IMAGE_BYTES as usize + 1]).unwrap();
         #[cfg(unix)]
         std::os::unix::fs::symlink(dir.join("secret.png"), inside.join("link.png")).ok();
+        #[cfg(unix)]
+        std::process::Command::new("mkfifo").arg(inside.join("pipe.png")).status().unwrap();
+        std::fs::create_dir_all(inside.join("dir.png")).unwrap();
         let spec = |src: &str| {
             let mut v = base();
             v["slides"][0]["blocks"] = json!([{"type":"image","src":src,"alt":"그림 \"<1>\""}]);
@@ -450,6 +457,9 @@ mod tests {
             ("big.png", "exceeds 2 MiB"),
             #[cfg(unix)]
             ("link.png", "outside the spec directory"),
+            #[cfg(unix)]
+            ("pipe.png", "regular file"),
+            ("dir.png", "regular file"),
         ] {
             let err = parse_in(spec(src).as_bytes(), Some(&inside)).err().unwrap();
             assert!(err.contains("$.slides[0].blocks[0].src") && err.contains(msg), "{src}: {err}");
