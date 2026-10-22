@@ -134,7 +134,7 @@ def render(html_path, output, font_path, browser_path=None, scale=2, pdf=False):
                 ready(page)
                 metrics = slides.nth(index).evaluate("""s => {
                   const b=s.getBoundingClientRect();
-                  return {text:s.innerText, notes:s.querySelector('.wb-notes')?.textContent ?? '', width:b.width, height:b.height,
+                  return {text:s.innerText, notes:s.querySelector('.wb-notes[hidden]')?.textContent ?? '', width:b.width, height:b.height,
                     weights:[...new Set([s,...s.querySelectorAll('*')].map(e=>getComputedStyle(e).fontWeight))],
                     overflow:[...s.querySelectorAll('*')].filter(e=>{const r=e.getBoundingClientRect();
                       return r.width && r.height && (r.left<b.left-1 || r.top<b.top-1 ||

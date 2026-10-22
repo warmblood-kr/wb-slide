@@ -205,7 +205,16 @@ fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     el.kids = Vec::new();
     for kid in kids {
         match (el.kids.last_mut(), kid) {
-            (Some(Node::Text(prev)), Node::Text(t)) => prev.push_str(&t),
+            (Some(Node::Text(prev)), Node::Text(t)) => {
+                // A line that held only the notes vanishes with its line break.
+                let cut = prev.rfind('\n').filter(|&i| prev[i..].trim().is_empty());
+                if let (Some(i), Some(j)) = (cut, t.find('\n')) {
+                    if t[..j].trim().is_empty() {
+                        prev.truncate(i);
+                    }
+                }
+                prev.push_str(&t)
+            }
             (_, kid) => el.kids.push(kid),
         }
     }
@@ -468,6 +477,9 @@ mod tests {
         assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"x"}]));
         let s = spec("<wb-slide>앞 <wb-notes>n</wb-notes> 뒤</wb-slide>");
         assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"앞 뒤"}]));
+        // A line holding only the notes vanishes; a real blank line still splits.
+        let s = spec("<wb-slide>p1\n  <wb-notes>n</wb-notes>\n  p2\n\np3</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"p1 p2"}, {"type":"text","text":"p3"}]));
         for (m, msg) in [
             ("<wb-slide>x<wb-notes>a</wb-notes><wb-notes>b</wb-notes></wb-slide>", "unexpected <wb-notes> at byte 33"),
             ("<wb-slide>x<wb-notes>a<wb-list></wb-list></wb-notes></wb-slide>", "unexpected <wb-list>"),

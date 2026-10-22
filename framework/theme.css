@@ -234,3 +234,6 @@ slide-two-column, slide-image-full, slide-quote {
   color: var(--color-text-muted);
   padding-left: 28px;
 }
+
+/* Speaker notes (spec slide notes) are never painted, whatever a theme sets on aside. */
+.wb-notes { display: none !important; }
