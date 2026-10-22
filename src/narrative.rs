@@ -65,7 +65,8 @@ fn validate(s: &Value, path: &str, roles: &Value) -> Result<(), String> {
     for k in ["id", "name", "summary", "title_style"] {
         text(s, k, path)?;
     }
-    if format!("narratives/{}.json", s["id"].as_str().unwrap()) != path {
+    let id = s["id"].as_str().unwrap();
+    if format!("narratives/{id}.json") != path || !id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-') {
         return Err(format!("{path}: id must match the file name"));
     }
     vocab(&Value::from(vec![s["family"].clone()]), FAMILIES, &format!("{path}: family"))?;
@@ -78,6 +79,13 @@ fn validate(s: &Value, path: &str, roles: &Value) -> Result<(), String> {
     }
     let seq = s["sequence"].as_array().filter(|a| (3..=12).contains(&a.len())).ok_or(format!("{path}: sequence needs 3-12 entries"))?;
     for (i, step) in seq.iter().enumerate() {
+        let known = ["role", "purpose", "repeat", "optional", "layout"];
+        if let Some(k) = step.as_object().and_then(|o| o.keys().find(|k| !known.contains(&k.as_str()))) {
+            return Err(format!("{path}: sequence[{i}] unknown key {k}"));
+        }
+        if ["repeat", "optional"].iter().any(|k| step.get(*k).is_some_and(|v| !v.is_boolean())) {
+            return Err(format!("{path}: sequence[{i}] repeat/optional must be booleans"));
+        }
         let role = step["role"].as_str().unwrap_or_default();
         if roles["roles"].get(role).is_none() {
             return Err(format!("{path}: sequence[{i}] unknown role {role:?}"));
@@ -90,8 +98,8 @@ fn validate(s: &Value, path: &str, roles: &Value) -> Result<(), String> {
         }
     }
     let outline = s["example"]["outline"].as_array().ok_or(format!("{path}: example.outline missing"))?;
-    if outline.len() != seq.len() {
-        return Err(format!("{path}: example.outline must have one line per sequence entry"));
+    if outline.len() != seq.len() || !outline.iter().all(|l| l.as_str().is_some_and(|t| !t.trim().is_empty())) {
+        return Err(format!("{path}: example.outline must have one non-empty line per sequence entry"));
     }
     text(&s["example"], "topic", path)?;
     for k in ["references", "pitfalls"] {
@@ -129,6 +137,26 @@ mod tests {
         assert!(list().unwrap().contains("scqa"));
         assert!(show("scqa").unwrap().contains("\"complication\""));
         assert!(show("nope").unwrap_err().contains("unknown strategy"));
+    }
+
+    #[test]
+    fn every_role_has_a_known_layout() {
+        let r = roles().unwrap();
+        for (id, role) in r["roles"].as_object().unwrap() {
+            assert!(r["layouts"].get(role["layout"].as_str().unwrap()).is_some(), "{id}");
+            assert!(role["purpose"].as_str().is_some_and(|p| !p.is_empty()), "{id}");
+        }
+    }
+
+    #[test]
+    fn validator_rejects_bad_steps() {
+        let roles = roles().unwrap();
+        let s = find("scqa").unwrap();
+        for (key, val) in [("repeat", Value::from("yes")), ("colour", Value::from(true))] {
+            let mut bad = s.clone();
+            bad["sequence"][0][key] = val;
+            assert!(validate(&bad, "narratives/scqa.json", &roles).is_err(), "{key}");
+        }
     }
 
     #[test]

@@ -1065,7 +1065,7 @@ async fn main() {
                 NarrativeAction::Show { id } => narrative::show(&id),
             };
             match out {
-                Ok(text) => print!("{}", text.trim_end().to_string() + "\n"),
+                Ok(text) => println!("{}", text.trim_end()),
                 Err(e) => {
                     eprintln!("Error: {e}");
                     std::process::exit(1);
