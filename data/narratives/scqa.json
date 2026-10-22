@@ -1,0 +1,42 @@
+{
+  "id": "scqa",
+  "name": "SCQA (Situation, Complication, Question, Answer)",
+  "family": "logic",
+  "summary": "Open from shared ground, introduce tension, surface the question, then answer it and support the answer.",
+  "references": ["Barbara Minto, The Pyramid Principle (1987)"],
+  "when_to_use": {
+    "audiences": ["executive", "team", "customer"],
+    "goals": ["decide", "persuade", "inform"],
+    "minutes": [5, 30]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words.",
+  "density": {"max_bullets": 4, "max_words": 50, "one_idea_per_slide": true},
+  "sequence": [
+    {"role": "title", "purpose": "Frame the topic as the decision at hand."},
+    {"role": "situation", "purpose": "State facts the audience already accepts."},
+    {"role": "complication", "purpose": "Show the change that makes the situation unstable."},
+    {"role": "question", "purpose": "Ask the question the complication raises, in the audience's words."},
+    {"role": "answer", "purpose": "Answer in one sentence; this is the governing thought."},
+    {"role": "argument", "purpose": "First reason the answer holds.", "repeat": true},
+    {"role": "evidence", "purpose": "Proof for the reasons above.", "optional": true},
+    {"role": "ask", "purpose": "Turn the answer into the decision you need."}
+  ],
+  "pitfalls": [
+    "A situation the audience disputes; it must be uncontroversial.",
+    "Several complications at once; pick the one that forces the question.",
+    "Holding the answer back for suspense; it comes right after the question."
+  ],
+  "example": {
+    "topic": "Should a fictional bakery chain open on Sundays?",
+    "outline": [
+      "Sunday opening: a decision for this quarter",
+      "Weekday sales are steady across all five shops",
+      "Two new competitors now open seven days a week",
+      "Do we lose regulars if we stay closed on Sundays?",
+      "Open three shops on Sundays as a 12-week trial",
+      "Sunday foot traffic in our streets is the highest of the week",
+      "Synthetic survey: 40% of regulars shop on Sundays",
+      "Approve the trial budget today"
+    ]
+  }
+}
