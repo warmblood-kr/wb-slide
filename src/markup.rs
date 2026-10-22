@@ -330,7 +330,15 @@ pub fn preset_css(theme: Option<&str>) -> Result<String> {
             tokens(THEMES.iter().find(|(n, _)| *n == name).unwrap().1, name)?
         }
         Some(path) => {
-            let source = std::fs::read(path).map_err(|e| format!("cannot read theme {path}: {e}"))?;
+            let source = std::fs::read(path).map_err(|e| {
+                // A bare word is almost always a mistyped built-in name, not a file.
+                if !path.contains('/') && !path.ends_with(".css") {
+                    let names: Vec<_> = THEMES.iter().map(|(n, _)| *n).collect();
+                    format!("unknown theme {path}: use paper, {} or a token file path", names.join(", "))
+                } else {
+                    format!("cannot read theme {path}: {e}")
+                }
+            })?;
             if source.len() > MAX_THEME_BYTES {
                 return Err(format!("theme {path} exceeds 8 KiB"));
             }
@@ -343,6 +351,13 @@ pub fn preset_css(theme: Option<&str>) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_theme_name_lists_built_ins() {
+        let err = preset_css(Some("papr")).unwrap_err();
+        assert!(err.contains("unknown theme papr") && err.contains("graphite"), "{err}");
+        assert!(preset_css(Some("./nope.css")).unwrap_err().contains("cannot read theme"));
+    }
 
     fn spec(m: &str) -> serde_json::Value {
         serde_json::from_str(&compile(m).unwrap()).unwrap()

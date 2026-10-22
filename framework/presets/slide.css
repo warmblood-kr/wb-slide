@@ -8,7 +8,9 @@
   --color-border: var(--wb-border);
 }
 /* Korean wraps between words, never inside one; very long tokens may still break. */
-.ms-slide-container { word-break: keep-all; overflow-wrap: anywhere; }
+.ms-slide-container { word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; }
+/* Short titles: even line lengths instead of a lone last word. */
+.ms-slide-container :is(h1, h2) { text-wrap: balance; }
 .ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
 .ms-slide-title {
   font-size: var(--wb-title-size);
