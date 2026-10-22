@@ -1,0 +1,87 @@
+{
+  "id": "three-act",
+  "name": "Three-Act Structure",
+  "family": "story",
+  "summary": "Setup, confrontation and resolution: establish the world, escalate the conflict, then resolve it and land the message.",
+  "references": [
+    "Aristotle, Poetics (c. 335 BC)",
+    "Syd Field, Screenplay (1979)",
+    "Cliff Atkinson, Beyond Bullet Points (2005)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "team",
+      "customer"
+    ],
+    "goals": [
+      "inspire",
+      "persuade",
+      "inform"
+    ],
+    "minutes": [
+      10,
+      45
+    ]
+  },
+  "title_style": "Narrative headline titles, under 12 words.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the story."
+    },
+    {
+      "role": "situation",
+      "purpose": "Act one: the setup and the world."
+    },
+    {
+      "role": "complication",
+      "purpose": "Act one ends: the inciting incident."
+    },
+    {
+      "role": "section",
+      "purpose": "Mark the move into act two.",
+      "optional": true
+    },
+    {
+      "role": "story",
+      "purpose": "Act two: rising conflict and attempts.",
+      "repeat": true
+    },
+    {
+      "role": "turning-point",
+      "purpose": "The climax."
+    },
+    {
+      "role": "resolution",
+      "purpose": "Act three: the resolution."
+    },
+    {
+      "role": "close",
+      "purpose": "Land the message."
+    }
+  ],
+  "pitfalls": [
+    "A long setup that delays the conflict.",
+    "A second act that repeats instead of escalating.",
+    "A resolution with no message attached."
+  ],
+  "example": {
+    "topic": "A fictional town library winning back its readers",
+    "outline": [
+      "How a small library found its readers again",
+      "The library had shelves full and halls empty",
+      "The council threatened to cut its budget",
+      "Act two: the fight",
+      "Late opening hours drew in night-shift workers",
+      "Visits doubled in the month of the budget vote",
+      "The budget held and grew",
+      "Meet people where their day already is"
+    ]
+  }
+}

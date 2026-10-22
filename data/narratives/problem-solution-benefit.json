@@ -1,0 +1,80 @@
+{
+  "id": "problem-solution-benefit",
+  "name": "Problem, Solution, Benefit",
+  "family": "persuasion",
+  "summary": "Name a concrete problem, present the solution and how it works, then show the outcomes it delivers.",
+  "references": [
+    "Common business communication pattern, see Andrew Abela, Advanced Presentations by Design (2008)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "customer",
+      "team",
+      "executive"
+    ],
+    "goals": [
+      "persuade",
+      "sell",
+      "inform"
+    ],
+    "minutes": [
+      5,
+      20
+    ]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 45,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the topic in the audience's terms."
+    },
+    {
+      "role": "problem",
+      "purpose": "The pain, from the audience's side."
+    },
+    {
+      "role": "cause",
+      "purpose": "Why the problem persists.",
+      "optional": true
+    },
+    {
+      "role": "solution",
+      "purpose": "The proposed change."
+    },
+    {
+      "role": "how-it-works",
+      "purpose": "The mechanism in a few steps."
+    },
+    {
+      "role": "benefit",
+      "purpose": "Outcomes the audience values.",
+      "repeat": true
+    },
+    {
+      "role": "ask",
+      "purpose": "The next step."
+    }
+  ],
+  "pitfalls": [
+    "A solution looking for a problem; the problem must be felt first.",
+    "Benefits that are just features restated.",
+    "Too many problems; focus on the one this solves."
+  ],
+  "example": {
+    "topic": "A fictional support team proposing a training sandbox",
+    "outline": [
+      "Faster onboarding for new support agents",
+      "New agents take six weeks to handle tickets alone",
+      "Training lives in scattered documents and shadowing",
+      "A guided practice sandbox replaces most shadowing",
+      "Agents solve replayed tickets with instant feedback",
+      "Agents reach full speed in three weeks, not six",
+      "Pilot the sandbox with the next hiring class"
+    ]
+  }
+}

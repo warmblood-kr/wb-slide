@@ -1,0 +1,79 @@
+{
+  "id": "toulmin-argument",
+  "name": "Toulmin Argument",
+  "family": "logic",
+  "summary": "Build a rigorous case: claim, grounds, warrant, backing, qualifier and rebuttal, so the audience can test every link.",
+  "references": [
+    "Stephen Toulmin, The Uses of Argument (1958)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "academic",
+      "technical",
+      "executive"
+    ],
+    "goals": [
+      "persuade",
+      "decide",
+      "teach"
+    ],
+    "minutes": [
+      10,
+      30
+    ]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 50,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "State the issue under debate."
+    },
+    {
+      "role": "answer",
+      "purpose": "Claim: the position argued."
+    },
+    {
+      "role": "evidence",
+      "purpose": "Grounds: the facts behind the claim."
+    },
+    {
+      "role": "argument",
+      "purpose": "Warrant: why the grounds support the claim."
+    },
+    {
+      "role": "evidence",
+      "purpose": "Backing: support for the warrant itself.",
+      "optional": true
+    },
+    {
+      "role": "risk",
+      "purpose": "Qualifier and rebuttal: limits and counterarguments."
+    },
+    {
+      "role": "recommendation",
+      "purpose": "Restate the qualified claim."
+    }
+  ],
+  "pitfalls": [
+    "Skipping the warrant, leaving the link between data and claim implied.",
+    "Ignoring the strongest counterargument.",
+    "An unqualified claim that overreaches the grounds."
+  ],
+  "example": {
+    "topic": "A fictional research lab rescheduling its test queue",
+    "outline": [
+      "Should our lab move all tests to the night queue?",
+      "Claim: moving long tests to night halves daytime waits",
+      "Grounds: 70% of daytime queue time is long tests",
+      "Warrant: removing long jobs frees the queue for short ones",
+      "Backing: synthetic replay of last month confirms it",
+      "Unless urgent fixes need long tests by day; keep a fast lane",
+      "Move long tests to night, with one daytime fast lane"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "id": "pitch-deck",
+  "name": "Startup Pitch Deck",
+  "family": "pitch",
+  "summary": "The investor sequence: problem, solution, market, traction, business model, competition, team and the raise.",
+  "references": [
+    "Guy Kawasaki, The Art of the Start (2004)",
+    "Sequoia Capital, Writing a Business Plan guide (2000s)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "investor"
+    ],
+    "goals": [
+      "fund",
+      "persuade"
+    ],
+    "minutes": [
+      5,
+      20
+    ]
+  },
+  "title_style": "Claim titles: one sentence an investor would remember, under 12 words.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Company name and one-line description."
+    },
+    {
+      "role": "problem",
+      "purpose": "The painful problem for a clear customer."
+    },
+    {
+      "role": "solution",
+      "purpose": "The product and its key insight."
+    },
+    {
+      "role": "market",
+      "purpose": "Size and shape of the opportunity."
+    },
+    {
+      "role": "traction",
+      "purpose": "Proof that it already works."
+    },
+    {
+      "role": "business-model",
+      "purpose": "How it makes money."
+    },
+    {
+      "role": "competition",
+      "purpose": "Where it wins against alternatives."
+    },
+    {
+      "role": "team",
+      "purpose": "Why this team can deliver."
+    },
+    {
+      "role": "ask",
+      "purpose": "The raise and what it buys."
+    }
+  ],
+  "pitfalls": [
+    "A market slide with a huge top-down number and no customer logic.",
+    "Hiding the ask or leaving out how the money will be used.",
+    "Claiming no competition."
+  ],
+  "example": {
+    "topic": "A fictional agritech startup raising a seed round",
+    "outline": [
+      "Tallyleaf: inventory counts for small farms",
+      "Small farms lose a tenth of stock to bad counts",
+      "Phone photos turn into accurate counts in seconds",
+      "Thousands of small farms in our first region alone",
+      "Synthetic pilot: 30 farms, weekly use, zero churn",
+      "Monthly subscription per farm, priced by herd size",
+      "Clipboards and spreadsheets are the real competitor",
+      "A farmer, a vision engineer and a former agri-buyer",
+      "Raising a seed round to reach 500 farms"
+    ]
+  }
+}

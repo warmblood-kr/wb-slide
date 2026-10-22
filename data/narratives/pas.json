@@ -1,0 +1,74 @@
+{
+  "id": "pas",
+  "name": "PAS (Problem, Agitate, Solution)",
+  "family": "persuasion",
+  "summary": "Name the problem, intensify it by showing consequences, then relieve it with the solution.",
+  "references": [
+    "Direct-response copywriting formula; see Dan Kennedy, The Ultimate Sales Letter (1990)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "customer",
+      "general"
+    ],
+    "goals": [
+      "sell",
+      "persuade"
+    ],
+    "minutes": [
+      2,
+      10
+    ]
+  },
+  "title_style": "Short, pointed titles, under 10 words, written to 'you'.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "problem",
+      "purpose": "Problem: name it plainly."
+    },
+    {
+      "role": "stakes",
+      "purpose": "Agitate: the cost of the problem.",
+      "repeat": true
+    },
+    {
+      "role": "data-point",
+      "purpose": "Agitate: one number that stings.",
+      "optional": true
+    },
+    {
+      "role": "solution",
+      "purpose": "Solution: the relief."
+    },
+    {
+      "role": "benefit",
+      "purpose": "What life looks like after.",
+      "optional": true
+    },
+    {
+      "role": "ask",
+      "purpose": "The next step."
+    }
+  ],
+  "pitfalls": [
+    "Agitating so hard it feels manipulative.",
+    "A solution that does not directly answer the agitated pain.",
+    "Skipping the problem and leading with the product."
+  ],
+  "example": {
+    "topic": "A fictional scheduling tool for distributed teams",
+    "outline": [
+      "Your team misses meetings across time zones",
+      "Each missed call delays a decision by a day",
+      "Three missed calls a week, in a team of eight",
+      "One calendar that shows everyone's local hour",
+      "Meetings land when people are awake",
+      "Try it with your team for two weeks"
+    ]
+  }
+}

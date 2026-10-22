@@ -1,0 +1,74 @@
+{
+  "id": "fab",
+  "name": "FAB (Features, Advantages, Benefits)",
+  "family": "pitch",
+  "summary": "For each key feature, explain the advantage it gives and the benefit the buyer gets, ending with a clear next step.",
+  "references": [
+    "Sales training model; see Neil Rackham, SPIN Selling (1988)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "customer"
+    ],
+    "goals": [
+      "sell",
+      "inform"
+    ],
+    "minutes": [
+      5,
+      20
+    ]
+  },
+  "title_style": "Benefit-first titles, under 12 words; the feature appears in the body.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the product and who it serves."
+    },
+    {
+      "role": "problem",
+      "purpose": "The buyer's need, briefly.",
+      "optional": true
+    },
+    {
+      "role": "how-it-works",
+      "purpose": "Feature: what it is or does.",
+      "repeat": true
+    },
+    {
+      "role": "contrast",
+      "purpose": "Advantage: why that beats alternatives.",
+      "repeat": true
+    },
+    {
+      "role": "benefit",
+      "purpose": "Benefit: what the buyer gains.",
+      "repeat": true
+    },
+    {
+      "role": "ask",
+      "purpose": "The next step for the buyer."
+    }
+  ],
+  "pitfalls": [
+    "Listing features without ever reaching a benefit.",
+    "Advantages measured against nothing.",
+    "Benefits that the buyer did not ask for."
+  ],
+  "example": {
+    "topic": "A fictional furniture maker selling a folding desk",
+    "outline": [
+      "Quietdesk: a standing desk for small apartments",
+      "Small rooms make standing desks feel huge",
+      "Folds flat against the wall in one motion",
+      "Takes a quarter of the floor of a normal desk",
+      "Your room is a living room again after work",
+      "Book a home trial this month"
+    ]
+  }
+}
