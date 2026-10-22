@@ -237,7 +237,10 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     }
 
     let base_edge = svg.edges.len();
-    for (link, chain) in links.iter().zip(&chains) {
+    // Dummy slots per chain: another edge's direct run must not take their lane.
+    let slot_rect = |i: usize| { let (x, y) = pt(at[i].0, at[i].1); if tb { Rect { x, y, w: c, h: m } } else { Rect { x, y, w: m, h: c } } };
+    let dummies: Vec<Vec<Rect>> = chains.iter().map(|ch| ch[1..ch.len() - 1].iter().map(|&d| slot_rect(d)).collect()).collect();
+    for (e, (link, chain)) in links.iter().zip(&chains).enumerate() {
         // Points on (main, cross); every change of cross becomes an elbow in the middle of the gap.
         let mid = |i: usize| at[i].1 + c / 2.0;
         let mut mc = vec![(at[link.from].0 + m, mid(link.from))];
@@ -245,27 +248,34 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
             mc.extend([(at[d].0, mid(d)), (at[d].0 + m, mid(d))]);
         }
         mc.push((at[link.to].0, mid(link.to)));
-        let ortho = |mc: &[(f64, f64)]| -> Vec<(f64, f64)> {
+        // Unrelated edges never share a trunk: each bend takes the first free lane near the gap middle.
+        let ends = [base + link.from, base + link.to];
+        let others: Vec<&[(f64, f64)]> = svg.edges[base_edge..].iter()
+            .filter(|e| !e.ends.iter().any(|x| ends.contains(x))).map(|e| e.pts.as_slice()).collect();
+        let free = |p: &[(f64, f64)]| !others.iter().any(|o| runs_overlap(p, o));
+        let ortho = |mc: &[(f64, f64)]| -> Option<Vec<(f64, f64)>> {
             let mut out = vec![pt(mc[0].0, mc[0].1)];
             for w in mc.windows(2) {
+                let last = *out.last().unwrap();
                 if w[0].1 != w[1].1 {
-                    let bend = w[1].0 - g / 2.0;
-                    out.extend([pt(bend, w[0].1), pt(bend, w[1].1)]);
+                    let lanes = [0.0, -8.0, 8.0, -16.0, 16.0, -24.0, 24.0].into_iter().filter(|o: &f64| *o == 0.0 || o.abs() <= g / 2.0 - 8.0);
+                    // Two edges swapping lanes in one gap cannot both elbow without sharing a run: cross diagonally.
+                    if let Some(b) = lanes.map(|o| w[1].0 - g / 2.0 + o)
+                        .find(|&b| free(&[last, pt(b, w[0].1), pt(b, w[1].1), pt(w[1].0, w[1].1)])) {
+                        out.extend([pt(b, w[0].1), pt(b, w[1].1)]);
+                    }
                 }
                 out.push(pt(w[1].0, w[1].1));
             }
-            out
+            Some(out).filter(|o| free(o))
         };
-        let mut pts = ortho(&mc);
         // A long edge runs straight and bends only in the last gap when nothing is in the way.
-        let ends = [base + link.from, base + link.to];
-        let direct = ortho(&[mc[0], mc[mc.len() - 1]]);
-        let clear = |r: &[Rect], skip: &dyn Fn(usize) -> bool| {
-            r.iter().enumerate().all(|(j, b)| skip(j) || direct.windows(2).all(|s| !b.hit_by(s[0], s[1])))
-        };
-        if mc.len() > 2 && clear(&svg.nodes, &|j| ends.contains(&j)) && clear(&svg.texts, &|_| false) {
-            pts = direct;
-        }
+        let direct = ortho(&[mc[0], mc[mc.len() - 1]]).filter(|d| {
+            let clear = |r: &[Rect], skip: &dyn Fn(usize) -> bool| r.iter().enumerate().all(|(j, b)| skip(j) || d.windows(2).all(|s| !b.hit_by(s[0], s[1])));
+            mc.len() > 2 && clear(&svg.nodes, &|j| ends.contains(&j)) && clear(&svg.texts, &|_| false)
+                && dummies.iter().enumerate().all(|(k, r)| k == e || clear(r, &|_| false))
+        });
+        let pts = direct.or_else(|| ortho(&mc)).ok_or("too many crossing edges: the flow does not fit; split it")?;
         svg.edge(&pts, ends, &t.muted);
     }
 
@@ -346,6 +356,28 @@ mod tests {
                 .map(|(i, j)| json!({"from": format!("n{i}"), "to": format!("n{j}"), "label": "예"})).collect();
             fits_or_says_so(&json!({"direction": dir, "nodes": nodes(12, "검토"), "edges": dense}));
         }
+    }
+
+    #[test]
+    fn random_flows_never_draw_one_edge_over_another() {
+        // Repro: unrelated edges bending in the same gap used to share one trunk x.
+        let mut seed = 7u64;
+        let mut rnd = |k: u64| { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (seed >> 33) % k };
+        let mut ok = 0;
+        for _ in 0..300 {
+            let n = 4 + rnd(6) as usize;
+            let mut edges = Vec::new();
+            for j in 1..n {
+                for i in 0..j {
+                    if rnd(3) == 0 { edges.push(json!({"from": format!("n{i}"), "to": format!("n{j}")})); }
+                }
+            }
+            let dir = if rnd(2) == 0 { "LR" } else { "TB" };
+            let d = json!({"direction": dir, "nodes": nodes(n, "단계"), "edges": edges});
+            fits_or_says_so(&d);
+            ok += render(&d).is_ok() as usize;
+        }
+        assert!(ok >= 290, "only {ok}/300 rendered");
     }
 
     #[test]

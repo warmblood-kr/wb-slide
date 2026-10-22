@@ -173,6 +173,15 @@ impl Rect {
 }
 
 /// A recorded connector: polyline points, the node indices it joins, and its own label's text index.
+/// Two polylines share a collinear run longer than 2px (one line drawn over the other).
+pub fn runs_overlap(a: &[(f64, f64)], b: &[(f64, f64)]) -> bool {
+    let span = |p: f64, q: f64, r: f64, u: f64| p.max(q).min(r.max(u)) - p.min(q).max(r.min(u)) > 2.0;
+    a.windows(2).any(|s| b.windows(2).any(|t| {
+        (s[0].0 == s[1].0 && t[0].0 == t[1].0 && s[0].0 == t[0].0 && span(s[0].1, s[1].1, t[0].1, t[1].1))
+            || (s[0].1 == s[1].1 && t[0].1 == t[1].1 && s[0].1 == t[0].1 && span(s[0].0, s[1].0, t[0].0, t[1].0))
+    }))
+}
+
 pub struct Edge {
     pub pts: Vec<(f64, f64)>,
     pub ends: [usize; 2],
@@ -282,6 +291,14 @@ impl<'a> Svg<'a> {
                 }
             }
         }
+        for (i, a) in self.edges.iter().enumerate() {
+            if let Some(j) = (i + 1..self.edges.len()).find(|&j| {
+                let b = &self.edges[j];
+                !a.ends.iter().any(|x| b.ends.contains(x)) && runs_overlap(&a.pts, &b.pts)
+            }) {
+                return Err(format!("layout: edges {i} and {j} overlap"));
+            }
+        }
         Ok(())
     }
 
@@ -362,6 +379,17 @@ mod tests {
         let mut s = Svg::new(&t);
         s.text(&l, Anchor::End, 5.0, 10.0, 400, "#000");
         assert!(s.check().unwrap_err().contains("canvas"));
+    }
+
+    #[test]
+    fn runs_overlap_only_on_shared_collinear_runs() {
+        // Repro: two LR elbows bending on the same trunk x=320 over y=152..176.
+        let a = [(272.0, 152.0), (320.0, 152.0), (320.0, 232.0), (368.0, 232.0)];
+        let b = [(272.0, 96.0), (320.0, 96.0), (320.0, 176.0), (368.0, 176.0)];
+        assert!(runs_overlap(&a, &b));
+        let b2 = [(272.0, 96.0), (312.0, 96.0), (312.0, 176.0), (368.0, 176.0)];
+        assert!(!runs_overlap(&a, &b2));
+        assert!(!runs_overlap(&a, &[(272.0, 96.0), (368.0, 240.0)]));
     }
 
     #[test]
