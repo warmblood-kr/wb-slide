@@ -9,6 +9,8 @@ const ROLE_CSS: &str = include_str!("../framework/presets/slide.css");
 const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.css");
 const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
+const MAX_MARKUP_BYTES: usize = 64 * 1024;
+const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
 const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[])];
@@ -31,6 +33,9 @@ fn unexpected(el: &El) -> String {
 
 /// Tokenize into a tree of known elements and text. Checks vocabulary and nesting only.
 fn tree(markup: &str) -> Result<Vec<Node>> {
+    if markup.len() > MAX_MARKUP_BYTES {
+        return Err("markup exceeds 64 KiB".into());
+    }
     let mut stack = vec![El { name: String::new(), pos: 0, attrs: Vec::new(), kids: Vec::new() }];
     let emitter = DefaultEmitter::<usize>::new_with_span();
     for token in Tokenizer::new_with_emitter(markup, emitter) {
@@ -57,6 +62,9 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
                     .collect();
                 if attrs.iter().any(|(k, _)| !allowed.contains(&k.as_str())) || t.self_closing {
                     return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
+                }
+                if stack.len() > MAX_DEPTH {
+                    return Err(format!("nesting deeper than {MAX_DEPTH} at byte {}", t.span.start));
                 }
                 stack.push(El { name, pos: t.span.start, attrs, kids: Vec::new() });
             }
@@ -371,6 +379,10 @@ mod tests {
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
+        // Input size and depth are bounded before any recursion.
+        let deep = "<wb-columns><wb-column>".repeat(20);
+        assert!(compile(&format!("<wb-slide>{deep}")).unwrap_err().contains("nesting deeper"));
+        assert!(compile(&"x".repeat(MAX_MARKUP_BYTES + 1)).unwrap_err().contains("64 KiB"));
         // Count and nesting limits come from the spec, with a field path.
         for (m, msg) in [
             ("<wb-slide><wb-columns><wb-column>a</wb-column></wb-columns></wb-slide>", "$.slides[0].blocks[0].columns: expected 2–3"),

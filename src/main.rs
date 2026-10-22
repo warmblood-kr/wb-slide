@@ -848,7 +848,14 @@ fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
 }
 
 fn export_markup(path: &std::path::Path, theme: Option<&str>, output: &std::path::Path) -> Result<(), String> {
-    let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read markup: {e}"))?;
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path).and_then(|f| f.take(64 * 1024 + 1).read_to_end(&mut bytes))
+        .map_err(|e| format!("cannot read markup: {e}"))?;
+    if bytes.len() > 64 * 1024 {
+        return Err("markup exceeds 64 KiB".into());
+    }
+    let source = String::from_utf8(bytes).map_err(|_| "markup is not UTF-8".to_string())?;
     let (meta, slides) = spec::parse(markup::compile(&source)?.as_bytes())?;
     write_spec_html(meta, slides, Some(&markup::preset_css(theme)?), output)
 }
