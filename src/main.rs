@@ -896,7 +896,11 @@ fn render_diagram(kind: &str, input: &std::path::Path, theme: Option<&str>, outp
     let svg = diagram::render(kind, &data, theme)?;
     match output {
         Some(path) => std::fs::write(path, svg).map_err(|e| format!("cannot write {}: {e}", path.display())),
-        None => { print!("{svg}"); Ok(()) }
+        None => {
+            use std::io::Write;
+            let _ = std::io::stdout().write_all(svg.as_bytes()); // a closed pipe is not an error
+            Ok(())
+        }
     }
 }
 

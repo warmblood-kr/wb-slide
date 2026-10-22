@@ -97,7 +97,7 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     Ok(())
 }
 
-/// Fit bullet items into `max_h`, shrinking all items together.
+/// Fit bullet items into `max_h`, stepping down the starting size for all items together.
 fn fit_items(items: &[String], w: f64, max_h: f64) -> Result<Vec<Label>> {
     let mut size = 16.0;
     loop {
