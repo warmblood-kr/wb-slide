@@ -46,6 +46,25 @@ CSS. Inspect its page count/layout separately.
   prove readable typography, intended overlap, clipping or lack of occlusion;
   visual review is required.
 
+## Layout check
+
+Each manifest slide carries `findings`: layout problems for an automated repair
+loop. `--check` prints all findings as one JSON line on stdout (instead of the
+"Rendered" line) and exits 3 if any exist, 0 if none; render errors still exit 1.
+
+```json
+{"slide": 1, "kind": "overflow", "element": "UL.wb-list", "text": "first 60 chars"}
+```
+
+- `overflow`: the outermost element extending past the slide box.
+- `clipped`: an element with non-`visible` overflow whose content exceeds its box
+  (e.g. a too-tall body in `.ms-slot-area`).
+- `overlap`: two text/`img` leaf boxes intersecting by more than 2px; the other
+  box is in `"with": {"element", "text"}`.
+
+Hidden elements (zero-size boxes such as notes) are ignored. Findings are
+heuristics; visual review is still required.
+
 The helper runs trusted HTML and its scripts in Chromium. It is not a sandbox
 for executable third-party templates. This slice does not generate native
 Office files; PDF/PNG fidelity does not establish editability or native wrapping.

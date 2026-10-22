@@ -63,6 +63,30 @@ def ready(page):
     }""")
 
 
+# Layout problems for the repair loop: outermost overflow, clipped content, overlapping text/images.
+FINDINGS = """(s, slide) => {
+  const b=s.getBoundingClientRect(), box=e=>e.getBoundingClientRect();
+  const vis=[...s.querySelectorAll('*')].filter(e=>{const r=box(e); return r.width && r.height});
+  const id=e=>({element:e.tagName+'.'+(e.getAttribute('class')??''),
+    text:(e.alt||e.innerText||e.textContent||'').trim().slice(0,60)});
+  const find=(kind,e,extra)=>({slide,kind,...id(e),...extra});
+  const out=vis.filter(e=>{const r=box(e); return r.left<b.left-1 || r.top<b.top-1 ||
+    r.right>b.right+1 || r.bottom>b.bottom+1});
+  const clipped=vis.filter(e=>{const c=getComputedStyle(e);
+    return (c.overflowX!=='visible' || c.overflowY!=='visible') &&
+      (e.scrollHeight>e.clientHeight+1 || e.scrollWidth>e.clientWidth+1)});
+  const leaves=vis.filter(e=>e.localName==='img' ||
+    [...e.childNodes].some(n=>n.nodeType===3 && n.textContent.trim()));
+  // ponytail: O(n²) pairwise overlap; fine for one slide's leaves, add a sweep line if decks get dense.
+  const overlap=[];
+  leaves.forEach((a,i)=>leaves.slice(i+1).forEach(c=>{const p=box(a), q=box(c);
+    if (!a.contains(c) && !c.contains(a) && Math.min(p.right,q.right)-Math.max(p.left,q.left)>2 &&
+        Math.min(p.bottom,q.bottom)-Math.max(p.top,q.top)>2) overlap.push(find('overlap',a,{with:id(c)}))}));
+  return [...out.filter(e=>!out.some(a=>a!==e && a.contains(e))).map(e=>find('overflow',e)),
+    ...clipped.map(e=>find('clipped',e)), ...overlap];
+}"""
+
+
 def check_errors(errors):
     if errors:
         raise ValueError("browser errors: " + "; ".join(errors[:12]))
@@ -140,6 +164,7 @@ def render(html_path, output, font_path, browser_path=None, scale=2, pdf=False):
                       return r.width && r.height && (r.left<b.left-1 || r.top<b.top-1 ||
                         r.right>b.right+1 || r.bottom>b.bottom+1)}).map(e=>e.tagName+'.'+e.className)};
                 }""")
+                metrics["findings"] = slides.nth(index).evaluate(FINDINGS, index+1)
                 if abs(metrics["width"] - 960) > 1 or abs(metrics["height"] - 540) > 1:
                     raise ValueError(f"slide {index+1}: expected a 960x540 canvas")
                 require_coverage(metrics["text"], metrics["weights"], coverage, policy)
@@ -158,7 +183,7 @@ def render(html_path, output, font_path, browser_path=None, scale=2, pdf=False):
                 records.append({"index": index+1, "file": filename, "text": metrics["text"],
                                 "notes": metrics["notes"],
                                 "sha256": digest((stage / filename).read_bytes()),
-                                "overflow": metrics["overflow"], "fonts": list(fonts.values())})
+                                "overflow": metrics["overflow"], "findings": metrics["findings"], "fonts": list(fonts.values())})
             if pdf:
                 page.pdf(path=str(stage / "deck.pdf"), prefer_css_page_size=True, print_background=True)
             check_errors(errors)
@@ -186,12 +211,17 @@ def main():
     parser.add_argument("--browser", type=Path, help="optional installed Chromium/Chrome executable")
     parser.add_argument("--scale", choices=[1, 2], type=int, default=2)
     parser.add_argument("--pdf", action="store_true")
+    parser.add_argument("--check", action="store_true", help="print layout findings as JSON; exit 3 if any")
     args = parser.parse_args()
     try:
         manifest = render(args.html, args.output, args.font_file, args.browser, args.scale, args.pdf)
     except Exception as error:
         print(f"render failed: {error}", file=sys.stderr)
         return 1
+    if args.check:
+        findings = [f for slide in manifest["slides"] for f in slide["findings"]]
+        print(json.dumps(findings, ensure_ascii=False))
+        return 3 if findings else 0
     print(f"Rendered {manifest['slide_count']} slides to {args.output}")
     return 0
 

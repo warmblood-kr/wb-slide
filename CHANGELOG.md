@@ -12,6 +12,8 @@ All notable changes to wb-slide.
   `docs/markup-dsl.md`.
 - Typed spec: `heading` is now optional. A slide without it shows its blocks centered
   (`slide-section`). Markup `<wb-slide>hello</wb-slide>` uses this.
+- `tools/render.py` layout findings (`overflow`, `clipped`, `overlap`) per slide in the
+  manifest; `--check` prints them as JSON and exits 3 when any exist. See `docs/rendering.md`.
 - Markup `<wb-notes>` and spec slide `notes`: speaker notes, hidden in the slide HTML
   and reported per slide as `notes` in the render manifest.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
