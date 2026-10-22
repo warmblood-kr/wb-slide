@@ -1,10 +1,10 @@
-//! Pyramid: a triangle cut into horizontal bands, top level first. Notes sit in a
-//! column to the right; a label too wide for its band (the narrow top) moves there too.
+//! Pyramid: a triangle cut into horizontal bands, top level first. Each note sits just
+//! right of its band, following the slope; a label too wide for its band moves there too.
 use super::*;
 
 const GAP: f64 = 8.0;
-const BASE: f64 = 512.0;
-const COL_GAP: f64 = 48.0;
+const BASE: f64 = 352.0;
+const COL_GAP: f64 = 32.0;
 
 /// Widest text box centred in (or else hugging the bottom of) the band, as (box, label).
 fn inside(s: &str, yt: f64, yb: f64, wid: impl Fn(f64) -> f64) -> Option<(Rect, Label)> {
@@ -34,7 +34,6 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     let wid = |y: f64| BASE * (y - y0) / ht;
     let t = svg.t;
 
-    let col_w = W - 2.0 * PAD - BASE - COL_GAP;
     // Pass 1: fit every label (inside its band, else into the right column) and note.
     let mut rows = Vec::new();
     for (i, v) in levels.iter().enumerate() {
@@ -44,6 +43,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         let note = opt_str(v, "note", &path, 80)?;
         let yt = y0 + i as f64 * (h + GAP);
         let fitted = inside(&label, yt, yt + h, wid);
+        // Text starts COL_GAP right of the band's bottom corner; room assumes the pyramid hugs PAD.
+        let col_w = W - 2.0 * PAD - BASE / 2.0 - wid(yt + h) / 2.0 - COL_GAP;
         let out = match fitted {
             None => Some(fit(&label, 16.0, col_w, 2).map_err(|e| format!("{path}.label: {e}"))?),
             Some(_) => None,
@@ -61,12 +62,12 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         };
         rows.push((yt, fitted, out, note));
     }
-    // Pass 2: centre pyramid + column (as wide as its text) on the canvas.
-    let used = rows.iter().flat_map(|r| [&r.2, &r.3]).flatten().map(|l| l.width()).fold(0.0, f64::max);
-    let total = BASE + if used > 0.0 { COL_GAP + used } else { 0.0 };
-    let cx = ((W - total) / 2.0 / 8.0).floor() * 8.0 + BASE / 2.0;
-    let col_x = cx + BASE / 2.0 + COL_GAP;
-
+    // Pass 2: centre the pyramid plus its notes (as wide as their text) on the canvas.
+    let right = rows.iter().map(|r| {
+        let tw = [&r.2, &r.3].into_iter().flatten().map(|l| l.width()).fold(0.0, f64::max);
+        if tw > 0.0 { wid(r.0 + h) / 2.0 + COL_GAP + tw } else { BASE / 2.0 }
+    }).fold(BASE / 2.0, f64::max);
+    let cx = ((W - BASE / 2.0 - right) / 2.0 / 8.0).round() * 8.0 + BASE / 2.0;
     for (i, (yt, fitted, out, note)) in rows.into_iter().enumerate() {
         let yb = yt + h;
         let (fill, ink) = if i == 0 { (&t.accent, &t.bg) } else { (&t.card, &t.text) };
@@ -82,8 +83,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         // Right column block: the label (if it did not fit inside), then the muted note.
         let both = if out.is_some() && note.is_some() { 4.0 } else { 0.0 };
         let block = [&out, &note].iter().filter_map(|l| l.as_ref()).map(|l| l.height()).sum::<f64>() + both;
-        let cy = yt + h / 2.0;
-        svg.line(cx + wid(cy) / 2.0 + 8.0, cy, col_x - 12.0, cy, &t.border, false);
+        let (cy, col_x) = (yt + h / 2.0, cx + b + COL_GAP);
+        svg.line(cx + wid(cy) / 2.0 + 8.0, cy, col_x - 8.0, cy, &t.border, false);
         let mut ty = cy - block / 2.0;
         if let Some(l) = &out {
             ty += svg.text(l, Anchor::Start, col_x, ty, 700, &t.text) + both;
