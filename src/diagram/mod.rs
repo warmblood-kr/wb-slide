@@ -3,7 +3,9 @@
 //! through a label. A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
+mod fishbone;
 mod quadrant;
+mod timeline;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -12,7 +14,7 @@ pub const H: f64 = 540.0;
 pub const PAD: f64 = 32.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant"];
+pub const TYPES: &[&str] = &["quadrant", "timeline", "fishbone"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
@@ -20,6 +22,8 @@ pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
     let mut svg = Svg::new(&t);
     match kind {
         "quadrant" => quadrant::draw(data, &mut svg)?,
+        "timeline" => timeline::draw(data, &mut svg)?,
+        "fishbone" => fishbone::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
