@@ -52,17 +52,24 @@ pub fn esc(s: &str) -> String {
 }
 
 /// Conservative advance width in em, sized for bold Pretendard: wide glyphs
-/// (Hangul jamo, U+2E80 and up: CJK, Hangul, fullwidth, emoji) 1.0, wide Latin 1.0,
+/// (Hangul jamo, symbols/dingbats U+2600-27BF and U+2B00-2BFF, U+2E80 and up: CJK, Hangul, fullwidth, emoji) 1.0, wide Latin 1.0,
 /// other capitals 0.75, everything else 0.62, space 0.32.
 /// ponytail: no font metrics; overestimates so fallback fonts still fit.
 fn char_em(c: char) -> f64 {
     match c {
         ' ' => 0.32,
-        '\u{1100}'..='\u{11FF}' | '\u{2E80}'.. => 1.0,
+        '\u{1100}'..='\u{11FF}' | '\u{2600}'..='\u{27BF}' | '\u{2B00}'..='\u{2BFF}' | '\u{2E80}'.. => 1.0,
         'M' | 'W' | 'm' | 'w' | '@' | '%' => 1.0,
         'A'..='Z' => 0.75,
         _ => 0.62,
     }
+}
+
+/// Marker id keyed by its colour, so diagrams inlined into one page never
+/// pick up another theme's arrowhead (same colour = identical def, harmless).
+fn arrow_id(color: &str) -> String {
+    let tag: String = color.chars().filter(char::is_ascii_alphanumeric).collect();
+    format!("wb-arrow-{tag}")
 }
 
 pub fn width(s: &str, size: f64) -> f64 {
@@ -183,7 +190,7 @@ impl<'a> Svg<'a> {
     }
 
     pub fn line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: &str, arrow: bool) {
-        let head = if arrow { r#" marker-end="url(#arrow)""# } else { "" };
+        let head = if arrow { format!(r#" marker-end="url(#{})""#, arrow_id(&self.t.muted)) } else { String::new() };
         self.body += &format!(r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{color}" stroke-width="1.5"{head}/>"#, n(x1), n(y1), n(x2), n(y2));
     }
 
@@ -234,10 +241,10 @@ impl<'a> Svg<'a> {
         format!(
             concat!(
                 r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" font-family="{font}">"#,
-                r#"<defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" fill="{muted}"/></marker></defs>"#,
+                r#"<defs><marker id="{arrow}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" fill="{muted}"/></marker></defs>"#,
                 r#"<rect width="{w}" height="{h}" fill="{bg}"/>{body}</svg>"#, "\n"
             ),
-            w = W, h = H, font = t.font, muted = t.muted, bg = t.bg, body = self.body
+            w = W, h = H, font = t.font, muted = t.muted, arrow = arrow_id(&t.muted), bg = t.bg, body = self.body
         )
     }
 }
@@ -270,7 +277,9 @@ pub fn arr<'v>(m: &'v Map<String, Value>, key: &str, path: &str, min: usize, max
 /// (they are not valid XML).
 pub fn str_items(v: &Value, path: &str, max: usize) -> Result<String> {
     match v {
-        Value::String(s) if s.chars().any(char::is_control) => Err(format!("{path}: control characters are not allowed")),
+        Value::String(s) if s.chars().any(|c| c.is_control() || c == '\u{FFFE}' || c == '\u{FFFF}') => {
+            Err(format!("{path}: control characters are not allowed"))
+        }
         Value::String(s) if !s.trim().is_empty() && s.chars().count() <= max => Ok(s.trim().to_string()),
         _ => Err(format!("{path}: expected nonblank text of at most {max} characters")),
     }
@@ -310,7 +319,11 @@ mod tests {
     fn controls_rejected_and_wide_glyphs_counted() {
         let m = serde_json::json!({"a": "x\u{1}y"});
         assert!(opt_str(m.as_object().unwrap(), "a", "$", 40).unwrap_err().contains("control"));
+        let nc = serde_json::json!({"a": "x\u{FFFF}"});
+        assert!(opt_str(nc.as_object().unwrap(), "a", "$", 40).unwrap_err().contains("control"));
         assert_eq!(width("😀", 10.0), 10.0);
+        assert_eq!(width("⭐✅", 10.0), 20.0);
+        assert_eq!(arrow_id("#9CA3AF"), "wb-arrow-9CA3AF");
         assert_eq!(width("W", 10.0), 10.0);
     }
 
