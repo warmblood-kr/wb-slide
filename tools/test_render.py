@@ -143,6 +143,21 @@ class RenderTest(unittest.TestCase):
         manifest = self.run_render(output)
         self.assertIn("한글 **literal** {{heading}} <script>SPEC_EXECUTED</script>", manifest["slides"][0]["text"])
 
+    def test_markup_preset_themes_apply(self):
+        corners = {}
+        for theme in ["default", "night"]:
+            output = self.root / f"{theme}.html"
+            subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
+                            "--theme", theme, "-o", output], check=True)
+            manifest = self.run_render(output, theme)
+            self.assertEqual(manifest["slide_count"], 2)
+            self.assertIn("가상 시범 운영 검토", manifest["slides"][0]["text"])
+            self.assertFalse(manifest["slides"][0]["overflow"])
+            png = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
+            corners[theme] = png.getpixel((4, 4))
+        self.assertEqual(corners["default"], (255, 255, 255))
+        self.assertEqual(corners["night"], (0x11, 0x18, 0x27))
+
 
 if __name__ == "__main__":
     unittest.main()
