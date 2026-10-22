@@ -53,7 +53,7 @@
     },
     {
       "role": "result",
-      "purpose": "What went well.",
+      "purpose": "Outcomes that held up, measured.",
       "optional": true
     },
     {
