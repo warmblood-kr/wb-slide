@@ -2,8 +2,8 @@
 //! alternate top/bottom, items stacked as text left of each bone.
 use super::*;
 
-const DX: f64 = 80.0; // horizontal lean of a bone, head (category) to foot (spine)
-const EFFECT_W: f64 = 160.0;
+const DX: f64 = 48.0; // horizontal lean of a bone, head (category) to foot (spine)
+const EFFECT_W: f64 = 136.0;
 
 pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     let m = obj(data, "$", &["effect", "causes"])?;
@@ -19,10 +19,10 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         Ok((req_str(c, "category", &path, 40)?, items))
     }).collect::<Result<Vec<_>>>()?;
 
-    // Slots per side; slot width sw; items get sw - 48 so they clear the neighbouring bone.
+    // Slots per side; slot width sw; items get sw - 24 so they clear the neighbouring bone.
     let slots = causes.len().div_ceil(2) as f64;
     let sw = ((W - 2.0 * PAD - DX - EFFECT_W + 16.0) / slots).min(280.0).floor();
-    let iw = sw - 48.0;
+    let iw = sw - 24.0;
     let total = slots * sw - 16.0 + DX + EFFECT_W;
     let left = PAD + ((W - 2.0 * PAD - total) / 2.0 / 8.0).floor() * 8.0;
     let foot = |j: f64| left + iw + 8.0 + DX + j * sw;
@@ -32,7 +32,7 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
 
     let cats = causes.iter().map(|(c, _)| fit(c, 16.0, sw - 48.0, 2)).collect::<Result<Vec<_>>>()?;
     let bh = cats.iter().map(Label::height).fold(0.0, f64::max) + 16.0;
-    let region = spine - PAD - bh - 24.0; // item space between a category box and the spine
+    let region = spine - PAD - bh - 20.0; // item space between a category box and the spine
 
     let eff = fit(&effect, 20.0, EFFECT_W - 32.0, 4)?;
     let er = Rect { x: ex, y: spine - (eff.height() + 32.0) / 2.0, w: EFFECT_W, h: eff.height() + 32.0 };

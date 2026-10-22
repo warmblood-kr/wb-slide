@@ -1,8 +1,6 @@
 //! Timeline: evenly spaced events on a horizontal axis; date above, label + note below.
 use super::*;
 
-const MAX_BELOW: f64 = 256.0;
-
 struct Event {
     date: String,
     label: String,
@@ -22,23 +20,46 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         Some(v) => Some(v.as_u64().filter(|h| (*h as usize) < n).ok_or(format!("$.highlight: expected 0-{}", n - 1))? as usize),
     };
 
-    let cw = (W - 2.0 * PAD) / n as f64;
-    let tw = (cw - 16.0).min(240.0);
+    // 4+ events alternate above/below the axis, so each text block spans two steps.
+    let alt = n >= 4;
+    let k = if alt { 2.0 } else { 1.0 };
+    let gaps = (n - 1) as f64;
+    let tw = ((k * (W - 2.0 * PAD) - 16.0 * gaps) / (gaps + k)).min(240.0).floor();
+    let step = (W - 2.0 * PAD - tw) / gaps;
     let dates = events.iter().map(|e| fit(&e.date, 18.0, tw, 2)).collect::<Result<Vec<_>>>()?;
-    let below = fit_below(&events, tw)?;
     let date_h = dates.iter().map(Label::height).fold(0.0, f64::max);
-    let below_h = below.iter().map(|(l, nt)| l.height() + nt.as_ref().map_or(0.0, |x| 4.0 + x.height())).fold(0.0, f64::max);
-    let axis = ((H - (date_h + 40.0 + below_h)) / 2.0 + date_h + 20.0) / 8.0;
-    let axis = axis.round() * 8.0;
+    // Vertical budget for label + note: one side minus its date (alt), or all below the dates.
+    let room = if alt { (H - 2.0 * PAD - 48.0) / 2.0 - date_h - 8.0 } else { H - 2.0 * PAD - date_h - 40.0 };
+    let below = fit_below(&events, tw, room)?;
+    let block = |i: usize| {
+        let (l, nt) = &below[i];
+        l.height() + nt.as_ref().map_or(0.0, |x| 4.0 + x.height())
+    };
+    let (up, down) = (0..n).fold((0.0f64, 0.0f64), |(u, d), i| match (alt, i % 2) {
+        (false, _) => (date_h, d.max(block(i))),
+        (true, 0) => (u.max(dates[i].height() + 8.0 + block(i)), d),
+        _ => (u, d.max(dates[i].height() + 8.0 + block(i))),
+    });
+    let gap = if alt { 24.0 } else { 20.0 };
+    let axis = ((PAD + (H - 2.0 * PAD - up - down - 2.0 * gap) / 2.0 + up + gap) / 8.0).round() * 8.0;
     let t = svg.t;
 
     svg.line(PAD, axis, W - PAD, axis, &t.border, false);
     for (i, (date, (label, note))) in dates.iter().zip(&below).enumerate() {
-        let cx = PAD + cw * (i as f64 + 0.5);
+        let cx = PAD + tw / 2.0 + step * i as f64;
         let on = highlight == Some(i);
-        svg.dot(cx, axis, if on { 8.0 } else { 5.0 }, if on { &t.accent } else { &t.muted });
-        svg.text(date, Anchor::Middle, cx, axis - 20.0 - date.height(), 700, if on { &t.accent } else { &t.muted });
-        let y = axis + 20.0 + svg.text(label, Anchor::Middle, cx, axis + 20.0, 600, &t.text);
+        let color = if on { &t.accent } else { &t.muted };
+        svg.dot(cx, axis, if on { 8.0 } else { 5.0 }, color);
+        let y = if !alt {
+            svg.text(date, Anchor::Middle, cx, axis - gap - date.height(), 700, color);
+            axis + gap
+        } else {
+            let top = if i % 2 == 0 { axis - gap - (date.height() + 8.0 + block(i)) } else { axis + gap };
+            svg.line(cx, if i % 2 == 0 { top + date.height() + 8.0 + block(i) + 4.0 } else { axis + 10.0 },
+                cx, if i % 2 == 0 { axis - 10.0 } else { top - 4.0 }, &t.border, false);
+            top + svg.text(date, Anchor::Middle, cx, top, 700, color) + 8.0
+        };
+        let y = y + svg.text(label, Anchor::Middle, cx, y, 600, &t.text);
         if let Some(note) = note {
             svg.text(note, Anchor::Middle, cx, y + 4.0, 400, &t.muted);
         }
@@ -47,14 +68,14 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
 }
 
 /// Fit every label (and note, 2px smaller) into `w`, shrinking all together until the tallest fits.
-fn fit_below(events: &[Event], w: f64) -> Result<Vec<(Label, Option<Label>)>> {
+fn fit_below(events: &[Event], w: f64, max_h: f64) -> Result<Vec<(Label, Option<Label>)>> {
     let mut size = 20.0;
     loop {
         let out = events.iter().map(|e| {
             Ok((fit(&e.label, size, w, 6)?, e.note.as_ref().map(|s| fit(s, (size - 2.0).max(12.0), w, 6)).transpose()?))
         }).collect::<Result<Vec<_>>>()?;
         let h = out.iter().map(|(l, nt)| l.height() + nt.as_ref().map_or(0.0, |x| 4.0 + x.height())).fold(0.0, f64::max);
-        if h <= MAX_BELOW {
+        if h <= max_h {
             return Ok(out);
         }
         if size <= 12.0 {
