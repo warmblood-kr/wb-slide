@@ -3,6 +3,7 @@
 //! through a label. A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
+mod flowchart;
 mod quadrant;
 
 pub type Result<T> = std::result::Result<T, String>;
@@ -12,13 +13,14 @@ pub const H: f64 = 540.0;
 pub const PAD: f64 = 32.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant"];
+pub const TYPES: &[&str] = &["flowchart", "quadrant"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
     let t = Theme::load(theme)?;
     let mut svg = Svg::new(&t);
     match kind {
+        "flowchart" => flowchart::draw(data, &mut svg)?,
         "quadrant" => quadrant::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
@@ -138,6 +140,31 @@ impl Rect {
     fn contains(&self, o: &Rect) -> bool {
         o.x >= self.x && o.y >= self.y && o.x + o.w <= self.x + self.w && o.y + o.h <= self.y + self.h
     }
+    /// Liang-Barsky: does segment a-b cross this rect shrunk by 1px (so touching a border is fine)?
+    fn hit_by(&self, a: (f64, f64), b: (f64, f64)) -> bool {
+        let (x0, y0, x1, y1) = (self.x + 1.0, self.y + 1.0, self.x + self.w - 1.0, self.y + self.h - 1.0);
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let (mut t0, mut t1) = (0.0f64, 1.0f64);
+        for (p, q) in [(-dx, a.0 - x0), (dx, x1 - a.0), (-dy, a.1 - y0), (dy, y1 - a.1)] {
+            if p == 0.0 {
+                if q < 0.0 {
+                    return false;
+                }
+            } else if p < 0.0 {
+                t0 = t0.max(q / p);
+            } else {
+                t1 = t1.min(q / p);
+            }
+        }
+        x0 < x1 && y0 < y1 && t0 <= t1
+    }
+}
+
+/// A recorded connector: polyline points, the node indices it joins, and its own label's text index.
+pub struct Edge {
+    pub pts: Vec<(f64, f64)>,
+    pub ends: [usize; 2],
+    pub label: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -153,6 +180,7 @@ pub struct Svg<'a> {
     body: String,
     pub texts: Vec<Rect>,
     pub nodes: Vec<Rect>,
+    pub edges: Vec<Edge>,
 }
 
 /// Round to 0.5px so output is byte-stable across platforms.
@@ -163,7 +191,7 @@ fn n(v: f64) -> String {
 
 impl<'a> Svg<'a> {
     pub fn new(t: &'a Theme) -> Self {
-        Svg { t, body: String::new(), texts: Vec::new(), nodes: Vec::new() }
+        Svg { t, body: String::new(), texts: Vec::new(), nodes: Vec::new(), edges: Vec::new() }
     }
 
     /// A filled node box (counts for the overlap check).
@@ -181,6 +209,15 @@ impl<'a> Svg<'a> {
     pub fn line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: &str, arrow: bool) {
         let head = if arrow { r#" marker-end="url(#arrow)""# } else { "" };
         self.body += &format!(r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{color}" stroke-width="1.5"{head}/>"#, n(x1), n(y1), n(x2), n(y2));
+    }
+
+    /// A polyline from node `ends[0]` to node `ends[1]` (indices into `nodes`), arrow at the end.
+    /// Returns the edge index so the caller can attach its label.
+    pub fn edge(&mut self, pts: &[(f64, f64)], ends: [usize; 2], color: &str) -> usize {
+        let p: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        self.body += &format!(r#"<polyline points="{}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow)"/>"#, p.join(" "));
+        self.edges.push(Edge { pts: pts.to_vec(), ends, label: None });
+        self.edges.len() - 1
     }
 
     /// Draw a fitted label with its top at `y`; returns the label height.
@@ -203,7 +240,8 @@ impl<'a> Svg<'a> {
     }
 
     /// Layout guarantees: texts inside the canvas, texts/nodes pairwise disjoint,
-    /// and a text either inside one node or clear of all nodes.
+    /// a text either inside one node or clear of all nodes, and no edge through
+    /// a text (other than its own label) or a node other than its endpoints.
     pub fn check(&self) -> Result<()> {
         let canvas = Rect { x: 0.0, y: 0.0, w: W, h: H };
         for (i, a) in self.texts.iter().enumerate() {
@@ -220,6 +258,16 @@ impl<'a> Svg<'a> {
         for (i, a) in self.nodes.iter().enumerate() {
             if self.nodes[i + 1..].iter().any(|b| a.overlaps(b)) {
                 return Err(format!("layout: node {i} overlaps another node"));
+            }
+        }
+        for (i, e) in self.edges.iter().enumerate() {
+            for s in e.pts.windows(2) {
+                if let Some(j) = (0..self.texts.len()).find(|&j| e.label != Some(j) && self.texts[j].hit_by(s[0], s[1])) {
+                    return Err(format!("layout: edge {i} passes through text {j}"));
+                }
+                if let Some(j) = (0..self.nodes.len()).find(|&j| !e.ends.contains(&j) && self.nodes[j].hit_by(s[0], s[1])) {
+                    return Err(format!("layout: edge {i} passes through node {j}"));
+                }
             }
         }
         Ok(())
@@ -301,6 +349,28 @@ mod tests {
         let mut s = Svg::new(&t);
         s.text(&l, Anchor::End, 5.0, 10.0, 400, "#000");
         assert!(s.check().unwrap_err().contains("canvas"));
+    }
+
+    #[test]
+    fn check_catches_edge_through_node_or_text() {
+        let t = Theme::load(None).unwrap();
+        let r = |x| Rect { x, y: 100.0, w: 40.0, h: 40.0 };
+        let mut s = Svg::new(&t);
+        s.node(r(0.0), "#fff", None, 0.0);
+        s.node(r(100.0), "#fff", None, 0.0);
+        s.node(r(200.0), "#fff", None, 0.0);
+        // 0 -> 2 straight through node 1.
+        s.edge(&[(40.0, 120.0), (200.0, 120.0)], [0, 2], "#000");
+        assert!(s.check().unwrap_err().contains("edge 0 passes through node 1"));
+        // Around node 1 (touching its border within tolerance) is fine; through a foreign label is not.
+        s.edges.clear();
+        s.edge(&[(40.0, 120.0), (60.0, 99.5), (180.0, 99.5), (200.0, 120.0)], [0, 2], "#000");
+        s.check().unwrap();
+        let l = fit("label", 12.0, 200.0, 1).unwrap();
+        s.text(&l, Anchor::Middle, 70.0, 90.0, 400, "#000"); // in the gap, across the detour
+        assert!(s.check().unwrap_err().contains("edge 0 passes through text 0"));
+        s.edges[0].label = Some(0);
+        s.check().unwrap();
     }
 
     #[test]
