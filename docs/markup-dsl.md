@@ -107,6 +107,7 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 - `<wb-card label="…">` holds text paragraphs. It becomes a spec `panel` block, with the optional label as `label`. The preset styles it with `--wb-card-bg`, `--wb-border`, `--wb-radius` and an accent-coloured label.
 - `<wb-columns>` holds 2–3 `<wb-column>` elements. Each column takes the same body content as a slide: text, lists and cards. It becomes a spec `columns` block. The spec enforces the column count and forbids nesting, reporting a field path. The preset gives columns equal width across the full content area, which fixes the width shrink in #22.
 - `<wb-image src="img/a.svg" alt="…" />` becomes a spec `image` block. It may be self-closing, and `src` and `alt` are required. `src` resolves relative to the markup file, under the same local-only rules as the spec. The preset limits its height with `--wb-image-height`. Inline `<svg>` is not accepted, because passing raw SVG through would need a sanitizer; put the SVG in a file instead.
+- `<wb-footer>text</wb-footer>` sits at deck level, outside any slide, and may appear at most once. It becomes the spec's root `footer`, shown on every slide in `--wb-muted`.
 - A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
 - Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
@@ -115,5 +116,4 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 
 ## Next slices (one tag each)
 
-`wb-notes`, `wb-footer`. Notes and footer need spec
-fields.
+`wb-notes` (needs a spec field and a place to show notes).

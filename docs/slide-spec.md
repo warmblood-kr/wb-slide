@@ -29,7 +29,9 @@ output paths resolve from the working directory, not the spec directory.
 }
 ```
 
-Root requires integer `schema_version: 1`, `title` and `slides`. Each slide
+Root requires integer `schema_version: 1`, `title` and `slides`. Optional
+`footer` is literal text, at most 200 characters, shown bottom-left on every
+slide. Each slide
 requires `blocks`; `heading` and `subtitle` are optional. A slide with a
 heading uses the built-in `slide-feature` layout. A slide without one shows its
 blocks centered (`slide-section`); `subtitle` then is an error. Unknown fields
