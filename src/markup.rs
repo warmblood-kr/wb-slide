@@ -9,9 +9,11 @@ const ROLE_CSS: &str = include_str!("../framework/presets/slide.css");
 const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.css");
 const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
+const MAX_MARKUP_BYTES: usize = 64 * 1024;
+const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[])];
 
 enum Node {
     Text(String),
@@ -31,6 +33,9 @@ fn unexpected(el: &El) -> String {
 
 /// Tokenize into a tree of known elements and text. Checks vocabulary and nesting only.
 fn tree(markup: &str) -> Result<Vec<Node>> {
+    if markup.len() > MAX_MARKUP_BYTES {
+        return Err("markup exceeds 64 KiB".into());
+    }
     let mut stack = vec![El { name: String::new(), pos: 0, attrs: Vec::new(), kids: Vec::new() }];
     let emitter = DefaultEmitter::<usize>::new_with_span();
     for token in Tokenizer::new_with_emitter(markup, emitter) {
@@ -57,6 +62,9 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
                     .collect();
                 if attrs.iter().any(|(k, _)| !allowed.contains(&k.as_str())) || t.self_closing {
                     return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
+                }
+                if stack.len() > MAX_DEPTH {
+                    return Err(format!("nesting deeper than {MAX_DEPTH} at byte {}", t.span.start));
                 }
                 stack.push(El { name, pos: t.span.start, attrs, kids: Vec::new() });
             }
@@ -155,6 +163,17 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                     panel["label"] = json!(collapse(label));
                 }
                 blocks.push(panel);
+            }
+            Node::El(e) if e.name == "wb-columns" => {
+                let columns = children(e, "wb-column")?
+                    .into_iter()
+                    .map(|c| match body(&c.kids)? {
+                        b if b.is_empty() => Err(format!("empty <wb-column> at byte {}", c.pos)),
+                        b => Ok(json!({"blocks": b})),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                // The spec enforces 2–3 columns and no nesting, with a field path.
+                blocks.push(json!({"type": "columns", "columns": columns}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -342,6 +361,36 @@ mod tests {
         // A blank label is left for the spec to reject with a field path.
         let json = compile("<wb-slide><wb-card label=\" \">x</wb-card></wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains("$.slides[0].blocks[0].label"));
+    }
+
+    #[test]
+    fn columns_hold_body_content() {
+        let s = spec("<wb-slide><wb-title>T</wb-title><wb-columns>\n<wb-column>왼쪽<wb-list><wb-item>a</wb-item></wb-list></wb-column>\n<wb-column><wb-card label=\"L\">오른쪽</wb-card></wb-column>\n</wb-columns>끝</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"columns","columns":[
+                {"blocks":[{"type":"text","text":"왼쪽"},{"type":"list","items":["a"]}]},
+                {"blocks":[{"type":"panel","label":"L","paragraphs":["오른쪽"]}]}]},
+            {"type":"text","text":"끝"}]));
+        assert!(crate::spec::parse(compile("<wb-slide><wb-columns><wb-column>a</wb-column><wb-column>b</wb-column></wb-columns></wb-slide>").unwrap().as_bytes()).is_ok());
+        for (m, msg) in [
+            ("<wb-slide><wb-columns>x</wb-columns></wb-slide>", "takes only <wb-column>"),
+            ("<wb-slide><wb-columns><wb-column> </wb-column><wb-column>b</wb-column></wb-columns></wb-slide>", "empty <wb-column>"),
+            ("<wb-slide><wb-column>a</wb-column></wb-slide>", "unexpected <wb-column>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        // Input size and depth are bounded before any recursion.
+        let deep = "<wb-columns><wb-column>".repeat(20);
+        assert!(compile(&format!("<wb-slide>{deep}")).unwrap_err().contains("nesting deeper"));
+        assert!(compile(&"x".repeat(MAX_MARKUP_BYTES + 1)).unwrap_err().contains("64 KiB"));
+        // Count and nesting limits come from the spec, with a field path.
+        for (m, msg) in [
+            ("<wb-slide><wb-columns><wb-column>a</wb-column></wb-columns></wb-slide>", "$.slides[0].blocks[0].columns: expected 2–3"),
+            ("<wb-slide><wb-columns><wb-column><wb-columns><wb-column>a</wb-column><wb-column>b</wb-column></wb-columns></wb-column><wb-column>c</wb-column></wb-columns></wb-slide>", "columns cannot nest"),
+        ] {
+            let json = compile(m).unwrap();
+            assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains(msg), "{m}");
+        }
     }
 
     #[test]
