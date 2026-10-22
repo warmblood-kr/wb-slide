@@ -190,10 +190,10 @@ fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
     Ok(slide)
 }
 
-/// First string value, depth-first, ignoring block `type` tags.
+/// First non-blank string value, depth-first, ignoring block `type` tags.
 fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
     match v {
-        serde_json::Value::String(_) => Some(v),
+        serde_json::Value::String(s) => (!s.trim().is_empty()).then_some(v),
         serde_json::Value::Array(a) => a.iter().find_map(first_text),
         serde_json::Value::Object(o) => o.iter().filter(|(k, _)| *k != "type").find_map(|(_, v)| first_text(v)),
         _ => None,
@@ -340,7 +340,8 @@ mod tests {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
         // A blank label is left for the spec to reject with a field path.
-        assert!(compile("<wb-slide><wb-card label=\" \">x</wb-card></wb-slide>").is_ok());
+        let json = compile("<wb-slide><wb-card label=\" \">x</wb-card></wb-slide>").unwrap();
+        assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains("$.slides[0].blocks[0].label"));
     }
 
     #[test]
