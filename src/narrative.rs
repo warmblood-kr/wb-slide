@@ -138,7 +138,15 @@ pub fn outline(id: &str, topic: &str) -> Result<String, String> {
     if topic.is_empty() {
         return Err("--topic must not be blank".into());
     }
-    let mut out = format!("<!-- {} outline for: {} -->\n<!-- Titles: {} -->\n", esc(s["name"].as_str().unwrap()), topic.replace("--", "- -"), esc(s["title_style"].as_str().unwrap()));
+    if topic.chars().count() > 200 {
+        return Err("--topic must be at most 200 characters".into());
+    }
+    let comment = |t: &str| {
+        let mut c = t.to_string();
+        while c.contains("--") { c = c.replace("--", "- -"); }
+        c
+    };
+    let mut out = format!("<!-- {} outline for: {} -->\n<!-- Titles: {} -->\n", comment(&esc(s["name"].as_str().unwrap())), comment(&topic), comment(&esc(s["title_style"].as_str().unwrap())));
     for (i, step) in s["sequence"].as_array().unwrap().iter().enumerate() {
         let role = &roles["roles"][step["role"].as_str().unwrap()];
         let name = esc(role["name"].as_str().unwrap());
@@ -155,7 +163,7 @@ pub fn outline(id: &str, topic: &str) -> Result<String, String> {
                 let n = if layout == "two-columns" { 2 } else { 3 };
                 format!("  <wb-columns>\n{}  </wb-columns>\n", (1..=n).map(|c| format!("    <wb-column>[Column {c}]</wb-column>\n")).collect::<String>())
             }
-            "title-image" => format!("  [{name}: {purpose}] [Image: add <wb-image src=\"img/file.svg\" alt=\"...\" />]\n"),
+            "title-image" => format!("  [{name}: {purpose}] [Image: replace this line with a wb-image]\n"),
             _ => format!("  [{purpose}]\n"),
         };
         out += "<wb-slide>\n";
@@ -208,12 +216,13 @@ mod tests {
     fn every_outline_compiles_to_a_valid_spec() {
         for s in strategies().unwrap() {
             let id = s["id"].as_str().unwrap();
-            let m = outline(id, "Fictional <pilot> & \"review\" --").unwrap();
+            let m = outline(id, "Fictional <pilot> & \"review\" ----").unwrap();
             let spec = crate::markup::compile(&m).unwrap_or_else(|e| panic!("{id}: {e}\n{m}"));
             crate::spec::parse(spec.as_bytes()).unwrap_or_else(|e| panic!("{id}: {e}"));
             assert_eq!(m.matches("<wb-slide>").count(), s["sequence"].as_array().unwrap().len());
         }
         assert!(outline("scqa", "  ").is_err());
+        assert!(outline("scqa", &"x".repeat(201)).is_err());
     }
 
     #[test]
