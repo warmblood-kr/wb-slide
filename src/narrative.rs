@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn recommend_ranks_by_fit_and_explains() {
         let out = recommend(Some("executive"), Some("decide"), Some(10)).unwrap();
-        assert!(out.starts_with("scqa") || out.contains("score 6"), "{out}");
+        assert!(out.contains("score 6"), "{out}");
         assert!(out.lines().next().unwrap().contains("goal decide"));
         assert!(recommend(Some("aliens"), None, None).unwrap_err().contains("unknown audience"));
         assert!(recommend(None, None, None).is_err());
