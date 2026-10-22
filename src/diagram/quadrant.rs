@@ -1,8 +1,9 @@
 //! 2x2 / four-quadrant (also SWOT): quadrants in order TL, TR, BL, BR.
 use super::*;
 
-const GAP: f64 = 16.0;
-const INSET: f64 = 24.0;
+const GAP: f64 = 8.0;
+const INSET: f64 = 16.0;
+const AXIS_BAND: f64 = 32.0;
 
 struct Axis {
     label: Option<String>,
@@ -30,13 +31,13 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     };
     let quads = arr(m, "quadrants", "$", 4, 4)?;
 
-    // Left gutter sized to the widest y label (one line at 14px), capped at 120px.
+    // Left gutter sized to the widest y label (one line at 14px), capped at 96px.
     let gutter = y.as_ref().map_or(0.0, |a| {
         let w = [&a.label, &a.low, &a.high].iter().filter_map(|s| s.as_deref()).map(|s| width(s, 14.0)).fold(0.0, f64::max);
-        (((w + 40.0) / 8.0).ceil() * 8.0).clamp(64.0, 120.0)
+        (((w + 40.0) / 8.0).ceil() * 8.0).clamp(56.0, 96.0)
     });
     let (x0, y0) = (PAD + gutter, PAD);
-    let (x1, y1) = (W - PAD, H - PAD - if x.is_some() { 48.0 } else { 0.0 });
+    let (x1, y1) = (W - PAD, H - PAD - if x.is_some() { AXIS_BAND } else { 0.0 });
     let (cw, ch) = (snap((x1 - x0 - GAP) / 2.0), snap((y1 - y0 - GAP) / 2.0));
     let t = svg.t;
 
@@ -53,11 +54,11 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         let on = highlight == Some(i);
         svg.node(cell, &t.card, on.then_some((t.accent.as_str(), 2.0)), 8.0);
         let inner = cw - 2.0 * INSET;
-        let title = fit(&title, 22.0, inner, 2)?;
-        let items = fit_items(&items, inner - 16.0, ch - 2.0 * INSET - title.height() - 12.0)
+        let title = fit(&title, 20.0, inner, 2)?;
+        let items = fit_items(&items, inner - 16.0, ch - 2.0 * INSET - title.height() - 8.0)
             .map_err(|e| format!("{path}.items: {e}"))?;
         let mut cy = cell.y + INSET;
-        cy += svg.text(&title, Anchor::Start, cell.x + INSET, cy, 700, if on { &t.accent } else { &t.text }) + 12.0;
+        cy += svg.text(&title, Anchor::Start, cell.x + INSET, cy, 700, if on { &t.accent } else { &t.text }) + 8.0;
         for l in &items {
             let dot_y = cy + l.line_h() / 2.0;
             svg.dot(cell.x + INSET + 3.0, dot_y, 3.0, if on { &t.accent } else { &t.muted });
@@ -67,13 +68,13 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
 
     let (gx1, gy1) = (x0 + 2.0 * cw + GAP, y0 + 2.0 * ch + GAP);
     if let Some(a) = x {
-        let ly = gy1 + 16.0;
+        let ly = gy1 + 8.0;
         svg.line(x0, ly, gx1, ly, &t.border, true);
         let third = (gx1 - x0) / 3.0 - 8.0;
         for (s, anchor, ax) in [(&a.low, Anchor::Start, x0), (&a.label, Anchor::Middle, (x0 + gx1) / 2.0), (&a.high, Anchor::End, gx1)] {
             if let Some(s) = s {
                 let l = fit(s, 14.0, third, 1).map_err(|e| format!("$.x: {e}"))?;
-                svg.text(&l, anchor, ax, ly + 8.0, if anchor == Anchor::Middle { 700 } else { 400 }, &t.muted);
+                svg.text(&l, anchor, ax, ly + 6.0, if anchor == Anchor::Middle { 700 } else { 400 }, &t.muted);
             }
         }
     }
@@ -102,7 +103,7 @@ fn fit_items(items: &[String], w: f64, max_h: f64) -> Result<Vec<Label>> {
     let mut size = 16.0;
     loop {
         let labels: Vec<Label> = items.iter().map(|s| fit(s, size, w, 2)).collect::<Result<_>>()?;
-        let h: f64 = labels.iter().map(|l| l.height() + 8.0).sum();
+        let h: f64 = labels.iter().map(|l| l.height() + 8.0).sum::<f64>() - 8.0;
         if h <= max_h {
             return Ok(labels);
         }
