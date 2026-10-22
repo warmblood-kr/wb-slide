@@ -15,6 +15,7 @@ All notable changes to wb-slide.
 - Markup `<wb-notes>` and spec slide `notes`: speaker notes, hidden in the slide HTML
   and reported per slide as `notes` in the render manifest.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
+- Preset token `--wb-vertical` (`start`|`safe center`|`space-evenly`, default `safe center`) places the body under a title; `safe` keeps tall bodies from clipping at the top.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec
   directory only, embedded as data URIs; #22). Markup `<wb-columns>`/`<wb-column>`, `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).

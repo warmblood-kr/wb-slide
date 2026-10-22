@@ -75,6 +75,7 @@ checked by the same parser. The plain `--spec` output is unchanged.
 | `--wb-body-size` / `--wb-center-size` | 20px / 40px | 22px / 44px |
 | `--wb-text` / `--wb-muted` / `--wb-accent` / `--wb-bg` | light palette | dark palette |
 | `--wb-safe-x` / `--wb-safe-y` / `--wb-gap` | 64 / 48 / 16px | 72 / 56 / 20px |
+| `--wb-vertical` (body under a title: `start`, `safe center` or `space-evenly`; other values are errors) | safe center | safe center |
 
 At render time `render.py` substitutes the operator's approved font file. Pass
 a Pretendard variable `.ttf` to get Pretendard in PNG/PDF.
