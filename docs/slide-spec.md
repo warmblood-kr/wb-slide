@@ -41,6 +41,7 @@ are errors at every level.
 | panel | paragraphs: string array | label |
 | callout | tone: info/warning, paragraphs | none |
 | kpi | value, label (both presentation strings) | note |
+| list | items: string array (bulleted) | none |
 | columns | columns: array of objects, each with blocks | none |
 
 Columns require 2–3 entries and cannot nest. The compiler maps these objects
@@ -48,7 +49,7 @@ to the existing component styles. It performs no calculations; preserve units,
 source/period and unknown conditions in the supplied labels/notes/prose.
 
 Limits: input 64 KiB; 1–20 slides; 1–64 blocks per list; at most 64 leaf blocks
-per slide across all columns; 1–16 paragraphs per panel/callout. Strings must
+per slide across all columns; 1–16 paragraphs per panel/callout; 1–16 list items. Strings must
 be nonblank and at most 2,000 Unicode characters each. Limits bound processing;
 they do not establish that a slide fits or has an appropriate reading density.
 

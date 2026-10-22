@@ -25,3 +25,5 @@
   line-height: 1.35;
   margin: 0 0 var(--wb-gap);
 }
+.wb-list { margin: 0 0 var(--wb-gap); padding-left: 1.2em; font-size: var(--wb-body-size); line-height: 1.6; }
+.wb-list li::marker { color: var(--wb-accent); }

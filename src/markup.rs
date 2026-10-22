@@ -11,7 +11,7 @@ const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[])];
 
 enum Node {
     Text(String),
@@ -98,31 +98,48 @@ fn text_of(el: &El) -> Result<String> {
     Ok(text)
 }
 
-/// Body content -> spec blocks. Blank lines separate paragraphs; other whitespace collapses.
-fn body(kids: &[&Node]) -> Result<Vec<serde_json::Value>> {
+/// Text -> paragraph blocks. Blank lines separate paragraphs; other whitespace collapses.
+fn paragraphs(text: &str, out: &mut Vec<serde_json::Value>) {
     let mut paragraphs = vec![String::new()];
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 && blank(line) {
+            paragraphs.push(String::new());
+        } else {
+            let last = paragraphs.last_mut().unwrap();
+            last.push(' ');
+            last.push_str(line);
+        }
+    }
+    out.extend(paragraphs.iter().map(|p| collapse(p)).filter(|p| !p.is_empty())
+        .map(|text| json!({"type": "text", "text": text})));
+}
+
+/// Element children that must all be `name` (whitespace between them is ignored).
+fn children<'a>(el: &'a El, name: &str) -> Result<Vec<&'a El>> {
+    el.kids.iter().filter(|k| !matches!(k, Node::Text(t) if blank(t))).map(|k| match k {
+        Node::El(e) if e.name == name => Ok(e),
+        Node::El(e) => Err(unexpected(e)),
+        Node::Text(_) => Err(format!("<{}> at byte {} takes only <{name}> children", el.name, el.pos)),
+    }).collect()
+}
+
+/// Body content -> spec blocks, in order.
+fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
+    let mut blocks = Vec::new();
     for kid in kids {
         match kid {
-            Node::Text(t) => {
-                for (i, line) in t.split('\n').enumerate() {
-                    if i > 0 && blank(line) {
-                        paragraphs.push(String::new());
-                    } else {
-                        let last = paragraphs.last_mut().unwrap();
-                        last.push(' ');
-                        last.push_str(line);
-                    }
+            Node::Text(t) => paragraphs(t, &mut blocks),
+            Node::El(e) if e.name == "wb-list" => {
+                let items = children(e, "wb-item")?.into_iter().map(text_of).collect::<Result<Vec<_>>>()?;
+                if items.is_empty() {
+                    return Err(format!("empty <wb-list> at byte {}", e.pos));
                 }
+                blocks.push(json!({"type": "list", "items": items}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
     }
-    Ok(paragraphs
-        .iter()
-        .map(|p| collapse(p))
-        .filter(|p| !p.is_empty())
-        .map(|text| json!({"type": "text", "text": text}))
-        .collect())
+    Ok(blocks)
 }
 
 fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
@@ -145,12 +162,22 @@ fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
             slide["subtitle"] = json!(text_of(sub)?);
         }
     }
-    let blocks = body(&el.kids[at..].iter().collect::<Vec<_>>())?;
+    let blocks = body(&el.kids[at..])?;
     if blocks.is_empty() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
     slide["blocks"] = json!(blocks);
     Ok(slide)
+}
+
+/// First string value, depth-first, ignoring block `type` tags.
+fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
+    match v {
+        serde_json::Value::String(_) => Some(v),
+        serde_json::Value::Array(a) => a.iter().find_map(first_text),
+        serde_json::Value::Object(o) => o.iter().filter(|(k, _)| *k != "type").find_map(|(_, v)| first_text(v)),
+        _ => None,
+    }
 }
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
@@ -165,9 +192,9 @@ pub fn compile(markup: &str) -> Result<String> {
         .enumerate()
         .map(|(i, e)| slide(e?, i))
         .collect::<Result<Vec<_>>>()?;
-    // Deck title: first heading, else the first slide's first text.
+    // Deck title: first heading, else the first text anywhere in the blocks.
     let first = slides.first().ok_or("no <wb-slide> found")?;
-    let deck_title = slides.iter().find_map(|s| s.get("heading")).unwrap_or(&first["blocks"][0]["text"]).clone();
+    let deck_title = slides.iter().find_map(|s| s.get("heading")).or_else(|| first_text(&first["blocks"])).cloned();
     let spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
@@ -257,6 +284,24 @@ mod tests {
         assert_eq!((s["slides"][0]["subtitle"].as_str(), s["slides"][0]["blocks"][0]["text"].as_str()), (Some("부제"), Some("본문")));
         for m in ["<wb-slide><wb-subtitle>S</wb-subtitle>x</wb-slide>", "<wb-slide><wb-title>T</wb-title>x<wb-subtitle>S</wb-subtitle></wb-slide>"] {
             assert!(compile(m).unwrap_err().contains("unexpected <wb-subtitle>"), "{m}");
+        }
+    }
+
+    #[test]
+    fn list_items_between_paragraphs() {
+        let s = spec("<wb-slide><wb-title>T</wb-title>앞\n<wb-list>\n <wb-item>하나</wb-item>\n <wb-item>둘 &amp; 셋</wb-item>\n</wb-list>\n뒤</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"text","text":"앞"}, {"type":"list","items":["하나","둘 & 셋"]}, {"type":"text","text":"뒤"}]));
+        let json = compile("<wb-slide><wb-list><wb-item>x</wb-item></wb-list></wb-slide>").unwrap();
+        assert!(crate::spec::parse(json.as_bytes()).is_ok());
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&json).unwrap()["title"], "x");
+        for (m, msg) in [
+            ("<wb-slide><wb-list>x</wb-list></wb-slide>", "takes only <wb-item>"),
+            ("<wb-slide><wb-list></wb-list></wb-slide>", "empty <wb-list>"),
+            ("<wb-slide><wb-item>x</wb-item></wb-slide>", "unexpected <wb-item>"),
+            ("<wb-slide><wb-list><wb-item></wb-item></wb-list></wb-slide>", "empty <wb-item>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
     }
 
