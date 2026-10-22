@@ -127,9 +127,10 @@ impl Label {
 pub fn fit(s: &str, size: f64, max_w: f64, max_lines: usize) -> Result<Label> {
     let mut sz = size;
     loop {
-        let lines = wrap(s, sz, max_w);
-        if lines.len() <= max_lines {
-            return Ok(Label { lines, size: sz });
+        let l = Label { lines: wrap(s, sz, max_w), size: sz };
+        // wrap keeps >=1 char per line, so a glyph wider than max_w can still overflow.
+        if l.lines.len() <= max_lines && l.width() <= max_w {
+            return Ok(l);
         }
         if sz - 2.0 < MIN_SIZE {
             return Err(format!("label \"{s}\" does not fit in {max_w}px x {max_lines} lines; shorten it"));
@@ -317,6 +318,12 @@ mod tests {
         let mut s = Svg::new(&t);
         s.text(&l, Anchor::End, 5.0, 10.0, 400, "#000");
         assert!(s.check().unwrap_err().contains("canvas"));
+    }
+
+    #[test]
+    fn fit_rejects_glyph_wider_than_box() {
+        assert!(fit("검토", 16.0, 4.5, 2).err().unwrap().contains("does not fit"));
+        assert!(fit("검토", 16.0, -8.0, 2).is_err());
     }
 
     #[test]
