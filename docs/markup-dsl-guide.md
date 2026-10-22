@@ -23,9 +23,9 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | `<wb-title>` | none | first child of a slide | `heading` (title-top layout) |
 | `<wb-subtitle>` | none | directly after `<wb-title>` | `subtitle` |
 | `<wb-list>` / `<wb-item>` | none | body; list holds only items, items hold only text | `list` block |
-| `<wb-card label="…">` | `label` (optional) | body; text only | `panel` block |
+| `<wb-card label="…">` | `label` (optional; if present, non-blank) | body; text only, blank lines split paragraphs (≤16) | `panel` block |
 | `<wb-columns>` / `<wb-column>` | none | slide body; columns hold only 2–3 `<wb-column>` | `columns` block |
-| `<wb-image src="…" alt="…" />` | `src`, `alt` (both required) | body; no content | `image` block |
+| `<wb-image src="…" alt="…" />` | `src`, `alt` (both required, non-blank) | body; no content; must end `/>` or have `</wb-image>` | `image` block |
 | `<wb-footer>` | none | top level, outside slides | deck `footer` on every slide |
 | `<wb-notes>` | none | directly in a slide; text only | slide `notes` (hidden) |
 
@@ -40,15 +40,16 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-columns>`, `<wb-image>`. A `<w
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards or columns.
-- Text collapses whitespace. A blank line separates paragraphs (one `text` block each).
+- Text collapses whitespace; a single newline joins lines into one paragraph. A blank (whitespace-only) line separates paragraphs (one `text` block each), in the body and inside `<wb-card>`. Text before and after a list, card, columns or image becomes separate blocks.
+- `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
-- Only the tags above. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`…) or self-closing tag except `<wb-image />` is an error.
-- Deck title = first `<wb-title>`; else the first slide's first text.
-- Image `src`: relative path under the markup file's directory, no `..`, no scheme; `.png .jpg .webp .svg`.
+- Only the tags above with only their listed attributes. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`, `alt` on a card…) or self-closing tag except `<wb-image />` is an error.
+- Deck title (not shown on slides) = the first `<wb-title>` in the deck; else the first non-blank string in the first slide.
+- Image `src`: plain `dir/file.ext` under the markup file's directory. No leading `./`, no `/`-absolute path, no `..`, no `:` or `\`. The file must exist as a regular file and must not resolve (via symlinks) outside that directory. Types `.png .jpg .jpeg .webp .svg` (any case).
 
 ## 4. Limits
 
-- Markup: 64 KiB, UTF-8, nesting depth 8.
+- Markup: 64 KiB, UTF-8, nesting depth 8. The compiled spec JSON is also capped at 64 KiB (`$: spec exceeds 64 KiB`): split a deck that hits it.
 - Slides: 1–20 per deck.
 - Blocks: 1–64 per slide or column; at most 64 leaf blocks per slide, columns included.
 - List items: 1–16. Card paragraphs: 1–16.
@@ -66,12 +67,13 @@ Markup errors (byte offsets count from the start of the file):
 | `unexpected <x> at byte N` | Tag not allowed there (unknown tag, wrong parent, title not first, second footer/notes). Move or remove it. |
 | `unexpected closing <x> at byte N` | Mismatched close tag. Close tags in reverse order. |
 | `unclosed <x> at end of input` | Add the missing `</x>`. |
-| `unsupported attributes or self-closing tag at byte N` | Remove the attribute, or write `<x></x>` instead of `<x/>`. |
+| `unsupported attributes or self-closing tag at byte N` | Remove the attribute not listed for that tag, or write `<x></x>` instead of `<x/>`. |
 | `text outside <wb-slide> at byte N` | Move the text into a slide. |
 | `empty <x> at byte N` | Give it text (or items/columns). |
 | `<x> at byte N takes only <y> children` | Remove text directly inside `<wb-list>`/`<wb-columns>`. |
 | `<wb-image> at byte N needs src="…"` / `needs alt="…"` | Add the attribute. |
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
+| `cannot read markup: …` | Fix the input path. |
 | `wb-slide[I]: body text is required` | Add body to slide I (0-based). |
 | `no <wb-slide> found` | Add a slide. |
 | `nesting deeper than 8 at byte N` / `markup exceeds 64 KiB` | Flatten or shorten. |
@@ -81,20 +83,25 @@ Markup errors (byte offsets count from the start of the file):
 Spec errors after compiling name a field path: `$.slides[I].blocks[J]…: reason`,
 e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns cannot nest`,
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
-`…src: at most 8 images per deck`. Slide I is the I-th `<wb-slide>` (0-based).
+`…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`.
+Image errors on `…src`: `expected a relative local path without .. or a scheme`, `cannot read image: …`,
+`expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
+`image resolves outside the spec directory`, `at most 8 images per deck`.
+Slide I is the I-th `<wb-slide>` counting from 0. The render manifest counts from 1 (`index`, `slide-001.png`): manifest slide N is error slide N−1.
 
 **Repair loop**
 1. Run `export`. On a nonzero exit, read the message, fix only the named spot (byte N or slide/field path), rerun.
-2. Run `render.py`. For each manifest slide with non-empty `overflow`, shorten that slide's text or split it into two slides. Re-export and re-render to a new directory.
+2. Run `render.py`. It fails with no manifest on a missing glyph or font fallback (use characters the font has). For each manifest slide with non-empty `overflow` (a list of `TAG.class` strings), shorten that slide's text or split it into two slides. Re-export and re-render to a new directory.
 3. Look at the PNGs; bounds do not prove readability.
 
 ## 6. Themes
 
 `--theme default` (or omitted), `--theme night`, or `--theme path/to/tokens.css`.
-A token file is lines of `--wb-name: value;`; blank lines allowed; unset tokens keep the default.
+A token file is one `--wb-name: value;` per line, each ending in `;`; blank lines allowed; no comments; unset tokens keep the default.
 Values must be plain: none of `( ) { } ; < > @ \ " / *`.
 Errors: `FILE:LINE: expected \`--wb-name: value;\``, `FILE:LINE: unknown token NAME`, `FILE:LINE: value must be plain …`,
-`FILE:LINE: --wb-vertical must be one of start, safe center, space-evenly`.
+`FILE:LINE: --wb-vertical must be one of start, safe center, space-evenly`, `cannot read theme PATH: …`,
+`theme PATH exceeds 8 KiB`, `theme PATH: not UTF-8`.
 
 Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 `--wb-subtitle-size`, `--wb-body-size`, `--wb-center-size`, `--wb-text`, `--wb-muted`,
