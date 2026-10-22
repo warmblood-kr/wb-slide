@@ -856,7 +856,9 @@ fn export_markup(path: &std::path::Path, theme: Option<&str>, output: &std::path
         return Err("markup exceeds 64 KiB".into());
     }
     let source = String::from_utf8(bytes).map_err(|_| "markup is not UTF-8".to_string())?;
-    let (meta, slides) = spec::parse(markup::compile(&source)?.as_bytes())?;
+    // Images resolve relative to the markup file, like the spec path.
+    let base = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    let (meta, slides) = spec::parse_in(markup::compile(&source)?.as_bytes(), Some(base))?;
     write_spec_html(meta, slides, Some(&markup::preset_css(theme)?), output)
 }
 

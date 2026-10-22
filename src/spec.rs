@@ -3,6 +3,15 @@ use crate::{template::html_escape as escape, Slide};
 use serde_json::{Map, Value};
 use std::{fs::File, io::Read, path::Path};
 
+const MAX_IMAGE_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_IMAGES: usize = 8;
+
+/// Where local images may come from, and how many were embedded so far.
+struct Ctx<'a> {
+    base: Option<&'a Path>,
+    images: usize,
+}
+
 const MAX_BYTES: usize = 64 * 1024;
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
@@ -14,6 +23,7 @@ enum Block {
     Callout(String, Vec<String>),
     Kpi(String, String, Option<String>),
     List(Vec<String>),
+    Image(String, String),
     Columns(Vec<Vec<Block>>),
 }
 
@@ -93,7 +103,45 @@ fn strings(o: &Object, key: &str, path: &str) -> Result<Vec<String>> {
         .collect()
 }
 
-fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize) -> Result<Vec<Block>> {
+/// Embed a local image as a data URI. Relative path inside `base` only; no URLs.
+fn image(src: &str, p: &str, ctx: &mut Ctx) -> Result<String> {
+    let at = format!("{p}.src");
+    let base = ctx.base.ok_or_else(|| error(&at, "images need a spec file location"))?;
+    let rel = Path::new(src);
+    if src.contains(':') || src.contains('\\') || !rel.is_relative()
+        || rel.components().any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(error(&at, "expected a relative local path without .. or a scheme"));
+    }
+    let ext = rel.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let mime = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        _ => return Err(error(&at, "expected .png, .jpg, .webp or .svg")),
+    };
+    ctx.images += 1;
+    if ctx.images > MAX_IMAGES {
+        return Err(error(&at, "at most 8 images per deck"));
+    }
+    let base = base.canonicalize().map_err(|e| error(&at, &format!("cannot resolve base: {e}")))?;
+    let full = base.join(rel).canonicalize().map_err(|e| error(&at, &format!("cannot read image: {e}")))?;
+    if !full.starts_with(&base) {
+        return Err(error(&at, "image resolves outside the spec directory"));
+    }
+    let mut bytes = Vec::new();
+    File::open(&full)
+        .and_then(|f| f.take(MAX_IMAGE_BYTES + 1).read_to_end(&mut bytes))
+        .map_err(|e| error(&at, &format!("cannot read image: {e}")))?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(error(&at, "image exceeds 2 MiB"));
+    }
+    use base64::Engine as _;
+    Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
+fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx: &mut Ctx) -> Result<Vec<Block>> {
     items(o, "blocks", path, 1, 64)?
         .iter()
         .enumerate()
@@ -109,12 +157,13 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize) -> R
                 "callout" => &["type", "tone", "paragraphs"],
                 "kpi" => &["type", "value", "label", "note"],
                 "list" => &["type", "items"],
+                "image" => &["type", "src", "alt"],
                 "columns" if columns_allowed => &["type", "columns"],
                 "columns" => return Err(error(&format!("{p}.type"), "columns cannot nest")),
                 _ => {
                     return Err(error(
                         &format!("{p}.type"),
-                        "expected text, panel, callout, kpi, list or columns",
+                        "expected text, panel, callout, kpi, list, image or columns",
                     ))
                 }
             };
@@ -141,13 +190,17 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize) -> R
                     optional(b, "note", &p)?,
                 )),
                 "list" => Ok(Block::List(strings(b, "items", &p)?)),
+                "image" => {
+                    let alt = string(b, "alt", &p)?;
+                    Ok(Block::Image(image(&string(b, "src", &p)?, &p, ctx)?, alt))
+                }
                 "columns" => {
                     let cols = items(b, "columns", &p, 2, 3)?
                         .iter()
                         .enumerate()
                         .map(|(j, value)| {
                             let cp = format!("{p}.columns[{j}]");
-                            blocks(object(value, &cp, &["blocks"])?, &cp, false, count)
+                            blocks(object(value, &cp, &["blocks"])?, &cp, false, count, ctx)
                         })
                         .collect::<Result<Vec<_>>>()?;
                     Ok(Block::Columns(cols))
@@ -190,6 +243,9 @@ impl Block {
                     escape(label)
                 )
             }
+            Self::Image(uri, alt) => {
+                format!("<img class=\"wb-image\" src=\"{}\" alt=\"{}\">", escape(uri), escape(alt))
+            }
             Self::List(items) => {
                 let li: String = items.iter().map(|t| format!("<li>{}</li>", escape(t))).collect();
                 format!("<ul class=\"wb-list\">{li}</ul>")
@@ -210,7 +266,14 @@ fn html(blocks: &[Block]) -> String {
     blocks.iter().map(Block::html).collect()
 }
 
+#[cfg(test)]
 pub fn parse(bytes: &[u8]) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
+    parse_in(bytes, None)
+}
+
+/// Parse with local images resolved under `base` (the spec or markup directory).
+pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
+    let mut ctx = Ctx { base, images: 0 };
     if bytes.len() > MAX_BYTES {
         return Err(error("$", "spec exceeds 64 KiB"));
     }
@@ -229,7 +292,7 @@ pub fn parse(bytes: &[u8]) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
             let s = object(v, &p, &["heading", "subtitle", "blocks"])?;
             let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
-            let body = blocks(s, &p, true, &mut 0)?;
+            let body = blocks(s, &p, true, &mut 0, &mut ctx)?;
             // No heading: content alone, centered (slide-section).
             let mut fm = match heading {
                 Some(heading) => vec![
@@ -259,7 +322,7 @@ pub fn load(path: &Path) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
     File::open(path)
         .and_then(|f| f.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes))
         .map_err(|e| error("$", &format!("cannot read spec: {e}")))?;
-    parse(&bytes)
+    parse_in(&bytes, Some(path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."))))
 }
 
 #[cfg(test)]
@@ -349,6 +412,44 @@ mod tests {
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains(".items: expected 1–16"));
         v["slides"][0]["blocks"] = json!([{"type":"list","items":[" "]}]);
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains(".items[0]"));
+    }
+
+    #[test]
+    fn images_embed_local_files_only() {
+        let dir = std::env::temp_dir().join(format!("wb-spec-img-{}", std::process::id()));
+        let inside = dir.join("deck");
+        std::fs::create_dir_all(inside.join("img")).unwrap();
+        std::fs::write(inside.join("img/a.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+        std::fs::write(dir.join("secret.png"), "x").unwrap();
+        std::fs::write(inside.join("big.png"), vec![0u8; MAX_IMAGE_BYTES as usize + 1]).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(dir.join("secret.png"), inside.join("link.png")).ok();
+        let spec = |src: &str| {
+            let mut v = base();
+            v["slides"][0]["blocks"] = json!([{"type":"image","src":src,"alt":"그림 \"<1>\""}]);
+            v.to_string()
+        };
+        let (_, slides) = parse_in(spec("img/a.svg").as_bytes(), Some(&inside)).unwrap();
+        assert!(slides[0].body_html.starts_with("<img class=\"wb-image\" src=\"data:image/svg+xml;base64,"));
+        assert!(slides[0].body_html.ends_with("alt=\"그림 &quot;&lt;1&gt;&quot;\">"));
+        assert!(parse(spec("img/a.svg").as_bytes()).err().unwrap().contains("need a spec file location"));
+        for (src, msg) in [
+            ("../secret.png", "relative local path"),
+            ("/etc/x.png", "relative local path"),
+            ("http://x/y.png", "relative local path"),
+            ("img/a.gif", "expected .png"),
+            ("missing.png", "cannot read image"),
+            ("big.png", "exceeds 2 MiB"),
+            #[cfg(unix)]
+            ("link.png", "outside the spec directory"),
+        ] {
+            let err = parse_in(spec(src).as_bytes(), Some(&inside)).err().unwrap();
+            assert!(err.contains("$.slides[0].blocks[0].src") && err.contains(msg), "{src}: {err}");
+        }
+        let mut v = base();
+        v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"img/a.svg","alt":"a"}); 9]);
+        assert!(parse_in(v.to_string().as_bytes(), Some(&inside)).err().unwrap().contains("at most 8 images"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

@@ -42,6 +42,7 @@ are errors at every level.
 | callout | tone: info/warning, paragraphs | none |
 | kpi | value, label (both presentation strings) | note |
 | list | items: string array (bulleted) | none |
+| image | src (relative local path), alt | none |
 | columns | columns: array of objects, each with blocks | none |
 
 Columns require 2–3 entries and cannot nest. The compiler maps these objects
@@ -56,7 +57,15 @@ they do not establish that a slide fits or has an appropriate reading density.
 All strings are literal text, escaped for their HTML context. Markdown,
 template markers and HTML-looking strings are displayed as text. The spec path
 does not load a nearby slides.md, local layouts/styles/JavaScript, registry
-themes, images, URLs or imports. Existing Markdown/tag input remains supported.
+themes, URLs or imports. Existing Markdown/tag input remains supported.
+
+The only files it reads are `image` blocks (#22). `src` must be a relative path
+with no `..` and no scheme. Its resolved location, after following symlinks,
+must stay inside the spec file's directory. The type must be .png, .jpg, .webp
+or .svg, each file at most 2 MiB, with at most 8 images per deck. The file is
+embedded as a `data:` URI in an `<img>` with the escaped `alt`, so SVG scripts
+and external references do not run. Text inside an SVG uses whatever fonts the
+browser has, not the render font check.
 
 The complete request is validated before any output is published. Invalid
 input returns nonzero with a field path and reason, for example:

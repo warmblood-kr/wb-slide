@@ -13,7 +13,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"])];
 
 enum Node {
     Text(String),
@@ -60,13 +60,18 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
                 let attrs: Vec<(String, String)> = t.attributes.iter()
                     .map(|(k, v)| (String::from_utf8_lossy(k).to_string(), String::from_utf8_lossy(&v.value).to_string()))
                     .collect();
-                if attrs.iter().any(|(k, _)| !allowed.contains(&k.as_str())) || t.self_closing {
+                if attrs.iter().any(|(k, _)| !allowed.contains(&k.as_str())) || t.self_closing && name != "wb-image" {
                     return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
                 }
                 if stack.len() > MAX_DEPTH {
                     return Err(format!("nesting deeper than {MAX_DEPTH} at byte {}", t.span.start));
                 }
-                stack.push(El { name, pos: t.span.start, attrs, kids: Vec::new() });
+                let el = El { name, pos: t.span.start, attrs, kids: Vec::new() };
+                if t.self_closing {
+                    stack.last_mut().unwrap().kids.push(Node::El(el));
+                } else {
+                    stack.push(el);
+                }
             }
             Token::EndTag(t) => {
                 let name = String::from_utf8_lossy(&t.name).to_string();
@@ -174,6 +179,17 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                     .collect::<Result<Vec<_>>>()?;
                 // The spec enforces 2–3 columns and no nesting, with a field path.
                 blocks.push(json!({"type": "columns", "columns": columns}));
+            }
+            Node::El(e) if e.name == "wb-image" => {
+                if let Some(Node::El(inner)) = e.kids.iter().find(|k| !matches!(k, Node::Text(t) if blank(t))) {
+                    return Err(unexpected(inner));
+                }
+                if e.kids.iter().any(|k| !matches!(k, Node::Text(t) if blank(t))) {
+                    return Err(format!("<wb-image> at byte {} takes no content; use alt=\"…\"", e.pos));
+                }
+                let attr = |k: &str| e.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
+                    .ok_or(format!("<wb-image> at byte {} needs {k}=\"…\"", e.pos));
+                blocks.push(json!({"type": "image", "src": attr("src")?, "alt": collapse(&attr("alt")?)}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -390,6 +406,21 @@ mod tests {
         ] {
             let json = compile(m).unwrap();
             assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn image_takes_src_and_alt() {
+        let s = spec("<wb-slide><wb-image src=\"img/a.svg\" alt=\" 구성  도 \" /><wb-image src=\"b.png\" alt=\"b\"></wb-image></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"image","src":"img/a.svg","alt":"구성 도"}, {"type":"image","src":"b.png","alt":"b"}]));
+        for (m, msg) in [
+            ("<wb-slide><wb-image src=\"a.png\"/></wb-slide>", "needs alt="),
+            ("<wb-slide><wb-image alt=\"a\"/></wb-slide>", "needs src="),
+            ("<wb-slide><wb-image src=\"a.png\" alt=\"a\">설명</wb-image></wb-slide>", "takes no content"),
+            ("<wb-slide><wb-card label=\"x\"/></wb-slide>", "self-closing"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
     }
 
