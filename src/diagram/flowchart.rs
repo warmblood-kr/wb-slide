@@ -147,11 +147,11 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
 
     // Uniform slot size: m along the main axis, c across it.
     let (main_len, cross_len) = if tb { (H - 2.0 * PAD, W - 2.0 * PAD) } else { (W - 2.0 * PAD, H - 2.0 * PAD) };
-    let (m_max, c_max, m_min, c_min) = if tb { (56.0, 176.0, 24.0, 48.0) } else { (160.0, 72.0, 48.0, 24.0) };
+    let (m_max, c_max, m_min, c_min) = if tb { (56.0, 176.0, 24.0, 48.0) } else { (160.0, 96.0, 48.0, 24.0) };
     let k = layers.iter().map(|l| l.len()).max().unwrap();
     // Prefer room between ranks for arrows and edge labels; squeeze to MIN_GAP only if needed.
     let slot = |gap: f64| snap(((main_len - (nr - 1) as f64 * gap) / nr as f64).min(m_max));
-    let m = [if tb { 40.0 } else { 56.0 }, MIN_GAP].map(slot).into_iter().find(|&m| m >= m_min)
+    let m = [if tb { 32.0 } else { 40.0 }, MIN_GAP].map(slot).into_iter().find(|&m| m >= m_min)
         .ok_or("too many steps in a row: the flow does not fit; split it")?;
     let c = snap(((cross_len - (k - 1) as f64 * GAP) / k as f64).min(c_max));
     if c < c_min {
@@ -238,19 +238,33 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
 
     let base_edge = svg.edges.len();
     for (link, chain) in links.iter().zip(&chains) {
+        // Points on (main, cross); every change of cross becomes an elbow in the middle of the gap.
         let mid = |i: usize| at[i].1 + c / 2.0;
-        let mut pts = vec![pt(at[link.from].0 + m, mid(link.from))];
+        let mut mc = vec![(at[link.from].0 + m, mid(link.from))];
         for &d in &chain[1..chain.len() - 1] {
-            pts.push(pt(at[d].0, mid(d)));
-            pts.push(pt(at[d].0 + m, mid(d)));
+            mc.extend([(at[d].0, mid(d)), (at[d].0 + m, mid(d))]);
         }
-        pts.push(pt(at[link.to].0, mid(link.to)));
-        // A long edge goes straight when nothing is in the way; dummy slots only keep the room free.
-        let direct = [pts[0], pts[pts.len() - 1]];
+        mc.push((at[link.to].0, mid(link.to)));
+        let ortho = |mc: &[(f64, f64)]| -> Vec<(f64, f64)> {
+            let mut out = vec![pt(mc[0].0, mc[0].1)];
+            for w in mc.windows(2) {
+                if w[0].1 != w[1].1 {
+                    let bend = w[1].0 - g / 2.0;
+                    out.extend([pt(bend, w[0].1), pt(bend, w[1].1)]);
+                }
+                out.push(pt(w[1].0, w[1].1));
+            }
+            out
+        };
+        let mut pts = ortho(&mc);
+        // A long edge runs straight and bends only in the last gap when nothing is in the way.
         let ends = [base + link.from, base + link.to];
-        let clear = |r: &[Rect], skip: &dyn Fn(usize) -> bool| r.iter().enumerate().all(|(j, b)| skip(j) || !b.hit_by(direct[0], direct[1]));
-        if pts.len() > 2 && clear(&svg.nodes, &|j| ends.contains(&j)) && clear(&svg.texts, &|_| false) {
-            pts = direct.to_vec();
+        let direct = ortho(&[mc[0], mc[mc.len() - 1]]);
+        let clear = |r: &[Rect], skip: &dyn Fn(usize) -> bool| {
+            r.iter().enumerate().all(|(j, b)| skip(j) || direct.windows(2).all(|s| !b.hit_by(s[0], s[1])))
+        };
+        if mc.len() > 2 && clear(&svg.nodes, &|j| ends.contains(&j)) && clear(&svg.texts, &|_| false) {
+            pts = direct;
         }
         svg.edge(&pts, ends, &t.muted);
     }
@@ -268,7 +282,11 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
             !svg.texts.iter().chain(&svg.nodes).any(|o| o.overlaps(p))
                 && svg.edges.iter().enumerate().all(|(j, o)| j == idx || o.pts.windows(2).all(|w| !p.hit_by(w[0], w[1])))
         };
-        let spot = pts.windows(2).flat_map(|w| [0.5, 0.3, 0.7, 0.2, 0.8].map(|f| (w[0].0 + (w[1].0 - w[0].0) * f, w[0].1 + (w[1].1 - w[0].1) * f)))
+        // Longest segment first: a label sits best on a long run, not beside an elbow.
+        let mut segs: Vec<&[(f64, f64)]> = pts.windows(2).collect();
+        let len = |w: &[(f64, f64)]| (w[1].0 - w[0].0).abs() + (w[1].1 - w[0].1).abs();
+        segs.sort_by(|a, b| len(b).total_cmp(&len(a)));
+        let spot = segs.into_iter().flat_map(|w| [0.5, 0.3, 0.7, 0.2, 0.8].map(|f| (w[0].0 + (w[1].0 - w[0].0) * f, w[0].1 + (w[1].1 - w[0].1) * f)))
             .find(|&q| free(&plate_at(q)))
             .ok_or(format!("$.edges[{e}].label: no clear spot along the edge; the label does not fit, shorten or drop it"))?;
         let p = plate_at(spot);
@@ -342,7 +360,7 @@ mod tests {
         d["edges"][3]["label"] = json!("가".repeat(40));
         fits_or_says_so(&d);
         let mut d = sample();
-        d["nodes"][1]["label"] = json!("재고 수량 및 위치 확인");
+        d["nodes"][2]["label"] = json!("재고 수량 및 위치 확인");
         render(&d).unwrap();
     }
 
