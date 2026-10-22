@@ -113,10 +113,17 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 - `<wb-footer>text</wb-footer>` sits at deck level, outside any slide, and may appear at most once. It becomes the spec's root `footer`, shown on every slide in `--wb-muted`.
 - `<wb-notes>text</wb-notes>` sits directly inside a `<wb-slide>`, at most once. It takes plain text only (whitespace collapses, entities decode) and becomes that slide's spec `notes`: hidden on the slide, listed in the render manifest. A line holding only `<wb-notes>` does not split a paragraph. Notes stay readable in the HTML source, so keep secrets out.
 - A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
+- `<wb-slide layout="cover|section">` passes `layout` to the spec (see `docs/slide-spec.md`). Such a slide must start with `<wb-title>` (`wb-slide[I]: <wb-title> is required with layout at byte N`), may have a `<wb-subtitle>`, and may have an empty body. The value itself is checked by the spec (`$.slides[I].layout: expected cover or section`), which owns the closed set, so markup needs no change per variant.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
 - Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
 - Markup input is limited to 64 KiB and 8 levels of nesting. Both limits are checked before compiling, and the spec's own limits still apply afterwards.
 - Entities are decoded. Text stays literal: the spec escapes it, and no HTML passes through.
+
+## Adding a layout variant
+
+1. One row in `LAYOUTS` in `src/spec.rs`: spec name → framework layout (a `framework/layouts/*.html` that renders `{{{content}}}`).
+2. One CSS block in `framework/presets/slide.css`, scoped by the layout class and `.wb-head`, using `--wb-*` tokens only.
+3. A test: a spec mapping case, plus a slide in `samples/markup/deck.html` with a pixel assertion in `tools/test_render.py`.
 
 ## Next slices (one tag each)
 

@@ -20,7 +20,7 @@
 .ms-slot-area p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
 /* Bare <wb-slide>: one centered statement. */
 .ms-section-layout { padding: var(--wb-safe-y) var(--wb-safe-x); }
-.ms-section-layout p {
+.ms-section-layout:not(:has(> .wb-head)) p {
   font-size: var(--wb-center-size);
   font-weight: var(--wb-title-weight);
   color: var(--wb-title-color);
@@ -36,3 +36,16 @@
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }
+/* Layout variants (spec `layout`): a heading group (.wb-head) then optional blocks.
+   One block per variant below; a new variant adds one row to LAYOUTS in spec.rs. */
+.wb-head::before { content: ""; display: block; width: 48px; height: 4px; background: var(--wb-accent); margin-bottom: var(--wb-gap); }
+.wb-head { margin: 0 0 calc(var(--wb-gap) * 1.5); }
+.wb-head-title { margin: 0; font-weight: var(--wb-title-weight); color: var(--wb-title-color); line-height: 1.1; }
+.wb-head-subtitle { margin: calc(var(--wb-gap) * 0.75) 0 0; font-size: var(--wb-subtitle-size); color: var(--wb-muted); line-height: 1.4; }
+.wb-head ~ p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
+/* cover: left-aligned group anchored to the bottom-left of the safe area; no chrome. */
+.ms-cover-layout:has(> .wb-head) { place-items: end start; align-content: end; text-align: left; padding: var(--wb-safe-y) var(--wb-safe-x); }
+.ms-cover-layout .wb-head-title { font-size: var(--wb-center-size); line-height: 1.1; }
+/* section: divider title, left-aligned, starting just under mid-height (canvas is 540px). */
+.ms-section-layout:has(> .wb-head) { place-items: start; align-content: start; text-align: left; padding-top: calc(540px * 0.45); }
+.ms-section-layout .wb-head-title { font-size: var(--wb-center-size); }

@@ -19,7 +19,7 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 
 | Tag | Attributes | Where | Becomes |
 |---|---|---|---|
-| `<wb-slide>` | none | top level | one slide |
+| `<wb-slide>` | `layout` (optional: `cover` or `section`) | top level | one slide |
 | `<wb-title>` | none | first child of a slide | `heading` (title-top layout) |
 | `<wb-subtitle>` | none | directly after `<wb-title>` | `subtitle` |
 | `<wb-list>` / `<wb-item>` | none | body; list holds only items, items hold only text | `list` block |
@@ -36,7 +36,8 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-columns>`, `<wb-image>`. A `<w
 - Top level holds only `<wb-slide>`, `<wb-footer>`, whitespace and comments. No stray text.
 - `<wb-title>` must be the first element in a slide; `<wb-subtitle>` only right after it.
 - No `<wb-title>` → the slide body is centered on both axes. A subtitle without a title is an error.
-- Every slide needs body content. A title alone fails.
+- Every slide needs body content. A title alone fails, unless the slide has `layout`.
+- `layout="cover"`: title slide, no footer or page number; title and subtitle at bottom-left. `layout="section"`: section divider; title and subtitle at left from mid-height, optional short body under them. Both require `<wb-title>` first; `<wb-subtitle>` and body are optional. Use only these two values.
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards or columns.
@@ -51,7 +52,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-columns>`, `<wb-image>`. A `<w
 
 - Markup: 64 KiB, UTF-8, nesting depth 8. The compiled spec JSON is also capped at 64 KiB (`$: spec exceeds 64 KiB`): split a deck that hits it.
 - Slides: 1–20 per deck.
-- Blocks: 1–64 per slide or column; at most 64 leaf blocks per slide, columns included.
+- Blocks: 1–64 per slide or column (0–64 on a slide with `layout`); at most 64 leaf blocks per slide, columns included.
 - List items: 1–16. Card paragraphs: 1–16.
 - Every string (title, item, paragraph, label, alt, notes): 1–2000 characters, not blank.
 - Footer: at most 200 characters.
@@ -75,6 +76,7 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
 | `cannot read markup: …` | Fix the input path. |
 | `wb-slide[I]: body text is required` | Add body to slide I (0-based). |
+| `wb-slide[I]: <wb-title> is required with layout at byte N` | Put a `<wb-title>` first in that slide, or drop `layout`. |
 | `no <wb-slide> found` | Add a slide. |
 | `nesting deeper than 8 at byte N` / `markup exceeds 64 KiB` | Flatten or shorten. |
 | `markup error at byte N: …` | Malformed syntax at N. Write a literal `<` as `&lt;`, `&` as `&amp;`. |
@@ -83,7 +85,8 @@ Markup errors (byte offsets count from the start of the file):
 Spec errors after compiling name a field path: `$.slides[I].blocks[J]…: reason`,
 e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns cannot nest`,
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
-`…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`.
+`…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`,
+`$.slides[I].layout: expected cover or section` (use one of those values).
 Image errors on `…src`: `expected a relative local path without .. or a scheme`, `cannot read image: …`,
 `expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
 `image resolves outside the spec directory`, `at most 8 images per deck`.

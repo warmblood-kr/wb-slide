@@ -13,7 +13,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -199,6 +199,11 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
 
 fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     let mut slide = json!({});
+    // Layout variant: the value is checked by the spec, which owns the closed set.
+    let layout = el.attrs.iter().find(|(k, _)| k == "layout").map(|(_, v)| v.trim().to_string());
+    if let Some(layout) = &layout {
+        slide["layout"] = json!(layout);
+    }
     // Speaker notes: at most one <wb-notes>, anywhere directly in the slide.
     let (notes, kids) = el.kids.into_iter().partition::<Vec<_>, _>(|k| matches!(k, Node::El(e) if e.name == "wb-notes"));
     // Rejoin text the notes split, as with comments.
@@ -244,7 +249,10 @@ fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
         }
     }
     let blocks = body(&el.kids[at..])?;
-    if blocks.is_empty() {
+    if layout.is_some() && slide.get("heading").is_none() {
+        return Err(format!("wb-slide[{index}]: <wb-title> is required with layout at byte {}", el.pos));
+    }
+    if blocks.is_empty() && layout.is_none() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
     slide["blocks"] = json!(blocks);
@@ -356,6 +364,21 @@ mod tests {
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
+    }
+
+    #[test]
+    fn slide_layout_passes_through_and_allows_an_empty_body() {
+        let json = compile("<wb-slide layout=\" cover \"><wb-title>표지</wb-title><wb-subtitle>부제</wb-subtitle></wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["slides"][0], json!({"layout": "cover", "heading": "표지", "subtitle": "부제", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-cover");
+        assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
+        // The spec owns the value set.
+        let json = compile("<wb-slide layout=quote><wb-title>T</wb-title></wb-slide>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
+        assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
+        assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
     }
 
     #[test]
