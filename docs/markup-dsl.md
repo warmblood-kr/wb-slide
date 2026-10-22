@@ -64,7 +64,7 @@ the default tokens, then the chosen theme's tokens (the later value wins), then
 the role styles. A token file can override only some tokens.
 
 Theme files use a closed vocabulary. Token names must exist in the default
-theme. Values are plain, with no functions, `@`, braces or double quotes, so a
+theme. Values are plain, with no functions, `@`, braces, comments or double quotes, so a
 theme cannot load URLs or inject rules. The limit is 8 KiB. Built-in themes are
 checked by the same parser. The plain `--spec` output is unchanged.
 

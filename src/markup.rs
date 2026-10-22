@@ -11,7 +11,7 @@ const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
 
 fn collapse(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
+    s.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn finish(heading: Option<String>, body: &str, index: usize) -> Result<serde_json::Value> {
@@ -19,10 +19,19 @@ fn finish(heading: Option<String>, body: &str, index: usize) -> Result<serde_jso
         format!("wb-slide[{index}]: <wb-title> is required for now (centered title-less slides need a spec layout; see #23)")
     })?;
     // Blank lines separate paragraphs; other whitespace collapses as in HTML.
-    let blocks: Vec<_> = body
-        .replace("\r\n", "\n")
-        .split("\n\n")
-        .map(collapse)
+    let mut paragraphs = vec![String::new()];
+    for line in body.lines() {
+        if line.trim().is_empty() {
+            paragraphs.push(String::new());
+        } else {
+            let last = paragraphs.last_mut().unwrap();
+            last.push(' ');
+            last.push_str(line);
+        }
+    }
+    let blocks: Vec<_> = paragraphs
+        .iter()
+        .map(|p| collapse(p))
         .filter(|p| !p.is_empty())
         .map(|text| json!({"type": "text", "text": text}))
         .collect();
@@ -105,7 +114,7 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
         if !names.contains(&name) {
             return Err(format!("{at}: unknown token {name}"));
         }
-        if value.is_empty() || value.contains(|c| "(){};<>@\\\"".contains(c)) {
+        if value.is_empty() || value.contains(|c| "(){};<>@\\\"/*".contains(c)) {
             return Err(format!("{at}: value must be plain (no functions, quotes other than ', or braces)"));
         }
         out.push_str(&format!("  {name}: {value};\n"));
@@ -145,6 +154,9 @@ mod tests {
         assert_eq!(s["slides"][0]["heading"], "가상 검토");
         assert_eq!(s["slides"][0]["blocks"][0]["text"], "hello & <b>");
         assert_eq!(s["slides"][0]["blocks"][1]["text"], "둘째 문단");
+        let s = spec("<wb-slide><wb-title>T</wb-title>a\r\n  \r\nb&nbsp;c</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"][0]["text"], "a");
+        assert_eq!(s["slides"][0]["blocks"][1]["text"], "b\u{a0}c");
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
@@ -180,6 +192,7 @@ mod tests {
             ("--wb-nope: 1px;", "unknown token"),
             ("--wb-bg: red", "expected"),
             ("--wb-bg: red;} body{x:y;", "must be plain"),
+            ("--wb-bg: red /*;", "must be plain"),
         ] {
             assert!(tokens(bad, "t").unwrap_err().contains(msg), "{bad}");
         }
