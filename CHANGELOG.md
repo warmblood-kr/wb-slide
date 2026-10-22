@@ -2,6 +2,15 @@
 
 All notable changes to wb-slide.
 
+## Unreleased
+
+### Added
+
+- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme default|night|tokens.css]`
+  compiles `<wb-slide>`/`<wb-title>`/body text deterministically to the typed spec
+  and applies a themeable slide preset (Pretendard, 32px title, safe areas). See
+  `docs/markup-dsl.md`.
+
 ## v0.9.0 — 2026-06-12
 
 ### Added

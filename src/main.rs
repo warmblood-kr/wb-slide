@@ -15,6 +15,7 @@ mod template;
 mod render;
 mod components;
 mod spec;
+mod markup;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -49,6 +50,12 @@ enum Commands {
         /// Export a closed, versioned JSON slide spec using built-ins only
         #[arg(long, conflicts_with_all = ["dir", "refresh_themes", "embed"])]
         spec: Option<PathBuf>,
+        /// Export semantic slide markup (<wb-slide>, <wb-title>) with the slide preset
+        #[arg(long, conflicts_with_all = ["dir", "spec", "refresh_themes", "embed"])]
+        markup: Option<PathBuf>,
+        /// Preset theme for --markup: a built-in name (default, night) or a token file
+        #[arg(long, requires = "markup")]
+        theme: Option<String>,
         #[arg(short, long, default_value = "export.html")]
         output: PathBuf,
         /// Bypass theme cache and re-fetch from registry
@@ -840,16 +847,26 @@ fn collect_user_css(work_dir: &std::path::Path) -> Option<String> {
     if css.is_empty() { None } else { Some(css) }
 }
 
+fn export_markup(path: &std::path::Path, theme: Option<&str>, output: &std::path::Path) -> Result<(), String> {
+    let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read markup: {e}"))?;
+    let (meta, slides) = spec::parse(markup::compile(&source)?.as_bytes())?;
+    write_spec_html(meta, slides, Some(&markup::preset_css(theme)?), output)
+}
+
 fn export_spec(path: &std::path::Path, output: &std::path::Path) -> Result<(), String> {
-    use std::io::Write;
     let (meta, slides) = spec::load(path)?;
+    write_spec_html(meta, slides, None, output)
+}
+
+fn write_spec_html(meta: Vec<(String, String)>, slides: Vec<Slide>, theme_css: Option<&str>, output: &std::path::Path) -> Result<(), String> {
+    use std::io::Write;
     let mut layouts = render::LayoutSet::default();
     layouts.load_builtin();
     let rendered = render_all_slides(&slides, &meta, &layouts)?;
     let html = build_index_html(&HtmlOptions {
         title: &meta[0].1, slides_html: &rendered.html,
         framework_css: &collect_framework_css(), framework_js: &collect_framework_js(),
-        client_js: "", theme_css: None, user_css: None,
+        client_js: "", theme_css, user_css: None,
     });
     let mut name = output.file_name().ok_or("output must name a file")?.to_os_string();
     let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
@@ -895,9 +912,14 @@ async fn main() {
             axum::serve(listener, app).await.unwrap();
         }
 
-        Commands::Export { dir, spec, output, refresh_themes, embed } => {
-            if let Some(path) = spec {
-                if let Err(error) = export_spec(&path, &output) {
+        Commands::Export { dir, spec, markup, theme, output, refresh_themes, embed } => {
+            let typed = match (&spec, &markup) {
+                (Some(path), _) => Some(export_spec(path, &output)),
+                (_, Some(path)) => Some(export_markup(path, theme.as_deref(), &output)),
+                _ => None,
+            };
+            if let Some(result) = typed {
+                if let Err(error) = result {
                     eprintln!("Error: {error}");
                     std::process::exit(1);
                 }

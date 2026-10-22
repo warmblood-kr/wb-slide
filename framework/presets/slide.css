@@ -1,0 +1,17 @@
+/* Slide preset: per-role styles. Reads only --wb-* tokens from a theme file. */
+:root {
+  --font-family: var(--wb-font);
+  --color-accent: var(--wb-accent);
+  --color-text: var(--wb-text);
+  --color-text-muted: var(--wb-muted);
+  --color-background: var(--wb-bg);
+}
+.ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
+.ms-slide-title {
+  font-size: var(--wb-title-size);
+  font-weight: var(--wb-title-weight);
+  color: var(--wb-title-color);
+  line-height: 1.25;
+}
+.ms-slot-area { place-items: start stretch; align-content: start; }
+.ms-slot-area p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
