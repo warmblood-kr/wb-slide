@@ -15,9 +15,6 @@ fn collapse(s: &str) -> String {
 }
 
 fn finish(heading: Option<String>, body: &str, index: usize) -> Result<serde_json::Value> {
-    let heading = heading.ok_or_else(|| {
-        format!("wb-slide[{index}]: <wb-title> is required for now (centered title-less slides need a spec layout; see #23)")
-    })?;
     // Blank lines separate paragraphs; other whitespace collapses as in HTML.
     let mut paragraphs = vec![String::new()];
     for line in body.lines() {
@@ -38,7 +35,11 @@ fn finish(heading: Option<String>, body: &str, index: usize) -> Result<serde_jso
     if blocks.is_empty() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
-    Ok(json!({"heading": heading, "blocks": blocks}))
+    let mut slide = json!({"blocks": blocks});
+    if let Some(heading) = heading {
+        slide["heading"] = json!(heading);
+    }
+    Ok(slide)
 }
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
@@ -92,7 +93,9 @@ pub fn compile(markup: &str) -> Result<String> {
     if !matches!(at, At::Deck) {
         return Err("unclosed <wb-slide> or <wb-title> at end of input".into());
     }
-    let deck_title = slides.first().ok_or("no <wb-slide> found")?["heading"].clone();
+    // Deck title: first heading, else the first slide's first text.
+    let first = slides.first().ok_or("no <wb-slide> found")?;
+    let deck_title = slides.iter().find_map(|s| s.get("heading")).unwrap_or(&first["blocks"][0]["text"]).clone();
     let spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
@@ -163,9 +166,19 @@ mod tests {
     }
 
     #[test]
+    fn bare_slide_is_centered_content() {
+        let json = compile("<wb-slide> hello </wb-slide><wb-slide><wb-title>H</wb-title>x</wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["title"], "H");
+        assert!(s["slides"][0].get("heading").is_none());
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-section");
+        assert_eq!(spec("<wb-slide>hello</wb-slide>")["title"], "hello");
+    }
+
+    #[test]
     fn closed_vocabulary_errors() {
         for (m, msg) in [
-            ("<wb-slide>hello</wb-slide>", "<wb-title> is required"),
             ("<wb-slide><wb-title>A</wb-title><p>x</p></wb-slide>", "unexpected <p>"),
             ("<wb-slide class=x><wb-title>A</wb-title>x</wb-slide>", "unsupported attributes"),
             ("stray<wb-slide><wb-title>A</wb-title>x</wb-slide>", "text outside"),

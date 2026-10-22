@@ -15,3 +15,12 @@
 }
 .ms-slot-area { place-items: start stretch; align-content: start; }
 .ms-slot-area p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
+/* Bare <wb-slide>: one centered statement. */
+.ms-section-layout { padding: var(--wb-safe-y) var(--wb-safe-x); }
+.ms-section-layout p {
+  font-size: var(--wb-center-size);
+  font-weight: var(--wb-title-weight);
+  color: var(--wb-title-color);
+  line-height: 1.35;
+  margin: 0 0 var(--wb-gap);
+}

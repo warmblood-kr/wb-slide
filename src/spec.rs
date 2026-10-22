@@ -216,13 +216,20 @@ pub fn parse(bytes: &[u8]) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
             let s = object(v, &p, &["heading", "subtitle", "blocks"])?;
-            let heading = string(s, "heading", &p)?;
+            let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
             let body = blocks(s, &p, true, &mut 0)?;
-            let mut fm = vec![
-                ("layout".into(), "slide-feature".into()),
-                ("heading".into(), heading),
-            ];
+            // No heading: content alone, centered (slide-section).
+            let mut fm = match heading {
+                Some(heading) => vec![
+                    ("layout".into(), "slide-feature".into()),
+                    ("heading".into(), heading),
+                ],
+                None if subtitle.is_some() => {
+                    return Err(error(&format!("{p}.subtitle"), "requires heading"))
+                }
+                None => vec![("layout".into(), "slide-section".into())],
+            };
             if let Some(subtitle) = subtitle {
                 fm.push(("subtitle".into(), subtitle));
             }
@@ -319,6 +326,16 @@ mod tests {
             .err()
             .unwrap()
             .contains("at most 64 leaf"));
+    }
+
+    #[test]
+    fn heading_is_optional_and_centers_content() {
+        let mut v = base();
+        v["slides"][0].as_object_mut().unwrap().remove("heading");
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-section".to_string())]);
+        v["slides"][0]["subtitle"] = json!("부제");
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].subtitle: requires heading"));
     }
 
     #[test]

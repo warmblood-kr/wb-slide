@@ -72,25 +72,40 @@ checked by the same parser. The plain `--spec` output is unchanged.
 |---|---|---|
 | `--wb-font` | Pretendard, system sans | same |
 | `--wb-title-size` / `-weight` / `-color` | 32px / 700 / #111827 | 36px / 800 / #F9FAFB |
-| `--wb-body-size` | 20px | 22px |
+| `--wb-body-size` / `--wb-center-size` | 20px / 40px | 22px / 44px |
 | `--wb-text` / `--wb-muted` / `--wb-accent` / `--wb-bg` | light palette | dark palette |
 | `--wb-safe-x` / `--wb-safe-y` / `--wb-gap` | 64 / 48 / 16px | 72 / 56 / 20px |
 
 At render time `render.py` substitutes the operator's approved font file. Pass
-a Pretendard variable `.ttf` to get Pretendard in PNG/PDF. Examples:
-`samples/markup/default.png` and `samples/markup/night.png`.
+a Pretendard variable `.ttf` to get Pretendard in PNG/PDF.
 
-## Semantics, first slice
+**Alternate theme example.** The `night` theme is built in (`--theme night`).
+A custom theme is a token file. This one overrides only some tokens and
+inherits the rest from the default:
+
+Saved as `brand.css`:
+
+```css
+--wb-accent: #E11D48;
+--wb-title-color: #881337;
+--wb-title-size: 34px;
+```
+
+```sh
+wb-slide export --markup deck.html --theme brand.css -o deck.html
+```
+
+Rendered samples: `samples/markup/default.png`, `night.png`, and
+`centered.png` (a bare slide).
+
+## Semantics
 
 - A file is one or more `<wb-slide>` elements. Only whitespace and comments may appear between them.
-- `<wb-title>` (first child, required until the spec gap below closes) becomes the slide `heading`.
+- `<wb-title>` (optional, first child) becomes the slide `heading`, and the slide uses the title-top layout.
+- A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
-- Deck `title` defaults to the first slide heading.
+- Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
 - Entities are decoded. Text stays literal: the spec escapes it, and no HTML passes through.
-
-**Spec gap.** A slide without `<wb-title>` (centered single content) is
-rejected for now. Spec v1 requires `heading`. An additive `layout`/optional
-heading has been requested from docskill-lead.
 
 ## Next slices (one tag each)
 
