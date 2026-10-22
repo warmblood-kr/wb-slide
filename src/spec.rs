@@ -279,7 +279,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
     }
     let v: Value =
         serde_json::from_slice(bytes).map_err(|e| error("$", &format!("invalid JSON: {e}")))?;
-    let root = object(&v, "$", &["schema_version", "title", "slides"])?;
+    let root = object(&v, "$", &["schema_version", "title", "footer", "slides"])?;
     if field(root, "schema_version", "$")?.as_u64() != Some(1) {
         return Err(error("$.schema_version", "expected integer 1"));
     }
@@ -314,7 +314,15 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    Ok((vec![("title".into(), title)], slides))
+    let mut meta = vec![("title".into(), title)];
+    // The renderer inserts footer as HTML, so escape the literal text here.
+    if let Some(footer) = optional(root, "footer", "$")? {
+        if footer.chars().count() > 200 {
+            return Err(error("$.footer", "expected at most 200 characters"));
+        }
+        meta.push(("footer".into(), escape(&footer)));
+    }
+    Ok((meta, slides))
 }
 
 pub fn load(path: &Path) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
@@ -450,6 +458,16 @@ mod tests {
         v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"img/a.svg","alt":"a"}); 9]);
         assert!(parse_in(v.to_string().as_bytes(), Some(&inside)).err().unwrap().contains("at most 8 images"));
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn footer_is_escaped_deck_text() {
+        let mut v = base();
+        v["footer"] = json!("<b>팀</b> & 가상");
+        let (meta, _) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(meta[1], ("footer".to_string(), "&lt;b&gt;팀&lt;/b&gt; &amp; 가상".to_string()));
+        v["footer"] = json!("x".repeat(201));
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.footer"));
     }
 
     #[test]
