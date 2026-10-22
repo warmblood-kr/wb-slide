@@ -7,7 +7,7 @@ reusable building block: it carries a purpose and a default layout
 ([data/roles.json](../data/roles.json)). Strategies only pick and order roles,
 so a new strategy costs one JSON file ([data/narratives/scqa.json](../data/narratives/scqa.json)
 is the schema example). `wb-slide narrative list|show|outline|recommend`
-exposes them; these commands are being built.
+exposes them (see `wb-slide narrative --help`).
 
 This note surveys well-known structures and maps each one onto our roles.
 All summaries are our own words. Read the cited works for the real thing.
@@ -160,7 +160,7 @@ optional. Role ids are exactly the keys in `roles.json`.
 - **Pitfall.** A long falling action. Once the peak passes, close quickly.
 
 ### 21. Kishōtenketsu
-- **Reference.** A four-part structure from classical Chinese poetry, common in Japanese and Korean writing.
+- **Reference.** A four-part structure from classical Chinese poetry, later common across East Asian writing.
 - **Essence.** Introduce (ki), develop (shō), twist with an unexpected
   angle (ten), then reconcile both views (ketsu). It needs no conflict; the
   force comes from the shift in perspective.
@@ -287,7 +287,7 @@ These do not set a sequence. They constrain how any strategy is drawn.
 - **Essence.** Many slides, each with a few words or one huge phrase,
   advancing in time with the speech. Takahashi uses large plain text only.
 - **Fits.** Energetic talks where the speaker carries the content. Not for reading decks.
-- **Roles.** Mostly `statement` roles: `hook`, `data-point`, `turning-point`, `lesson`, `close`.
+- **Roles.** Mostly roles on the `statement` layout: `hook`, `data-point`, `turning-point`, `lesson`, `close`.
 - **Pitfall.** The deck means nothing without the speaker. Do not send it as a pre-read.
 
 ### 27. Pecha Kucha and Ignite
@@ -304,7 +304,7 @@ These do not set a sequence. They constrain how any strategy is drawn.
 
 | Style | Example | Use when |
 |---|---|---|
-| Action title | "Sunday trial pays back in 12 weeks" | Logic and pitch strategies; decks read without a speaker. |
+| Action title | "Sunday trial pays back in 12 weeks" (fictional) | Logic and pitch strategies; decks read without a speaker. |
 | Topic title | "Sunday trial" | Section dividers, agendas, Lessig-style decks. |
 | Question title | "Will regulars follow us to Sunday?" | `question` role, teaching, opening a sparkline swing. |
 
