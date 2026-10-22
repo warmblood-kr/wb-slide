@@ -179,6 +179,35 @@ pub fn outline(id: &str, topic: &str) -> Result<String, String> {
     Ok(out)
 }
 
+/// Rank strategies by fit: goal 3, audience 2, duration 1. Each line says why.
+pub fn recommend(audience: Option<&str>, goal: Option<&str>, minutes: Option<u64>) -> Result<String, String> {
+    for (v, allowed, name) in [(audience, AUDIENCES, "audience"), (goal, GOALS, "goal")] {
+        if let Some(v) = v.filter(|v| !allowed.contains(v)) {
+            return Err(format!("unknown {name} {v}; expected one of {}", allowed.join(", ")));
+        }
+    }
+    let has = |w: &Value, key: &str, v: Option<&str>| v.is_some_and(|v| w[key].as_array().unwrap().iter().any(|x| x == v));
+    let mut ranked = Vec::new();
+    for s in strategies()? {
+        let w = &s["when_to_use"];
+        let (lo, hi) = (w["minutes"][0].as_u64().unwrap(), w["minutes"][1].as_u64().unwrap());
+        let (mut score, mut why) = (0, Vec::new());
+        if has(w, "goals", goal) { score += 3; why.push(format!("goal {}", goal.unwrap())); }
+        if has(w, "audiences", audience) { score += 2; why.push(format!("{} audience", audience.unwrap())); }
+        if let Some(m) = minutes {
+            if (lo..=hi).contains(&m) { score += 1; why.push(format!("{m} min fits {lo}-{hi}")); }
+        }
+        if score > 0 {
+            ranked.push((score, s["id"].as_str().unwrap().to_string(), format!("{}; {}", why.join(", "), s["summary"].as_str().unwrap())));
+        }
+    }
+    ranked.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    if ranked.is_empty() {
+        return Err("no strategy matches; pass --audience, --goal or --minutes".into());
+    }
+    Ok(ranked.iter().take(5).map(|(sc, id, why)| format!("{id:<28} score {sc}  {why}\n")).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +252,15 @@ mod tests {
         }
         assert!(outline("scqa", "  ").is_err());
         assert!(outline("scqa", &"x".repeat(201)).is_err());
+    }
+
+    #[test]
+    fn recommend_ranks_by_fit_and_explains() {
+        let out = recommend(Some("executive"), Some("decide"), Some(10)).unwrap();
+        assert!(out.starts_with("scqa") || out.contains("score 6"), "{out}");
+        assert!(out.lines().next().unwrap().contains("goal decide"));
+        assert!(recommend(Some("aliens"), None, None).unwrap_err().contains("unknown audience"));
+        assert!(recommend(None, None, None).is_err());
     }
 
     #[test]

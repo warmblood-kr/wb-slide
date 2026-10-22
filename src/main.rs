@@ -109,6 +109,18 @@ enum NarrativeAction {
         #[arg(long)]
         topic: String,
     },
+    /// Rank strategies for an audience, goal and duration, with reasons
+    Recommend {
+        /// executive, team, technical, customer, investor, general, academic
+        #[arg(long)]
+        audience: Option<String>,
+        /// decide, persuade, inform, inspire, sell, report, teach, fund
+        #[arg(long)]
+        goal: Option<String>,
+        /// Talk length in minutes
+        #[arg(long)]
+        minutes: Option<u64>,
+    },
 }
 
 struct Slide {
@@ -1071,6 +1083,9 @@ async fn main() {
                 NarrativeAction::List => narrative::list(),
                 NarrativeAction::Show { id } => narrative::show(&id),
                 NarrativeAction::Outline { strategy, topic } => narrative::outline(&strategy, &topic),
+                NarrativeAction::Recommend { audience, goal, minutes } => {
+                    narrative::recommend(audience.as_deref(), goal.as_deref(), minutes)
+                }
             };
             match out {
                 Ok(text) => println!("{}", text.trim_end()),
