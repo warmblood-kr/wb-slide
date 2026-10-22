@@ -263,6 +263,9 @@ fn token_names() -> Vec<&'static str> {
 
 /// Validate a token-only theme: `--wb-name: value;` lines with known names.
 /// No functions, at-rules or braces, so a theme cannot load URLs or inject rules.
+/// `safe center` keeps tall content from being clipped above the body area.
+const VERTICAL: [&str; 3] = ["start", "safe center", "space-evenly"];
+
 fn tokens(source: &str, origin: &str) -> Result<String> {
     let names = token_names();
     let mut out = String::new();
@@ -276,6 +279,10 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
         }
         if value.is_empty() || value.contains(|c| "(){};<>@\\\"/*".contains(c)) {
             return Err(format!("{at}: value must be plain (no functions, quotes other than ', or braces)"));
+        }
+        // An invalid keyword would silently fall back to top alignment.
+        if name == "--wb-vertical" && !VERTICAL.contains(&value) {
+            return Err(format!("{at}: --wb-vertical must be one of {}", VERTICAL.join(", ")));
         }
         out.push_str(&format!("  {name}: {value};\n"));
     }
@@ -461,12 +468,14 @@ mod tests {
         // Overrides come after defaults inside :root, so the later value wins.
         assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 32px;").unwrap());
         assert!(tokens(NIGHT_THEME, "night").unwrap().lines().count() == token_names().len());
+        assert!(tokens("--wb-vertical: start;", "t").is_ok());
         for (bad, msg) in [
             ("--wb-bg: url(http://x);", "must be plain"),
             ("--wb-nope: 1px;", "unknown token"),
             ("--wb-bg: red", "expected"),
             ("--wb-bg: red;} body{x:y;", "must be plain"),
             ("--wb-bg: red /*;", "must be plain"),
+            ("--wb-vertical: center;", "must be one of"),
         ] {
             assert!(tokens(bad, "t").unwrap_err().contains(msg), "{bad}");
         }

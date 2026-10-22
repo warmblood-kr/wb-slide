@@ -15,7 +15,8 @@
   line-height: 1.25;
 }
 .ms-slide-subtitle { font-size: var(--wb-subtitle-size); color: var(--wb-muted); margin: 0; }
-.ms-slot-area { place-items: start stretch; align-content: start; }
+/* --wb-vertical: start | safe center | space-evenly places the body under the title. */
+.ms-slot-area { place-items: start stretch; align-content: var(--wb-vertical); }
 .ms-slot-area p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
 /* Bare <wb-slide>: one centered statement. */
 .ms-section-layout { padding: var(--wb-safe-y) var(--wb-safe-x); }
