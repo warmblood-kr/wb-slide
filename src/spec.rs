@@ -516,7 +516,7 @@ mod tests {
         let (_, slides) = parse(block(json!({})).as_bytes()).unwrap();
         let html = &slides[0].body_html;
         assert!(html.starts_with("<svg class=\"wb-diagram\" role=\"img\" aria-label=\"사분면 &quot;&lt;1&gt;&quot;\" xmlns="), "{html}");
-        assert!(html.contains("viewBox=\"0 0 960 540\"") && html.ends_with("</svg>"));
+        assert!(html.contains(&format!("viewBox=\"0 0 {} {}\"", crate::diagram::W, crate::diagram::H)) && html.ends_with("</svg>"));
         assert_eq!(parse(block(json!({})).as_bytes()).unwrap().1[0].body_html, *html);
         let night = parse_in(block(json!({})).as_bytes(), None, Some("night")).unwrap().1;
         assert_ne!(night[0].body_html, *html);
