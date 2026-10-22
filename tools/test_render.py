@@ -153,6 +153,7 @@ class RenderTest(unittest.TestCase):
             self.assertEqual(manifest["slide_count"], 3)
             self.assertIn("안녕하세요", manifest["slides"][0]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][1]["text"])
+            self.assertIn("기능 확인용 합성 자료", manifest["slides"][1]["text"])
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
