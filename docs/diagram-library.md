@@ -50,7 +50,7 @@ own item counts.
   and set names, and axis labels (`label`, `low`, `high`). Korean is fine.
 - `highlight` is a 0-based index into the type's main array.
 - No `title` field. The slide owns the heading.
-- Canvas is a 960×540 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
+- Canvas is a 640×360 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
 - Limits below are hard. Out of range is an error, never a silent cut.
 
 ## Shared primitives
