@@ -134,13 +134,14 @@ fn esc(s: &str) -> String {
 pub fn outline(id: &str, topic: &str) -> Result<String, String> {
     let s = find(id)?;
     let roles = roles()?;
-    let topic = esc(topic.split_whitespace().collect::<Vec<_>>().join(" ").as_str());
+    let topic = topic.split_whitespace().collect::<Vec<_>>().join(" ");
     if topic.is_empty() {
         return Err("--topic must not be blank".into());
     }
     if topic.chars().count() > 200 {
         return Err("--topic must be at most 200 characters".into());
     }
+    let topic = esc(&topic);
     let comment = |t: &str| {
         let mut c = t.to_string();
         while c.contains("--") { c = c.replace("--", "- -"); }
@@ -239,6 +240,12 @@ mod tests {
             bad["sequence"][0][key] = val;
             assert!(validate(&bad, "narratives/scqa.json", &roles).is_err(), "{key}");
         }
+    }
+
+    #[test]
+    fn topic_limit_counts_raw_characters_not_escaped() {
+        assert!(outline("scqa", &"&".repeat(200)).is_ok());
+        assert!(outline("scqa", &"a".repeat(201)).is_err());
     }
 
     #[test]
