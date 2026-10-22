@@ -159,6 +159,8 @@ class RenderTest(unittest.TestCase):
             ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
             self.assertLess(abs((ink[0] + ink[2]) / 2 - 960), 40)
             self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 40)
+            # Preset --wb-center-size (40px+) applies: glyphs are far taller than unstyled 16px text.
+            self.assertGreater(ink[3] - ink[1], 60)
             png = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
             corners[theme] = png.getpixel((4, 4))
         self.assertEqual(corners["default"], (255, 255, 255))
