@@ -9,6 +9,9 @@
 --wb-muted: #6B7280;
 --wb-accent: #2563EB;
 --wb-bg: #FFFFFF;
+--wb-card-bg: #F9FAFB;
+--wb-border: #E5E7EB;
+--wb-radius: 10px;
 --wb-safe-x: 64px;
 --wb-safe-y: 48px;
 --wb-gap: 16px;

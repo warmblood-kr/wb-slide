@@ -5,6 +5,7 @@
   --color-text: var(--wb-text);
   --color-text-muted: var(--wb-muted);
   --color-background: var(--wb-bg);
+  --color-border: var(--wb-border);
 }
 .ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
 .ms-slide-title {
@@ -27,3 +28,6 @@
 }
 .wb-list { margin: 0 0 var(--wb-gap); padding-left: 1.2em; font-size: var(--wb-body-size); line-height: 1.6; }
 .wb-list li::marker { color: var(--wb-accent); }
+.panel { background: var(--wb-card-bg); border-color: var(--wb-border); border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
+.panel > p:last-child { margin-bottom: 0; }
+.panel-label { color: var(--wb-accent); }

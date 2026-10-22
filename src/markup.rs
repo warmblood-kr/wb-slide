@@ -11,7 +11,7 @@ const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
 const MAX_THEME_BYTES: usize = 8 * 1024;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"])];
 
 enum Node {
     Text(String),
@@ -21,6 +21,7 @@ enum Node {
 struct El {
     name: String,
     pos: usize,
+    attrs: Vec<(String, String)>,
     kids: Vec<Node>,
 }
 
@@ -30,7 +31,7 @@ fn unexpected(el: &El) -> String {
 
 /// Tokenize into a tree of known elements and text. Checks vocabulary and nesting only.
 fn tree(markup: &str) -> Result<Vec<Node>> {
-    let mut stack = vec![El { name: String::new(), pos: 0, kids: Vec::new() }];
+    let mut stack = vec![El { name: String::new(), pos: 0, attrs: Vec::new(), kids: Vec::new() }];
     let emitter = DefaultEmitter::<usize>::new_with_span();
     for token in Tokenizer::new_with_emitter(markup, emitter) {
         match token.map_err(|e| e.to_string())? {
@@ -51,11 +52,13 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
                 let name = String::from_utf8_lossy(&t.name).to_string();
                 let allowed = TAGS.iter().find(|(n, _)| *n == name).map(|(_, a)| *a);
                 let allowed = allowed.ok_or(format!("unexpected <{name}> at byte {}", t.span.start))?;
-                let bad = t.attributes.keys().any(|k| !allowed.contains(&String::from_utf8_lossy(k).as_ref()));
-                if bad || t.self_closing {
+                let attrs: Vec<(String, String)> = t.attributes.iter()
+                    .map(|(k, v)| (String::from_utf8_lossy(k).to_string(), String::from_utf8_lossy(&v.value).to_string()))
+                    .collect();
+                if attrs.iter().any(|(k, _)| !allowed.contains(&k.as_str())) || t.self_closing {
                     return Err(format!("unsupported attributes or self-closing tag at byte {}", t.span.start));
                 }
-                stack.push(El { name, pos: t.span.start, kids: Vec::new() });
+                stack.push(El { name, pos: t.span.start, attrs, kids: Vec::new() });
             }
             Token::EndTag(t) => {
                 let name = String::from_utf8_lossy(&t.name).to_string();
@@ -135,6 +138,23 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                     return Err(format!("empty <wb-list> at byte {}", e.pos));
                 }
                 blocks.push(json!({"type": "list", "items": items}));
+            }
+            Node::El(e) if e.name == "wb-card" => {
+                let mut texts = Vec::new();
+                for kid in &e.kids {
+                    match kid {
+                        Node::Text(t) => paragraphs(t, &mut texts),
+                        Node::El(inner) => return Err(unexpected(inner)),
+                    }
+                }
+                if texts.is_empty() {
+                    return Err(format!("empty <wb-card> at byte {}", e.pos));
+                }
+                let mut panel = json!({"type": "panel", "paragraphs": texts.iter().map(|t| &t["text"]).collect::<Vec<_>>()});
+                if let Some((_, label)) = e.attrs.iter().find(|(k, _)| k == "label") {
+                    panel["label"] = json!(collapse(label));
+                }
+                blocks.push(panel);
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -303,6 +323,24 @@ mod tests {
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
+    }
+
+    #[test]
+    fn card_is_a_labelled_panel() {
+        let s = spec("<wb-slide><wb-card label=\" 검토 &amp; 확인 \">첫째\n\n둘째</wb-card><wb-card>단독</wb-card></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"panel","label":"검토 & 확인","paragraphs":["첫째","둘째"]},
+            {"type":"panel","paragraphs":["단독"]}]));
+        assert_eq!(s["title"], "검토 & 확인"); // first string: the label
+        for (m, msg) in [
+            ("<wb-slide><wb-card></wb-card></wb-slide>", "empty <wb-card>"),
+            ("<wb-slide><wb-card><wb-list><wb-item>x</wb-item></wb-list></wb-card></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide><wb-card tone=info>x</wb-card></wb-slide>", "unsupported attributes"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        // A blank label is left for the spec to reject with a field path.
+        assert!(compile("<wb-slide><wb-card label=\" \">x</wb-card></wb-slide>").is_ok());
     }
 
     #[test]

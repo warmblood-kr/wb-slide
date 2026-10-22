@@ -12,7 +12,7 @@ All notable changes to wb-slide.
   `docs/markup-dsl.md`.
 - Typed spec: `heading` is now optional. A slide without it shows its blocks centered
   (`slide-section`). Markup `<wb-slide>hello</wb-slide>` uses this.
-- Markup `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
+- Markup `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).
 
 ## v0.9.0 — 2026-06-12
