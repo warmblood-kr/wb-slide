@@ -75,12 +75,15 @@ FINDINGS = """(s, slide) => {
   const clipped=vis.filter(e=>{const c=getComputedStyle(e);
     return (c.overflowX!=='visible' || c.overflowY!=='visible') &&
       (e.scrollHeight>e.clientHeight+1 || e.scrollWidth>e.clientWidth+1)});
-  const leaves=vis.filter(e=>e.localName==='img' ||
-    [...e.childNodes].some(n=>n.nodeType===3 && n.textContent.trim()));
+  // Block-level text boxes and images only: a wrapped inline's box is the union of its lines.
+  // Slide chrome and layered covers overlap by design.
+  const leaves=vis.filter(e=>(e.localName==='img' || [...e.childNodes].some(n=>n.nodeType===3 && n.textContent.trim())) &&
+    getComputedStyle(e).display!=='inline' && !e.closest('.ms-watermark, .ms-footer-logo, .ms-page-number'));
+  const layered=(a,c)=>a.closest('.cover-stack') && a.closest('.cover-stack')===c.closest('.cover-stack');
   // ponytail: O(n²) pairwise overlap; fine for one slide's leaves, add a sweep line if decks get dense.
   const overlap=[];
   leaves.forEach((a,i)=>leaves.slice(i+1).forEach(c=>{const p=box(a), q=box(c);
-    if (!a.contains(c) && !c.contains(a) && Math.min(p.right,q.right)-Math.max(p.left,q.left)>2 &&
+    if (!a.contains(c) && !c.contains(a) && !layered(a,c) && Math.min(p.right,q.right)-Math.max(p.left,q.left)>2 &&
         Math.min(p.bottom,q.bottom)-Math.max(p.top,q.top)>2) overlap.push(find('overlap',a,{with:id(c)}))}));
   return [...out.filter(e=>!out.some(a=>a!==e && a.contains(e))).map(e=>find('overflow',e)),
     ...clipped.map(e=>find('clipped',e)), ...overlap];

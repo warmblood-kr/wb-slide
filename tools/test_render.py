@@ -187,6 +187,7 @@ class RenderTest(unittest.TestCase):
         result = subprocess.run([sys.executable, ROOT / "tools/render.py", source, "--output", self.root / "checked",
                                  "--font-file", self.font, "--check", *(["--browser", self.browser] if self.browser else [])],
                                 capture_output=True, text=True)
+        self.assertIn(result.returncode, (0, 3), result.stderr)
         return result.returncode, json.loads(result.stdout)
 
     def test_check_reports_too_tall_markup(self):
@@ -202,7 +203,9 @@ class RenderTest(unittest.TestCase):
     def test_check_reports_overlap(self):
         code, findings = self.check(self.html('<div class="ms-slide-container" style="position:relative">'
             '<p style="position:absolute;top:10px;left:10px">첫째 문단</p>'
-            '<p style="position:absolute;top:14px;left:20px">둘째 문단</p></div>'))
+            '<p style="position:absolute;top:14px;left:20px">둘째 문단</p>'
+            # Wrapped inline siblings share a union box but do not overlap.
+            '<p style="position:absolute;top:200px;left:10px;width:90px"><b>굵게 쓴 긴 글귀</b> <i>이어지는 기울임 글귀</i></p></div>'))
         self.assertEqual(code, 3)
         self.assertEqual([(f["kind"], f["text"], f["with"]["text"]) for f in findings], [("overlap", "첫째 문단", "둘째 문단")])
 
