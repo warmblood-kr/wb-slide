@@ -36,10 +36,14 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
         match token.map_err(|e| e.to_string())? {
             Token::String(s) => {
                 let text = String::from_utf8_lossy(&s.value).to_string();
-                if stack.len() == 1 && !text.trim().is_empty() {
+                if stack.len() == 1 && !blank(&text) {
                     return Err(format!("text outside <wb-slide> at byte {}", s.span.start));
                 }
-                stack.last_mut().unwrap().kids.push(Node::Text(text));
+                // Merge runs split by comments so line breaks are judged on whole lines.
+                match stack.last_mut().unwrap().kids.last_mut() {
+                    Some(Node::Text(prev)) => prev.push_str(&text),
+                    _ => stack.last_mut().unwrap().kids.push(Node::Text(text)),
+                }
             }
             Token::Comment(_) | Token::Doctype(_) => {}
             Token::Error(e) => return Err(format!("markup error at byte {}: {}", e.span.start, e.value)),
@@ -69,6 +73,11 @@ fn tree(markup: &str) -> Result<Vec<Node>> {
     Ok(stack.pop().unwrap().kids)
 }
 
+/// HTML whitespace is ASCII only; U+00A0 (&nbsp;) is content.
+fn blank(s: &str) -> bool {
+    s.bytes().all(|b| b.is_ascii_whitespace())
+}
+
 fn collapse(s: &str) -> String {
     s.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -96,7 +105,7 @@ fn body(kids: &[&Node]) -> Result<Vec<serde_json::Value>> {
         match kid {
             Node::Text(t) => {
                 for (i, line) in t.split('\n').enumerate() {
-                    if i > 0 && line.trim().is_empty() {
+                    if i > 0 && blank(line) {
                         paragraphs.push(String::new());
                     } else {
                         let last = paragraphs.last_mut().unwrap();
@@ -121,7 +130,7 @@ fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
     // Optional head, before any body: <wb-title>, then optional <wb-subtitle>.
     let mut at = 0;
     let mut take = |name: &str| {
-        let j = at + el.kids[at..].iter().position(|k| !matches!(k, Node::Text(t) if t.trim().is_empty()))?;
+        let j = at + el.kids[at..].iter().position(|k| !matches!(k, Node::Text(t) if blank(t)))?;
         match &el.kids[j] {
             Node::El(e) if e.name == name => {
                 at = j + 1;
@@ -223,6 +232,9 @@ mod tests {
         let s = spec("<wb-slide><wb-title>T</wb-title>a\r\n  \r\nb&nbsp;c</wb-slide>");
         assert_eq!(s["slides"][0]["blocks"][0]["text"], "a");
         assert_eq!(s["slides"][0]["blocks"][1]["text"], "b\u{a0}c");
+        let s = spec("<wb-slide><wb-title>T</wb-title>a\n<!-- c -->b\n<!-- c -->\nd</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"a b"},{"type":"text","text":"d"}]));
+        assert!(compile("&nbsp;<wb-slide>x</wb-slide>").unwrap_err().contains("text outside"));
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
