@@ -1,7 +1,7 @@
 //! Cycle: 3-8 steps on an ellipse clockwise from 12 o'clock, each arrowed to the next, last back to first.
 use super::*;
 
-const NW: f64 = 192.0;
+const NW: f64 = 144.0;
 const INSET: f64 = 12.0;
 
 pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
@@ -20,7 +20,7 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
     let content = |(l, n): &(Label, Option<Label>)| l.height() + n.as_ref().map_or(0.0, |n| 4.0 + n.height());
-    let nh = up8(steps.iter().map(content).fold(0.0, f64::max) + 2.0 * INSET).max(64.0);
+    let nh = up8(steps.iter().map(content).fold(0.0, f64::max) + 16.0).max(64.0); // 8px top/bottom: 8 steps need nh <= 80
     let mut boxes = ring(steps.len(), NW, nh);
     // Odd counts leave the bottom empty: centre the ring's bounding box vertically.
     let (top, bottom) = boxes.iter().fold((H, 0.0f64), |(t, b), r| (t.min(r.y), b.max(r.y + r.h)));

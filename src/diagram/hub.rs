@@ -1,8 +1,8 @@
 //! Hub and spoke (star topology): a central node, 3-8 spokes on an ellipse clockwise from 12 o'clock.
 use super::*;
 
-const SW: f64 = 176.0;
-const HW: f64 = 224.0;
+const SW: f64 = 136.0;
+const HW: f64 = 144.0;
 const INSET: f64 = 16.0;
 
 pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {

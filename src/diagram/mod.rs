@@ -9,9 +9,9 @@ mod quadrant;
 
 pub type Result<T> = std::result::Result<T, String>;
 
-pub const W: f64 = 960.0;
-pub const H: f64 = 540.0;
-pub const PAD: f64 = 32.0;
+pub const W: f64 = 640.0;
+pub const H: f64 = 360.0;
+pub const PAD: f64 = 24.0;
 const MIN_SIZE: f64 = 12.0;
 
 pub const TYPES: &[&str] = &["quadrant", "hub", "cycle"];
