@@ -7,7 +7,13 @@ type Result<T> = std::result::Result<T, String>;
 
 const ROLE_CSS: &str = include_str!("../framework/presets/slide.css");
 const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.css");
-const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
+/// Built-in themes beside default; each sets every token.
+const THEMES: &[(&str, &str)] = &[
+    ("night", include_str!("../framework/presets/themes/night.css")),
+    ("paper", include_str!("../framework/presets/themes/paper.css")),
+    ("graphite", include_str!("../framework/presets/themes/graphite.css")),
+    ("signal", include_str!("../framework/presets/themes/signal.css")),
+];
 const MAX_THEME_BYTES: usize = 8 * 1024;
 const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
@@ -319,7 +325,9 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
 pub fn preset_css(theme: Option<&str>) -> Result<String> {
     let overrides = match theme {
         None | Some("default") => String::new(),
-        Some("night") => tokens(NIGHT_THEME, "night")?,
+        Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
+            tokens(THEMES.iter().find(|(n, _)| *n == name).unwrap().1, name)?
+        }
         Some(path) => {
             let source = std::fs::read(path).map_err(|e| format!("cannot read theme {path}: {e}"))?;
             if source.len() > MAX_THEME_BYTES {
@@ -514,7 +522,10 @@ mod tests {
         let night = preset_css(Some("night")).unwrap();
         // Overrides come after defaults inside :root, so the later value wins.
         assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 32px;").unwrap());
-        assert!(tokens(NIGHT_THEME, "night").unwrap().lines().count() == token_names().len());
+        for (name, source) in THEMES {
+            assert_eq!(tokens(source, name).unwrap().lines().count(), token_names().len(), "{name}");
+        }
+        assert!(preset_css(Some("paper")).unwrap().contains("--wb-bg: #F5F2EA;"));
         assert!(tokens("--wb-vertical: start;", "t").is_ok());
         for (bad, msg) in [
             ("--wb-bg: url(http://x);", "must be plain"),

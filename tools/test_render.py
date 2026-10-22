@@ -146,7 +146,7 @@ class RenderTest(unittest.TestCase):
 
     def test_markup_preset_themes_apply(self):
         corners = {}
-        for theme in ["default", "night"]:
+        for theme in ["default", "night", "paper", "graphite", "signal"]:
             output = self.root / f"{theme}.html"
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
@@ -178,10 +178,17 @@ class RenderTest(unittest.TestCase):
             # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
             body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
             self.assertIsNotNone(body)
-            self.assertGreater(body[1], 120)
+            # The study themes hang the body from the top axis (--wb-vertical: start).
+            if theme in ("default", "night"):
+                self.assertGreater(body[1], 120)
+            else:
+                self.assertLess(body[1], 60)
             corners[theme] = png.getpixel((4, 4))
         self.assertEqual(corners["default"], (255, 255, 255))
         self.assertEqual(corners["night"], (0x11, 0x18, 0x27))
+        self.assertEqual(corners["paper"], (0xF5, 0xF2, 0xEA))
+        self.assertEqual(corners["graphite"], (0x0B, 0x0C, 0x0E))
+        self.assertEqual(corners["signal"], (0x3B, 0x2B, 0xDB))
 
     def check(self, source):
         result = subprocess.run([sys.executable, ROOT / "tools/render.py", source, "--output", self.root / "checked",

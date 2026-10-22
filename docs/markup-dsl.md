@@ -58,10 +58,11 @@ The preset has two layers:
   theme too.
 - **A theme**: a swappable set of token values covering fonts, type scale,
   palette, spacing and per-role styles. Each theme is a file of
-  `--wb-name: value;` lines. The built-in themes are `themes/default.css` and
-  `themes/night.css`.
+  `--wb-name: value;` lines. The built-in themes are `themes/default.css`, `night.css`, and the
+  design-study themes `paper.css` (light editorial), `graphite.css` (dark) and
+  `signal.css` (bold).
 
-`wb-slide export --markup deck.html [--theme default|night|tokens.css]` emits
+`wb-slide export --markup deck.html [--theme default|night|paper|graphite|signal|tokens.css]` emits
 the default tokens, then the chosen theme's tokens (the later value wins), then
 the role styles. A token file can override only some tokens.
 
@@ -80,7 +81,17 @@ checked by the same parser. The plain `--spec` output is unchanged.
 | `--wb-vertical` (body under a title: `start`, `safe center` or `space-evenly`; other values are errors) | safe center | safe center |
 
 At render time `render.py` substitutes the operator's approved font file. Pass
-a Pretendard variable `.ttf` to get Pretendard in PNG/PDF.
+a Pretendard variable `.ttf` (e.g. `PretendardVariable.ttf`) to get Pretendard in PNG/PDF.
+The preset sets `word-break: keep-all`, so Korean wraps between words.
+
+The study themes (`paper`, `graphite`, `signal`) follow the design study's principles:
+- a warm off-white or dark ground;
+- one accent;
+- tight titles (`--wb-title-tracking`, `--wb-title-leading`);
+- body text capped at a 60% measure (`--wb-measure`);
+- the body hung from the top axis (`--wb-vertical: start`).
+`--wb-stat-size`, `--wb-label-size` and `--wb-inverse-bg`/`--wb-inverse-text` are used by the stat and section
+patterns. In `default` and `night` these tokens keep the earlier look.
 
 **Alternate theme example.** The `night` theme is built in (`--theme night`).
 A custom theme is a token file. This one overrides only some tokens and

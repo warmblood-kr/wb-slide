@@ -53,7 +53,7 @@ enum Commands {
         /// Export semantic slide markup (<wb-slide>, <wb-title>) with the slide preset
         #[arg(long, conflicts_with_all = ["dir", "spec", "refresh_themes", "embed"])]
         markup: Option<PathBuf>,
-        /// Preset theme for --markup: a built-in name (default, night) or a token file
+        /// Preset theme for --markup: a built-in name (default, night, paper, graphite, signal) or a token file
         #[arg(long, requires = "markup")]
         theme: Option<String>,
         #[arg(short, long, default_value = "export.html")]
