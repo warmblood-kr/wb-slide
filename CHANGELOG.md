@@ -12,6 +12,8 @@ All notable changes to wb-slide.
   `docs/markup-dsl.md`.
 - Typed spec: `heading` is now optional. A slide without it shows its blocks centered
   (`slide-section`). Markup `<wb-slide>hello</wb-slide>` uses this.
+- Markup `<wb-notes>` and spec slide `notes`: speaker notes, hidden in the slide HTML
+  and reported per slide as `notes` in the render manifest.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
 - Preset token `--wb-vertical` (`start`|`safe center`|`space-evenly`, default `safe center`) places the body under a title; `safe` keeps tall bodies from clipping at the top.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec

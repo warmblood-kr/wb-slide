@@ -34,7 +34,12 @@ Root requires integer `schema_version: 1`, `title` and `slides`. Optional
 slide. Each slide
 requires `blocks`; `heading` and `subtitle` are optional. A slide with a
 heading uses the built-in `slide-feature` layout. A slide without one shows its
-blocks centered (`slide-section`); `subtitle` then is an error. Unknown fields
+blocks centered (`slide-section`); `subtitle` then is an error. Optional
+`notes` holds speaker notes (literal text, 1–2000 characters). They are never
+painted: the HTML carries them inside the slide as escaped
+`<aside class="wb-notes" hidden>`, and `tools/render.py` writes them to each
+slide's `notes` in `manifest.json` (`""` when absent). Notes are not private:
+anyone with the HTML file can read them. Unknown fields
 are errors at every level.
 
 | Block type | Required fields | Optional fields |

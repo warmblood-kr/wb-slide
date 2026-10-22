@@ -13,7 +13,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -197,8 +197,34 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
     Ok(blocks)
 }
 
-fn slide(el: &El, index: usize) -> Result<serde_json::Value> {
+fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     let mut slide = json!({});
+    // Speaker notes: at most one <wb-notes>, anywhere directly in the slide.
+    let (notes, kids) = el.kids.into_iter().partition::<Vec<_>, _>(|k| matches!(k, Node::El(e) if e.name == "wb-notes"));
+    // Rejoin text the notes split, as with comments.
+    el.kids = Vec::new();
+    for kid in kids {
+        match (el.kids.last_mut(), kid) {
+            (Some(Node::Text(prev)), Node::Text(t)) => {
+                // A line that held only the notes vanishes with its line break.
+                let cut = prev.rfind('\n').filter(|&i| prev[i..].trim().is_empty());
+                if let (Some(i), Some(j)) = (cut, t.find('\n')) {
+                    if t[..j].trim().is_empty() {
+                        prev.truncate(i);
+                    }
+                }
+                prev.push_str(&t)
+            }
+            (_, kid) => el.kids.push(kid),
+        }
+    }
+    for (i, note) in notes.iter().enumerate() {
+        let Node::El(note) = note else { unreachable!() };
+        if i > 0 {
+            return Err(unexpected(note));
+        }
+        slide["notes"] = json!(text_of(note)?);
+    }
     // Optional head, before any body: <wb-title>, then optional <wb-subtitle>.
     let mut at = 0;
     let mut take = |name: &str| {
@@ -240,7 +266,7 @@ pub fn compile(markup: &str) -> Result<String> {
     let (mut slides, mut footer) = (Vec::new(), None);
     for node in tree(markup)? {
         match node {
-            Node::El(e) if e.name == "wb-slide" => slides.push(slide(&e, slides.len())?),
+            Node::El(e) if e.name == "wb-slide" => slides.push(slide(e, slides.len())?),
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
@@ -441,6 +467,27 @@ mod tests {
         assert!(spec("<wb-slide>x</wb-slide>").get("footer").is_none());
         for m in ["<wb-footer>a</wb-footer><wb-footer>b</wb-footer><wb-slide>x</wb-slide>", "<wb-slide><wb-footer>a</wb-footer>x</wb-slide>"] {
             assert!(compile(m).unwrap_err().contains("unexpected <wb-footer>"), "{m}");
+        }
+    }
+
+    #[test]
+    fn notes_lower_to_slide_notes() {
+        let s = spec("<wb-slide><wb-notes> 먼저\n  &lt;결론&gt; </wb-notes><wb-title>T</wb-title>x</wb-slide>");
+        assert_eq!((s["slides"][0]["notes"].as_str(), s["slides"][0]["heading"].as_str()), (Some("먼저 <결론>"), Some("T")));
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"x"}]));
+        let s = spec("<wb-slide>앞 <wb-notes>n</wb-notes> 뒤</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"앞 뒤"}]));
+        // A line holding only the notes vanishes; a real blank line still splits.
+        let s = spec("<wb-slide>p1\n  <wb-notes>n</wb-notes>\n  p2\n\np3</wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"text","text":"p1 p2"}, {"type":"text","text":"p3"}]));
+        for (m, msg) in [
+            ("<wb-slide>x<wb-notes>a</wb-notes><wb-notes>b</wb-notes></wb-slide>", "unexpected <wb-notes> at byte 33"),
+            ("<wb-slide>x<wb-notes>a<wb-list></wb-list></wb-notes></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide>x<wb-notes> </wb-notes></wb-slide>", "empty <wb-notes>"),
+            ("<wb-slide><wb-card>x<wb-notes>a</wb-notes></wb-card></wb-slide>", "unexpected <wb-notes>"),
+            ("<wb-notes>a</wb-notes><wb-slide>x</wb-slide>", "unexpected <wb-notes>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
     }
 
