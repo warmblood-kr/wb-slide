@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -165,6 +166,7 @@ class RenderTest(unittest.TestCase):
             flow = Image.open(self.root / theme / manifest["slides"][4]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 5)
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
             ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
@@ -180,6 +182,32 @@ class RenderTest(unittest.TestCase):
             corners[theme] = png.getpixel((4, 4))
         self.assertEqual(corners["default"], (255, 255, 255))
         self.assertEqual(corners["night"], (0x11, 0x18, 0x27))
+
+    def check(self, source):
+        result = subprocess.run([sys.executable, ROOT / "tools/render.py", source, "--output", self.root / "checked",
+                                 "--font-file", self.font, "--check", *(["--browser", self.browser] if self.browser else [])],
+                                capture_output=True, text=True)
+        self.assertIn(result.returncode, (0, 3), result.stderr)
+        return result.returncode, json.loads(result.stdout)
+
+    def test_check_reports_too_tall_markup(self):
+        markup, source = self.root / "tall.html", self.root / "tall-out.html"
+        items = "".join(f"<wb-item>합성 항목 {n}번: 길게 늘어진 설명 문장으로 본문 높이를 넘깁니다</wb-item>" for n in range(1, 17))
+        markup.write_text(f"<wb-slide><wb-title>너무 긴 목록</wb-title><wb-list>{items}</wb-list></wb-slide>", encoding="utf-8")
+        subprocess.run([self.binary, "export", "--markup", markup, "-o", source], check=True)
+        code, findings = self.check(source)
+        self.assertEqual(code, 3)
+        self.assertTrue(any(f["slide"] == 1 and f["kind"] in {"overflow", "clipped"} and "합성 항목" in f["text"]
+                            for f in findings), findings)
+
+    def test_check_reports_overlap(self):
+        code, findings = self.check(self.html('<div class="ms-slide-container" style="position:relative">'
+            '<p style="position:absolute;top:10px;left:10px">첫째 문단</p>'
+            '<p style="position:absolute;top:14px;left:20px">둘째 문단</p>'
+            # Wrapped inline siblings share a union box but do not overlap.
+            '<p style="position:absolute;top:200px;left:10px;width:90px"><b>굵게 쓴 긴 글귀</b> <i>이어지는 기울임 글귀</i></p></div>'))
+        self.assertEqual(code, 3)
+        self.assertEqual([(f["kind"], f["text"], f["with"]["text"]) for f in findings], [("overlap", "첫째 문단", "둘째 문단")])
 
 
 if __name__ == "__main__":
