@@ -4,6 +4,8 @@
 JSON data. A deterministic renderer lays it out and draws SVG. No model draws
 anything, so the same data and theme always give the same bytes.
 
+The CLI ships in v1:
+
 ```sh
 wb-slide diagram render --type funnel --in data.json --theme default -o funnel.svg
 ```
@@ -27,23 +29,25 @@ diagrams per deck; each type caps its own item counts.
 
 | Source | Lesson taken |
 |---|---|
-| Mermaid | Text in, diagram out, and LLMs already write it. But the default look is generic, and auto-layout (dagre) can move nodes around when the input changes slightly. We keep text in and fix the look and the layout rules. |
+| Mermaid | Text in, diagram out, and LLMs already write it. But the default look is generic and hard to bring in line with a deck. Layout is dagre, with ELK as an option. We keep text in and fix one look. |
 | D2 | A diagram language with swappable layout engines (dagre, ELK, TALA) and named themes. Keep the data model separate from layout, and themes separate from both. |
 | Graphviz | `dot` is layered layout (Sugiyama): rank assignment, dummy nodes on long edges, crossing reduction, then coordinates. Our flowchart uses the same steps, kept small. |
-| PlantUML | Many diagram kinds from one text syntax, some laid out through Graphviz. Breadth is useful, but a dated default style hurts slides. A catalog needs one visual system. |
+| PlantUML | Many diagram kinds from one text syntax, some laid out through Graphviz. Breadth is useful, but in our view the default style looks dated on slides. A catalog needs one visual system. |
 | Excalidraw | Hand-drawn, whiteboard style with manual placement. Good for sketching, the opposite of what we want: clean, exact, generated. |
 | Office SmartArt | A closed catalog grouped by intent: List, Process, Cycle, Hierarchy, Relationship, Matrix, Pyramid, Picture. Content comes from a bullet outline. We copy the intent-first catalog and drop the 3D and gradient styles. |
 | Duarte, *slide:ology* | Diagrams are chosen by the relationship they show (flow, structure, cluster, radiate, network) and then simplified. Pick by meaning, not by decoration. |
-| Napkin AI | Text to business visuals, suggested by intent. Shows the demand, but output is model-generated and not reproducible. We keep intent-to-visual and make it deterministic. |
+| Napkin AI | Text to business visuals, suggested by intent. Shows the demand, but output is model-generated. We keep intent-to-visual and make it deterministic. |
 | Whimsical | Flowcharts and mind maps that snap and align for you, with a calm, flat look. Alignment should be the tool's job, not the author's. |
 
 ## Common rules
 
 - Input is one JSON object. Unknown fields are errors at every level.
-- Strings are nonblank. Labels are at most 80 characters, short labels
-  (titles, dates, ids, categories) at most 40. Korean is fine.
+- Strings are nonblank. Labels are at most 80 characters. Short fields are
+  at most 40: `id`, `category`, `date`, quadrant `title`, column, lane, role
+  and set names, and axis labels (`label`, `low`, `high`). Korean is fine.
+- `highlight` is a 0-based index into the type's main array.
 - No `title` field. The slide owns the heading.
-- Canvas is a 960×540 viewBox. Every coordinate and size is a multiple of 8px.
+- Canvas is a 960×540 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
 - Limits below are hard. Out of range is an error, never a silent cut.
 
 ## Shared primitives
@@ -71,8 +75,10 @@ with the label text. Text is never clipped or ellipsized.
 1. Every text bbox lies inside the canvas.
 2. No two text bboxes overlap.
 3. No two node boxes overlap, and every label lies inside its own node.
+4. Edge labels sit on a `--wb-bg` background plate and do not overlap nodes
+   or other text. No edge passes through a label.
 
-Tests check these by computing the bboxes from the layout output for each
+The same layout check covers all four. Tests run it by computing the bboxes from the layout output for each
 type, across fixture data at the min and max of every limit, including long
 Korean labels. A layout that breaks a guarantee is a bug, not a warning.
 
@@ -84,8 +90,8 @@ optional field.
 
 | Type | Intent | Data model | Limits | Use when / don't use when |
 |---|---|---|---|---|
-| quadrant `v1` | compare | `{"x"?:{"label","low","high"}, "y"?:{...}, "quadrants":[TL,TR,BL,BR] each {"title","items"?:[str]}, "highlight"?:0-3}` | 4 quadrants, ≤4 items each | Two axes split options into four groups; SWOT is a quadrant with titles S/W/O/T. Not for precise values. |
-| venn `planned` | compare | `{"sets":[str], "overlaps":[{"sets":[i,j], "label"}]}` | 2–3 sets | Shared versus distinct traits. Not for more than 3 groups. |
+| quadrant `v1` | compare | `{"x"?:{"label"?,"low"?,"high"?}, "y"?:{"label"?,"low"?,"high"?}, "quadrants":[TL,TR,BL,BR] each {"title","items"?:[str]}, "highlight"?:0-3}` | 4 quadrants, ≤4 items each | Two axes split options into four groups; SWOT is a quadrant with titles S/W/O/T. Not for precise values. |
+| venn `planned` | compare | `{"sets":[str], "overlaps":[{"sets":[i,j], "label"}]}` | 2–3 sets; `overlaps[].sets` are 0-based indexes into `sets` | Shared versus distinct traits. Not for more than 3 groups. |
 | comparison `planned` | compare | `{"columns":[str], "rows":[{"label","cells":[str]}]}` | 2–4 columns, ≤6 rows | Options side by side on the same criteria. Not for long prose cells. |
 | before_after `planned` | compare | `{"before":[str], "after":[str]}` | 1–5 items each | A change of state. Not when there are more than two states. |
 | flowchart `v1` | process | `{"direction"?:"LR\|TB", "nodes":[{"id","label","shape"?:"process\|decision\|terminal"}], "edges":[{"from","to","label"?}]}` | 2–12 nodes; DAG only, a cycle is an error | Steps with branches. Layered layout with dummy nodes. Not for loops (use cycle or causal_loop). |
@@ -93,24 +99,24 @@ optional field.
 | stairs `planned` | process | `{"steps":[{"label","note"?}]}` bottom step first | 3–5 steps | Progressive maturity or build-up. Not when steps are equal in weight. |
 | swimlane `planned` | process | `{"lanes":[str], "steps":[{"id","lane","label"}], "edges":[{"from","to"}]}` | 2–5 lanes, ≤12 steps | Who does what in a handoff process. Not with one actor. |
 | value_chain `planned` | process | `{"primary":[str], "support":[str]}` | 3–6 primary, 0–4 support | Porter-style primary and support activities. Not for a generic process. |
+| funnel `v1` | process | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string; widths are fixed steps, not to scale. Not for growth. |
 | cycle `v1` | cycle | `{"steps":[{"label","note"?}]}` clockwise from 12 o'clock | 3–8 steps | A repeating loop with no end. Not when there is a clear start and finish. |
 | causal_loop `planned` | cycle | `{"nodes":[{"id","label"}], "edges":[{"from","to","sign":"+\|-"}]}` | 3–8 nodes | Reinforcing and balancing feedback. Not for one-way causes (use fishbone). |
 | pyramid `v1` | hierarchy | `{"levels":[{"label","note"?}]}` top level first | 2–6 levels | Ranked layers where the base supports the top. Not for unranked groups. |
-| tree `planned` | hierarchy | `{"root":{"label","children"?:[node]}}` recursive | ≤4 levels, ≤20 nodes | Org charts and breakdowns. Not for many-to-many links. |
+| tree `planned` | hierarchy | `{"root":{"label","children"?:[node]}}` recursive | ≤4 levels including root, ≤20 nodes | Org charts and breakdowns. Not for many-to-many links. |
 | mindmap `planned` | hierarchy | `{"center", "branches":[{"label","items"?:[str]}]}` | 2–6 branches, ≤4 items each | Topics around one idea. Not when order matters. |
 | hub `v1` | relationship | `{"hub", "spokes":[str], "arrows"?:"none\|out\|in"}` | 3–8 spokes | One centre related to many parts (hub-and-spoke). Not when spokes relate to each other. |
 | fishbone `v1` | relationship | `{"effect", "causes":[{"category","items":[str]}]}` | 2–6 categories, ≤4 items each | Root causes of one effect (Ishikawa). Not for feedback loops. |
-| raci `planned` | relationship | `{"roles":[str], "tasks":[{"label","r","a","c"?:[str],"i"?:[str]}]}` | 2–6 roles, ≤8 tasks; one `a` per task | Responsibility by task and role. Not for a plain org chart. |
+| raci `planned` | relationship | `{"roles":[str], "tasks":[{"label","r","a","c"?:[str],"i"?:[str]}]}` | 2–6 roles, ≤8 tasks; `r` and `a` are one role name each, `c` and `i` lists of role names | Responsibility by task and role. Not for a plain org chart. |
 | layers `planned` | structure | `{"layers":[{"label","items"?:[str]}]}` top first | 2–6 layers, ≤5 items each | A stack such as a tech architecture. Not when layers are ranked by size (use pyramid). |
 | concentric `planned` | structure | `{"rings":[{"label","note"?}]}` centre first | 2–5 rings | Core to periphery (target, onion). Not for independent groups. |
 | timeline `v1` | time | `{"events":[{"date","label","note"?}], "highlight"?:index}` | 2–8 events | Dated milestones in order. Not for durations (use gantt). |
 | gantt `planned` | time | `{"start","end", "tasks":[{"label","from","to","group"?}]}` ISO dates | ≤12 tasks | Task durations and overlap. Not for a few point events. |
 | roadmap `planned` | time | `{"lanes":[str], "periods":[str], "items":[{"lane","label","from","to"}]}` period indexes | 2–5 lanes, 2–8 periods | Themes over coarse periods (quarters). Not for day-level plans. |
-| journey `planned` | time | `{"stages":[{"label","score":-2..2,"note"?}]}` | 3–7 stages | Experience highs and lows across stages. Not for metrics with units. |
-| funnel `v1` | quantity | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string; widths are fixed steps, not to scale. Not for growth. |
+| journey `planned` | time | `{"stages":[{"label","score":-2..2,"note"?}]}` | 3–7 stages; `score` is an integer −2..2 | Experience highs and lows across stages. Not for metrics with units. |
 | waterfall `planned` | quantity | `{"start":{"label","value"}, "steps":[{"label","delta"}], "end"?:{"label"}}` numbers | 2–8 steps | How a total moves from start to end. Not without real numbers. |
-| radar `planned` | quantity | `{"axes":[str], "series":[{"label","values":[number]}]}` | 3–8 axes, ≤2 series, values 0–5 | Profile across many criteria. Not for exact comparison (use comparison). |
-| heatmap `planned` | quantity | `{"rows":[str], "columns":[str], "cells":[[0-3]]}` | ≤8×8 | Intensity in a matrix (risk, coverage). Four steps of `accent` tint; not for exact values. |
+| radar `planned` | quantity | `{"axes":[str], "series":[{"label","values":[number]}]}` | 3–8 axes, ≤2 series, values are numbers 0–5, floats allowed | Profile across many criteria. Not for exact comparison (use comparison). |
+| heatmap `planned` | quantity | `{"rows":[str], "columns":[str], "cells":[[0-3]]}` | ≤8 rows × 8 columns | Intensity in a matrix (risk, coverage). Four steps of `accent` tint; not for exact values. |
 
 The renderer does no arithmetic on presentation strings. Only `waterfall`,
 `radar`, `heatmap` and `journey` take numbers, and only for geometry.
@@ -127,10 +133,10 @@ The renderer does no arithmetic on presentation strings. Only `waterfall`,
 | Who hands off to whom? | swimlane |
 | Does it repeat with no end? | cycle; with +/− feedback, causal_loop |
 | What causes this problem? | fishbone |
-| Is it ranked, base to top? | pyramid; maturity steps, stairs |
+| Is it ranked by importance or size, base to top? | pyramid; maturity steps, stairs |
 | Is it a parent/child breakdown? | tree; loose topics, mindmap |
 | Is one thing at the centre of many? | hub; core to edge, concentric |
-| What sits on top of what? | layers |
+| Are these stacked dependencies, each resting on the one below? | layers |
 | Who is responsible for each task? | raci |
 | When did things happen? | timeline; durations, gantt; coarse themes, roadmap |
 | How does a stage-by-stage experience feel? | journey |
@@ -144,7 +150,9 @@ not show a relationship is decoration.
 ## Theming
 
 Diagrams read only preset tokens, so `--theme default|night|tokens.css`
-restyles them with the slides. No colour is hard-coded.
+restyles them with the slides. No colour is hard-coded. All tokens below,
+including `--wb-card-bg`, `--wb-border` and `--wb-radius`, already exist in
+`framework/presets/themes/default.css`.
 
 | Token | Used for |
 |---|---|
