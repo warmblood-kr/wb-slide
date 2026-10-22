@@ -80,6 +80,22 @@ mod tests {
     }
 
     #[test]
+    fn fuzz_counts_and_lengths_never_layout_error() {
+        for n in 3..=8 {
+            for len in 1..=80 {
+                let spaced: String = format!("가{}", "나다 라마바사 아자".repeat(9)).chars().take(len).collect();
+                for s in [spaced.trim().to_string(), "가".repeat(len)] {
+                    for st in [json!({"label": &s}), json!({"label": "단계", "note": &s}), json!({"label": &s, "note": &s})] {
+                        if let Err(e) = render(&json!({"steps": vec![st; n]})) {
+                            assert!(!e.starts_with("layout:"), "n={n} len={len}: {e}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn strict_fields() {
         let mut d = sample();
         d["steps"][1]["icon"] = json!("x");

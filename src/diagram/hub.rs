@@ -26,6 +26,10 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     let hh = up8(hl.height() + 2.0 * INSET).max(80.0);
     let hub_r = Rect { x: (W - HW) / 2.0, y: up8((H - hh) / 2.0), w: HW, h: hh };
     let spokes = ring(labels.len(), SW, sh);
+    let all: Vec<&Rect> = spokes.iter().chain([&hub_r]).collect();
+    if all.iter().enumerate().any(|(i, a)| all[i + 1..].iter().any(|b| a.overlaps(b))) {
+        return Err("$.spokes: spokes do not fit around the hub; shorten labels or use fewer spokes".into());
+    }
     let t = svg.t;
 
     for r in &spokes {
@@ -75,6 +79,22 @@ mod tests {
                 }
             }
             assert!(render(&json!({"hub":"허브","spokes":vec!["가상 서비스 이름"; n]})).is_ok());
+        }
+    }
+
+    #[test]
+    fn fuzz_counts_and_lengths_never_layout_error() {
+        for n in 3..=8 {
+            for len in 1..=80 {
+                let spaced: String = format!("가{}", "나다 라마바사 아자".repeat(9)).chars().take(len).collect();
+                for s in [spaced.trim().to_string(), "가".repeat(len)] {
+                    for d in [json!({"hub":"허브","spokes":vec![&s; n]}), json!({"hub": &s, "spokes":vec!["가상"; n]})] {
+                        if let Err(e) = render(&d) {
+                            assert!(!e.starts_with("layout:"), "n={n} len={len}: {e}");
+                        }
+                    }
+                }
+            }
         }
     }
 
