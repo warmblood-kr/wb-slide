@@ -3,6 +3,8 @@
 //! through a label. A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
+mod funnel;
+mod pyramid;
 mod quadrant;
 
 pub type Result<T> = std::result::Result<T, String>;
@@ -12,7 +14,7 @@ pub const H: f64 = 540.0;
 pub const PAD: f64 = 32.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant"];
+pub const TYPES: &[&str] = &["quadrant", "funnel", "pyramid"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
@@ -20,6 +22,8 @@ pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
     let mut svg = Svg::new(&t);
     match kind {
         "quadrant" => quadrant::draw(data, &mut svg)?,
+        "funnel" => funnel::draw(data, &mut svg)?,
+        "pyramid" => pyramid::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
@@ -171,6 +175,14 @@ impl<'a> Svg<'a> {
         let stroke = stroke.map(|(c, w)| format!(r#" stroke="{c}" stroke-width="{}""#, n(w))).unwrap_or_default();
         self.body += &format!(r#"<rect x="{}" y="{}" width="{}" height="{}" rx="{}" fill="{fill}"{stroke}/>"#, n(r.x), n(r.y), n(r.w), n(r.h), n(radius));
         self.nodes.push(r);
+    }
+
+    /// A filled polygon (funnel/pyramid bands); `inner` is its text-safe box, recorded as the node.
+    pub fn polygon(&mut self, pts: &[(f64, f64)], fill: &str, stroke: Option<&str>, inner: Option<Rect>) {
+        let pts: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        let stroke = stroke.map(|c| format!(r#" stroke="{c}" stroke-width="1""#)).unwrap_or_default();
+        self.body += &format!(r#"<polygon points="{}" fill="{fill}"{stroke}/>"#, pts.join(" "));
+        self.nodes.extend(inner);
     }
 
     /// A small decorative circle (bullets, timeline ticks); not a node.
