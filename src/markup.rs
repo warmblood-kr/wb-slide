@@ -13,7 +13,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[])];
 
 enum Node {
     Text(String),
@@ -237,20 +237,23 @@ fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
 pub fn compile(markup: &str) -> Result<String> {
-    let slides = tree(markup)?
-        .iter()
-        .filter_map(|n| match n {
-            Node::El(e) if e.name == "wb-slide" => Some(Ok(e)),
-            Node::El(e) => Some(Err(unexpected(e))),
-            Node::Text(_) => None,
-        })
-        .enumerate()
-        .map(|(i, e)| slide(e?, i))
-        .collect::<Result<Vec<_>>>()?;
+    let (mut slides, mut footer) = (Vec::new(), None);
+    for node in tree(markup)? {
+        match node {
+            Node::El(e) if e.name == "wb-slide" => slides.push(slide(&e, slides.len())?),
+            // One deck-level footer, shown on every slide.
+            Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
+            Node::El(e) => return Err(unexpected(&e)),
+            Node::Text(_) => {}
+        }
+    }
     // Deck title: first heading, else the first text anywhere in the blocks.
     let first = slides.first().ok_or("no <wb-slide> found")?;
     let deck_title = slides.iter().find_map(|s| s.get("heading")).or_else(|| first_text(&first["blocks"])).cloned();
-    let spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
+    let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
+    if let Some(footer) = footer {
+        spec["footer"] = json!(footer);
+    }
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
 
@@ -421,6 +424,16 @@ mod tests {
             ("<wb-slide><wb-card label=\"x\"/></wb-slide>", "self-closing"),
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn footer_is_deck_level() {
+        let s = spec("<wb-footer> 가상 &amp; 팀 </wb-footer><wb-slide>x</wb-slide>");
+        assert_eq!(s["footer"], "가상 & 팀");
+        assert!(spec("<wb-slide>x</wb-slide>").get("footer").is_none());
+        for m in ["<wb-footer>a</wb-footer><wb-footer>b</wb-footer><wb-slide>x</wb-slide>", "<wb-slide><wb-footer>a</wb-footer>x</wb-slide>"] {
+            assert!(compile(m).unwrap_err().contains("unexpected <wb-footer>"), "{m}");
         }
     }
 

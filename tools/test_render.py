@@ -153,6 +153,7 @@ class RenderTest(unittest.TestCase):
             self.assertEqual(manifest["slide_count"], 5)
             self.assertIn("안녕하세요", manifest["slides"][0]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][1]["text"])
+            self.assertTrue(all("합성 자료" in s["text"] for s in manifest["slides"]))
             self.assertIn("기능 확인용 합성 자료", manifest["slides"][1]["text"])
             self.assertIn("카드와 단 나누기", manifest["slides"][2]["text"])
             self.assertIn("라벨이 붙은 패널", manifest["slides"][2]["text"])
