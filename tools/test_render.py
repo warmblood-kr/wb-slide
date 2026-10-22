@@ -170,6 +170,9 @@ class RenderTest(unittest.TestCase):
             # Preset --wb-center-size (40px+) applies: glyphs are far taller than unstyled 16px text.
             self.assertGreater(ink[3] - ink[1], 60)
             png = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
+            # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
+            body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
+            self.assertGreater(body[1], 120)
             corners[theme] = png.getpixel((4, 4))
         self.assertEqual(corners["default"], (255, 255, 255))
         self.assertEqual(corners["night"], (0x11, 0x18, 0x27))

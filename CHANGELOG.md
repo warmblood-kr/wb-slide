@@ -13,6 +13,7 @@ All notable changes to wb-slide.
 - Typed spec: `heading` is now optional. A slide without it shows its blocks centered
   (`slide-section`). Markup `<wb-slide>hello</wb-slide>` uses this.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
+- Preset token `--wb-vertical` (`start`|`center`|`space-evenly`, default `center`) places the body under a title.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec
   directory only, embedded as data URIs; #22). Markup `<wb-columns>`/`<wb-column>`, `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).
