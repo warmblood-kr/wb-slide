@@ -102,6 +102,13 @@ enum NarrativeAction {
     List,
     /// Print one strategy as JSON
     Show { id: String },
+    /// Print a skeleton deck in wb-slide markup, one slide per role
+    Outline {
+        #[arg(long)]
+        strategy: String,
+        #[arg(long)]
+        topic: String,
+    },
 }
 
 struct Slide {
@@ -1063,6 +1070,7 @@ async fn main() {
             let out = match action {
                 NarrativeAction::List => narrative::list(),
                 NarrativeAction::Show { id } => narrative::show(&id),
+                NarrativeAction::Outline { strategy, topic } => narrative::outline(&strategy, &topic),
             };
             match out {
                 Ok(text) => println!("{}", text.trim_end()),
