@@ -71,9 +71,9 @@ Markup errors (byte offsets count from the start of the file):
 | `unexpected <x> at byte N` | Tag not allowed there (unknown tag, wrong parent, title not first, second footer/notes). Move or remove it. |
 | `unexpected closing <x> at byte N` | Mismatched close tag. Close tags in reverse order. |
 | `unclosed <x> at end of input` | Add the missing `</x>`. |
-| `unsupported attributes or self-closing tag at byte N` | Remove the attribute not listed for that tag, or write `<x></x>` instead of `<x/>`. |
+| `unsupported attributes or self-closing tag at byte N` | Remove the attribute not listed for that tag, or write `<x></x>` instead of `<x/>` (e.g. `<wb-stat value="…">caption</wb-stat>`, never `<wb-stat value="…"/>`). |
 | `text outside <wb-slide> at byte N` | Move the text into a slide. |
-| `empty <x> at byte N` | Give it text (or items/columns). `<wb-stat value="…"/>` is a self-closing error; write the caption inside `<wb-stat>…</wb-stat>`. |
+| `empty <x> at byte N` | Give it text (or items/columns). |
 | `<x> at byte N takes only <y> children` | Remove text directly inside `<wb-list>`/`<wb-columns>`. |
 | `<wb-image> at byte N needs src="…"` / `needs alt="…"` | Add the attribute. |
 | `<wb-stat> at byte N needs value="…"` / `<wb-callout> at byte N needs tone="…"` | Add the attribute. |

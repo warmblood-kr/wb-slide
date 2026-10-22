@@ -209,7 +209,7 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
             }
             Node::El(e) if e.name == "wb-callout" => {
                 // The spec rejects a tone other than info|warning with a field path.
-                let tone = attr(e, "tone")?;
+                let tone = attr(e, "tone")?.trim().to_string();
                 blocks.push(json!({"type": "callout", "tone": tone, "paragraphs": prose_of(e)?}));
             }
             Node::El(e) => return Err(unexpected(e)),
