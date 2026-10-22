@@ -10,6 +10,8 @@ All notable changes to wb-slide.
   compiles `<wb-slide>`/`<wb-title>`/body text deterministically to the typed spec
   and applies a themeable slide preset (Pretendard, 32px title, safe areas). See
   `docs/markup-dsl.md`.
+- Typed spec: `heading` is now optional. A slide without it shows its blocks centered
+  (`slide-section`). Markup `<wb-slide>hello</wb-slide>` uses this.
 
 ## v0.9.0 — 2026-06-12
 

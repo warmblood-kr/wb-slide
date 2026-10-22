@@ -30,8 +30,10 @@ output paths resolve from the working directory, not the spec directory.
 ```
 
 Root requires integer `schema_version: 1`, `title` and `slides`. Each slide
-requires `heading` and `blocks`; `subtitle` is optional. All slides use the
-built-in `slide-feature` layout. Unknown fields are errors at every level.
+requires `blocks`; `heading` and `subtitle` are optional. A slide with a
+heading uses the built-in `slide-feature` layout. A slide without one shows its
+blocks centered (`slide-section`); `subtitle` then is an error. Unknown fields
+are errors at every level.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|
