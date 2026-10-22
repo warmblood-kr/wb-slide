@@ -105,6 +105,7 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 - `<wb-subtitle>` (optional, directly after `<wb-title>`) becomes `subtitle`. It is sized by `--wb-subtitle-size` and coloured with `--wb-muted`.
 - `<wb-list>` contains only `<wb-item>` elements, each holding text. It becomes a spec `list` block, placed in order among the paragraphs. The bullet marker uses `--wb-accent`.
 - `<wb-card label="…">` holds text paragraphs. It becomes a spec `panel` block, with the optional label as `label`. The preset styles it with `--wb-card-bg`, `--wb-border`, `--wb-radius` and an accent-coloured label.
+- `<wb-columns>` holds 2–3 `<wb-column>` elements. Each column takes the same body content as a slide: text, lists and cards. It becomes a spec `columns` block. The spec enforces the column count and forbids nesting, reporting a field path. The preset gives columns equal width across the full content area, which fixes the width shrink in #22.
 - A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
 - Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
@@ -112,6 +113,5 @@ Rendered samples: `samples/markup/default.png`, `night.png`, and
 
 ## Next slices (one tag each)
 
-`wb-columns`,
 `wb-image`/`wb-svg` (#22), `wb-notes`, `wb-footer`. Notes and footer need spec
 fields.
