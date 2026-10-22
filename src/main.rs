@@ -16,6 +16,7 @@ mod render;
 mod components;
 mod spec;
 mod markup;
+mod diagram;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -27,6 +28,24 @@ struct FrameworkAssets;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Subcommand)]
+enum DiagramCommand {
+    /// Render one diagram to SVG (stdout unless -o)
+    Render {
+        /// Diagram type, e.g. quadrant
+        #[arg(long = "type")]
+        kind: String,
+        /// JSON data file (the type's data model, docs/diagram-library.md)
+        #[arg(long = "in")]
+        input: PathBuf,
+        /// Preset theme: a built-in name (default, night) or a token file
+        #[arg(long)]
+        theme: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -77,6 +96,11 @@ enum Commands {
         /// Exit non-zero on warnings too, not only errors
         #[arg(long)]
         strict: bool,
+    },
+    /// Deterministic diagrams from compact JSON data
+    Diagram {
+        #[command(subcommand)]
+        command: DiagramCommand,
     },
     /// Show version and check for updates
     Version,
@@ -862,6 +886,20 @@ fn export_markup(path: &std::path::Path, theme: Option<&str>, output: &std::path
     write_spec_html(meta, slides, Some(&markup::preset_css(theme)?), output)
 }
 
+fn render_diagram(kind: &str, input: &std::path::Path, theme: Option<&str>, output: Option<&std::path::Path>) -> Result<(), String> {
+    let bytes = std::fs::read(input).map_err(|e| format!("cannot read {}: {e}", input.display()))?;
+    if bytes.len() > 64 * 1024 {
+        return Err("diagram data exceeds 64 KiB".into());
+    }
+    let data: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("$: invalid JSON at line {} column {}: {e}", e.line(), e.column()))?;
+    let svg = diagram::render(kind, &data, theme)?;
+    match output {
+        Some(path) => std::fs::write(path, svg).map_err(|e| format!("cannot write {}: {e}", path.display())),
+        None => { print!("{svg}"); Ok(()) }
+    }
+}
+
 fn export_spec(path: &std::path::Path, output: &std::path::Path) -> Result<(), String> {
     let (meta, slides) = spec::load(path)?;
     write_spec_html(meta, slides, None, output)
@@ -1045,6 +1083,12 @@ async fn main() {
             }
         }
 
+        Commands::Diagram { command: DiagramCommand::Render { kind, input, theme, output } } => {
+            if let Err(e) = render_diagram(&kind, &input, theme.as_deref(), output.as_deref()) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
         Commands::Version => {
             let current = env!("CARGO_PKG_VERSION");
             println!("wb-slide v{current}");
