@@ -51,7 +51,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `<wb-section>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
 - Only the tags above with only their listed attributes. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`, `alt` on a card…) or self-closing tag except `<wb-image />` is an error (`<wb-stat />`, `<wb-callout />` included).
-- Deck title (not shown on slides) = the first `<wb-title>` in the deck; else the first non-blank string in the first slide.
+- Deck title (not shown on slides) = the first `<wb-title>` outside section slides (`<wb-section>`, `layout="section"`); else the first section title; else the first non-blank string in the first slide.
 - Image `src`: plain `dir/file.ext` under the markup file's directory. No leading `./`, no `/`-absolute path, no `..`, no `:` or `\`. The file must exist as a regular file and must not resolve (via symlinks) outside that directory. Types `.png .jpg .jpeg .webp .svg` (any case).
 
 ## 4. Limits

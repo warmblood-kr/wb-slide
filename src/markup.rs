@@ -316,9 +316,12 @@ pub fn compile(markup: &str) -> Result<String> {
             Node::Text(_) => {}
         }
     }
-    // Deck title: first heading, else the first text anywhere in the blocks.
+    // Deck title: first heading outside section dividers, else any heading, else the first text.
     let first = slides.first().ok_or("no <wb-slide> found")?;
-    let deck_title = slides.iter().find_map(|s| s.get("heading")).or_else(|| first_text(&first["blocks"])).cloned();
+    let heading = |skip_sections: bool| {
+        slides.iter().filter(|s| !(skip_sections && s["layout"] == "section")).find_map(|s| s.get("heading"))
+    };
+    let deck_title = heading(true).or_else(|| heading(false)).or_else(|| first_text(&first["blocks"])).cloned();
     let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     if let Some(footer) = footer {
         spec["footer"] = json!(footer);
@@ -450,6 +453,9 @@ mod tests {
 
     #[test]
     fn section_is_a_numbered_divider() {
+        let titled = spec("<wb-section number=\"01\">1부</wb-section><wb-slide><wb-title>진짜 제목</wb-title>x</wb-slide>");
+        assert_eq!(titled["title"], "진짜 제목");
+        assert_eq!(spec("<wb-section>1부</wb-section><wb-slide>x</wb-slide>")["title"], "1부");
         let json = compile("<wb-section number=\" 01 \">\n  첫   장\n</wb-section><wb-slide>x</wb-slide>").unwrap();
         let s: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(s["title"], "첫 장");
