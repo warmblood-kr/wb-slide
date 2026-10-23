@@ -338,7 +338,7 @@ mod tests {
     fn theme_values_load_and_night_differs() {
         let d = Theme::load(None).unwrap();
         let n = Theme::load(Some("night")).unwrap();
-        assert_eq!(d.accent, "#2563EB");
+        assert_eq!(d.accent, "#C2410C");
         assert_ne!(d.bg, n.bg);
         assert!(d.font.starts_with("Pretendard"));
     }
