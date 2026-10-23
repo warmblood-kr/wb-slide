@@ -16,7 +16,7 @@ const MAX_BYTES: usize = 64 * 1024;
 
 /// Slide layout variants: spec name -> framework layout. A new variant is one row
 /// here plus one CSS block in `framework/presets/slide.css`.
-const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote"), ("split", "slide-split")];
+const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote"), ("split", "slide-split"), ("agenda", "slide-agenda")];
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
 
@@ -342,6 +342,14 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             };
             // A variant may have no blocks: absent or [] means none.
             let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
+            // Agenda: exactly one list of 3–6 items beside the head; the numerals are CSS counters.
+            if layout == Some("slide-agenda") {
+                let list = s.get("blocks").and_then(Value::as_array).filter(|b| b.len() == 1 && b[0]["type"] == "list");
+                let list = list.ok_or_else(|| error(&format!("{p}.blocks"), "expected one list block with layout agenda"))?;
+                if !(3..=6).contains(&list[0]["items"].as_array().map_or(0, Vec::len)) {
+                    return Err(error(&format!("{p}.blocks[0].items"), "expected 3–6 items with layout agenda"));
+                }
+            }
             if layout == Some("slide-quote") && !no_blocks {
                 return Err(error(&format!("{p}.blocks"), "not allowed with layout quote"));
             }
@@ -673,10 +681,32 @@ mod tests {
     }
 
     #[test]
+    fn agenda_is_one_list_of_three_to_six() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "agenda", "heading": "목차", "blocks": [{"type": "list", "items": ["a<b", "둘", "셋"]}]});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-agenda".to_string())]);
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">목차</h1></header><ul class=\"wb-list\"><li>a&lt;b</li><li>둘</li><li>셋</li></ul>");
+        let list = |n: usize| json!({"type": "list", "items": vec!["x"; n]});
+        for (slide, msg) in [
+            (json!({"layout": "agenda", "heading": "T"}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(3), list(3)]}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(2)]}), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(7)]}), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [{"type": "list", "items": ["a", " ", "c"]}]}), "$.slides[0].blocks[0].items[1]: expected 1–2000 characters, not blank"),
+            (json!({"layout": "agenda", "blocks": [list(3)]}), "$.slides[0].heading: required for layout agenda"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), msg);
+        }
+    }
+
+    #[test]
     fn layout_errors() {
         let mut v = base();
         v["slides"][0]["layout"] = json!("pull-quote");
-        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split");
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split or agenda");
         v["slides"][0] = json!({"layout": "cover", "blocks": [{"type":"text","text":"x"}]});
         assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].heading: required for layout cover");
         // Without a layout, blocks stay required (1–64).

@@ -20,6 +20,7 @@ escape hatch — `.js` layouts rendered client-side — see [Escape hatch](#esca
 | `slide-two-column` | Two-column body with `::left::` / `::right::` slots. Optional title above. |
 | `slide-image-full` | Full-bleed image. No chrome. |
 | `slide-split` | Bare body container for the spec `split` variant (image bleeding to one edge, text in the other half; styled by the slide preset). |
+| `slide-agenda` | Bare body container for the spec `agenda` variant (head in the left third, numbered list in the right two-thirds; styled by the slide preset). |
 | `slide-quote` | Blockquote rendering. Use `quote` and `author` frontmatter fields. |
 | `slide-contact` | Left-aligned content. Good for contact / sources / endnotes. |
 | `slide-default` | Padded body with chrome but no title structure. Fallback for unknown layouts. |

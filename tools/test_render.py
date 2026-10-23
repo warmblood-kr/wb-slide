@@ -156,7 +156,7 @@ class RenderTest(unittest.TestCase):
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 10)
+            self.assertEqual(manifest["slide_count"], 11)
             self.assertIn("가상 레이아웃 소개", manifest["slides"][0]["text"])
             self.assertIn("안녕하세요", manifest["slides"][1]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
@@ -175,7 +175,7 @@ class RenderTest(unittest.TestCase):
             flow = Image.open(self.root / theme / manifest["slides"][7]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
-            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 10)
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 11)
             # layout="cover": the head group sits bottom-left, with no chrome.
             cover = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
             ink = ImageChops.difference(cover, Image.new("RGB", cover.size, cover.getpixel((4, 4)))).getbbox()
@@ -215,6 +215,18 @@ class RenderTest(unittest.TestCase):
             self.assertEqual(diff.crop((0, 0, 960, 1080)).getbbox(), (0, 0, 864, 1080))
             self.assertTrue(all(diff.getpixel(xy) != (0, 0, 0) for xy in [(0, 0), (0, 1079), (863, 0), (863, 1079)]))
             self.assertGreaterEqual(diff.crop((864, 0, 1920, 1080)).getbbox()[0] + 864, 994)
+            # <wb-agenda>: title in the left third; the list starts right of 1/3 width with
+            # numerals (CSS counters) in the head's accent colour, ahead of the item text.
+            self.assertIn("목차", manifest["slides"][10]["text"])
+            self.assertIn("다음 분기 계획", manifest["slides"][10]["text"])
+            agenda = Image.open(self.root / theme / manifest["slides"][10]["file"]).convert("RGB")
+            diff = ImageChops.difference(agenda, Image.new("RGB", agenda.size, agenda.getpixel((4, 4))))
+            head = diff.crop((0, 0, 640, 960)).getbbox()
+            accent = agenda.getpixel((head[0] + 2, head[1] + 2))  # the head's accent bar
+            items = diff.crop((640, 0, 1920, 960)).getbbox()
+            self.assertGreater(items[0] + 640, 640 + 40)
+            numerals = agenda.crop((items[0] + 640, items[1], items[0] + 640 + 60, items[3]))
+            self.assertIn(accent, [c for _, c in numerals.getcolors(1 << 22)])
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
             ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()

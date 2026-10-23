@@ -6,6 +6,11 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-agenda><wb-title>목차</wb-title><wb-item>…</wb-item>…</wb-agenda>`**: an agenda slide (spec
+  `layout: agenda` → new built-in `slide-agenda`; one `list` block of 3–6 items, checked by the spec).
+  Title in the left third, items in the right two-thirds at `--wb-subtitle-size`, numbered `01`–`06` by a CSS
+  counter in the accent (tabular), 1px `--wb-border` hairline between items, no bullets. Title required;
+  agenda titles are skipped for the deck title. No new token.
 - **`<wb-split image="img/x.jpg" alt="…" side="left|right">…</wb-split>`**: an image/text split slide
   (spec `layout: split` → new built-in `slide-split`, new slide fields `image` {`src`,`alt`} and `side`,
   split only, default `left`). Takes `<wb-slide>` content (title required). The image bleeds to the chosen
