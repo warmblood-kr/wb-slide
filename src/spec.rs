@@ -16,7 +16,7 @@ const MAX_BYTES: usize = 64 * 1024;
 
 /// Slide layout variants: spec name -> framework layout. A new variant is one row
 /// here plus one CSS block in `framework/presets/slide.css`.
-const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote")];
+const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote"), ("split", "slide-split")];
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
 
@@ -297,7 +297,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
         .enumerate()
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
-            let s = object(v, &p, &["layout", "heading", "subtitle", "number", "blocks", "notes"])?;
+            let s = object(v, &p, &["layout", "heading", "subtitle", "number", "image", "side", "blocks", "notes"])?;
             let layout = optional(s, "layout", &p)?
                 .map(|name| {
                     LAYOUTS.iter().find(|(n, _)| *n == name).map(|(_, l)| *l).ok_or_else(|| {
@@ -318,6 +318,28 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             if number.is_some() && layout != Some("slide-section") {
                 return Err(error(&format!("{p}.number"), "requires layout section"));
             }
+            // Split: one slide-level image bleeding to `side` (default left); head and blocks fill the other side.
+            let split = layout == Some("slide-split");
+            let media = match s.get("image") {
+                Some(img) if split => {
+                    let side = match optional(s, "side", &p)?.as_deref() {
+                        None | Some("left") => "left",
+                        Some("right") => "right",
+                        _ => return Err(error(&format!("{p}.side"), "expected left or right")),
+                    };
+                    let ip = format!("{p}.image");
+                    let o = object(img, &ip, &["src", "alt"])?;
+                    let alt = string(o, "alt", &ip)?;
+                    let uri = image(&string(o, "src", &ip)?, &ip, &mut ctx)?;
+                    format!("<img class=\"wb-split-image wb-split-{side}\" src=\"{}\" alt=\"{}\">", escape(&uri), escape(&alt))
+                }
+                None if split => return Err(error(&format!("{p}.image"), "required for layout split")),
+                None if !s.contains_key("side") => String::new(),
+                _ => {
+                    let k = if s.contains_key("image") { "image" } else { "side" };
+                    return Err(error(&format!("{p}.{k}"), "requires layout split"));
+                }
+            };
             // A variant may have no blocks: absent or [] means none.
             let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
             if layout == Some("slide-quote") && !no_blocks {
@@ -348,7 +370,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
                 };
                 return Ok(Slide {
                     frontmatter: vec![("layout".into(), layout.into())],
-                    body_html: head + &body_html,
+                    body_html: media + &head + &body_html,
                     slots: Vec::new(),
                 });
             }
@@ -616,10 +638,45 @@ mod tests {
     }
 
     #[test]
+    fn split_puts_one_checked_image_beside_the_head() {
+        let dir = std::env::temp_dir().join(format!("wb-spec-split-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "split", "image": {"src": "a.svg", "alt": "<팀> \"사진\""}, "side": "right",
+            "heading": "A & B", "blocks": [{"type": "text", "text": "본문"}]});
+        let (_, slides) = parse_in(v.to_string().as_bytes(), Some(&dir)).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-split".to_string())]);
+        let html = &slides[0].body_html;
+        assert!(html.starts_with("<img class=\"wb-split-image wb-split-right\" src=\"data:image/svg+xml;base64,"), "{html}");
+        assert!(html.ends_with("alt=\"&lt;팀&gt; &quot;사진&quot;\"><header class=\"wb-head\"><h1 class=\"wb-head-title\">A &amp; B</h1></header><p>본문</p>"), "{html}");
+        v["slides"][0] = json!({"layout": "split", "image": {"src": "a.svg", "alt": "a"}, "heading": "T"});
+        assert!(parse_in(v.to_string().as_bytes(), Some(&dir)).unwrap().1[0].body_html.contains("wb-split-left"));
+        // The slide image counts toward the deck limit like any image block.
+        v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"a.svg","alt":"a"}); 8]);
+        assert!(parse_in(v.to_string().as_bytes(), Some(&dir)).err().unwrap().contains("at most 8 images"));
+        for (slide, msg) in [
+            (json!({"layout": "split", "heading": "T"}), "$.slides[0].image: required for layout split"),
+            (json!({"layout": "split", "heading": "T", "image": "a.svg"}), "$.slides[0].image: expected object"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg"}}), "$.slides[0].image.alt: missing required field"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg", "alt": "a", "w": 1}}), "$.slides[0].image.w: unknown field"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "/a.svg", "alt": "a"}}), "$.slides[0].image.src: expected a relative local path without .. or a scheme"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg", "alt": "a"}, "side": "top"}), "$.slides[0].side: expected left or right"),
+            (json!({"layout": "split", "image": {"src": "a.svg", "alt": "a"}}), "$.slides[0].heading: required for layout split"),
+            (json!({"heading": "T", "image": {"src": "a.svg", "alt": "a"}, "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].image: requires layout split"),
+            (json!({"layout": "cover", "heading": "T", "side": "left"}), "$.slides[0].side: requires layout split"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse_in(v.to_string().as_bytes(), Some(&dir)).err().unwrap(), msg);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn layout_errors() {
         let mut v = base();
         v["slides"][0]["layout"] = json!("pull-quote");
-        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote");
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split");
         v["slides"][0] = json!({"layout": "cover", "blocks": [{"type":"text","text":"x"}]});
         assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].heading: required for layout cover");
         // Without a layout, blocks stay required (1–64).

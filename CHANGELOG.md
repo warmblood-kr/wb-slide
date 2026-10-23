@@ -6,6 +6,12 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-split image="img/x.jpg" alt="…" side="left|right">…</wb-split>`**: an image/text split slide
+  (spec `layout: split` → new built-in `slide-split`, new slide fields `image` {`src`,`alt`} and `side`,
+  split only, default `left`). Takes `<wb-slide>` content (title required). The image bleeds to the chosen
+  edge at 45% width × full height (`object-fit: cover`, no radius), text column from 52%; footer and page
+  number move to the text side. The image uses the existing image validation and counts toward 8 per deck.
+  No new token.
 - **`<wb-quote by="Name, role">text</wb-quote>`**: a pull-quote slide (spec `layout: quote` →
   `slide-quote`; `heading` = quoted text, `subtitle` = attribution, no blocks). Rendered as
   `<figure><blockquote>` + `<figcaption>`: 32–40px text at `--wb-measure`, accent `“` hung in the left

@@ -78,6 +78,15 @@
 .wb-quote blockquote::before { content: "\201C"; position: absolute; right: 100%; top: 0; padding-right: 0.1em; font-size: 1.75em; line-height: 0.85; font-weight: var(--wb-title-weight); color: var(--wb-accent); }
 .wb-quote p { margin: 0; font-weight: 500; line-height: 1.3; letter-spacing: var(--wb-title-tracking); color: var(--wb-title-color); text-wrap: balance; }
 .wb-quote-by { margin-top: var(--wb-gap); font-size: var(--wb-label-size); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wb-muted); }
+/* split: the image bleeds to one edge, 45% wide and full height, cover-cropped, square edges; head and body
+   sit top-aligned in a column from 52% (mirrored for side right). Chrome moves off the image onto the text side. */
+.ms-split-layout { display: grid; align-content: start; place-items: start stretch; height: 100%; padding: var(--wb-safe-y) var(--wb-safe-x) var(--wb-safe-y) 52%; }
+.ms-split-layout:has(> .wb-split-right) { padding: var(--wb-safe-y) 52% var(--wb-safe-y) var(--wb-safe-x); }
+.ms-split-layout .wb-head-title { font-size: var(--wb-title-size); line-height: var(--wb-title-leading); letter-spacing: var(--wb-title-tracking); }
+.wb-split-image { position: absolute; top: 0; left: 0; width: 45%; height: 100%; object-fit: cover; }
+.wb-split-right { left: auto; right: 0; }
+.slide-split:has(.wb-split-left) .ms-footer-logo { left: 52%; }
+.slide-split:has(.wb-split-right) .ms-page-number { right: 52%; }
 /* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
 .wb-kpi { margin: 0 0 var(--wb-gap); }
 .wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }

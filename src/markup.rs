@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -277,7 +277,7 @@ fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     }
     let blocks = body(&el.kids[at..])?;
     if layout.is_some() && slide.get("heading").is_none() {
-        return Err(format!("wb-slide[{index}]: <wb-title> is required with layout at byte {}", el.pos));
+        return Err(format!("{}[{index}]: <wb-title> is required with layout at byte {}", el.name, el.pos));
     }
     if blocks.is_empty() && layout.is_none() {
         return Err(format!("wb-slide[{index}]: body text is required"));
@@ -315,6 +315,18 @@ pub fn compile(markup: &str) -> Result<String> {
                 let mut s = json!({"layout": "quote", "heading": text_of(&e)?, "blocks": []});
                 if let Ok(by) = attr(&e, "by") {
                     s["subtitle"] = json!(by.trim());
+                }
+                slides.push(s);
+            }
+            // Image/text split: a <wb-slide> body plus one image; the spec checks the path and side.
+            Node::El(mut e) if e.name == "wb-split" => {
+                let image = json!({"src": attr(&e, "image")?, "alt": collapse(&attr(&e, "alt")?)});
+                let side = attr(&e, "side").ok();
+                e.attrs.push(("layout".into(), "split".into()));
+                let mut s = slide(e, slides.len())?;
+                s["image"] = image;
+                if let Some(side) = side {
+                    s["side"] = json!(side.trim());
                 }
                 slides.push(s);
             }
@@ -453,7 +465,7 @@ mod tests {
         assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
         // The spec owns the value set.
         let json = compile("<wb-slide layout=pull-quote><wb-title>T</wb-title></wb-slide>").unwrap();
-        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote");
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split");
         assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
         assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
     }
@@ -507,6 +519,32 @@ mod tests {
             ("<wb-slide><wb-quote>말</wb-quote></wb-slide>", "unexpected <wb-quote>"),
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn split_is_a_slide_body_beside_one_image() {
+        let s = spec("<wb-split image=\"img/a.svg\" alt=\" 현장  &amp; 팀 \" side=\" right \"><wb-title>T</wb-title><wb-subtitle>S</wb-subtitle>본문<wb-list><wb-item>하나</wb-item></wb-list><wb-notes>n</wb-notes></wb-split>");
+        assert_eq!(s["title"], "T");
+        assert_eq!(s["slides"][0], json!({"layout": "split", "image": {"src": "img/a.svg", "alt": "현장 & 팀"}, "side": "right",
+            "heading": "T", "subtitle": "S", "notes": "n", "blocks": [{"type": "text", "text": "본문"}, {"type": "list", "items": ["하나"]}]}));
+        // side is optional (the spec defaults to left); a title alone is enough.
+        let s = spec("<wb-split image=a.png alt=a><wb-title>T</wb-title></wb-split>");
+        assert!(s["slides"][0].get("side").is_none() && s["slides"][0]["blocks"] == json!([]));
+        // The spec owns side values and image paths.
+        let json = compile("<wb-split image=a.png alt=a side=top><wb-title>T</wb-title></wb-split>").unwrap();
+        assert_eq!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new("."))).err().unwrap(), "$.slides[0].side: expected left or right");
+        let json = compile("<wb-split image=\"../x.png\" alt=a><wb-title>T</wb-title></wb-split>").unwrap();
+        assert!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new("."))).err().unwrap().starts_with("$.slides[0].image.src: expected a relative local path"));
+        for (m, msg) in [
+            ("<wb-split alt=a><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs image="),
+            ("<wb-split image=a.png><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs alt="),
+            ("<wb-split image=a.png alt=a>본문</wb-split>", "wb-split[0]: <wb-title> is required with layout"),
+            ("<wb-split image=a.png alt=a layout=cover><wb-title>T</wb-title></wb-split>", "unsupported attributes"),
+            ("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-section>x</wb-section></wb-split>", "unexpected <wb-section>"),
+            ("<wb-slide><wb-split image=a.png alt=a><wb-title>T</wb-title></wb-split></wb-slide>", "unexpected <wb-split>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}: {}", compile(m).unwrap_err());
         }
     }
 
