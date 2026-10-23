@@ -1,0 +1,70 @@
+{
+  "id": "inverted-pyramid",
+  "name": "Inverted Pyramid (news style)",
+  "family": "report",
+  "summary": "Put the most important facts first, then supporting detail, then background, so the talk can be cut at any point.",
+  "references": [
+    "Journalistic convention from 19th-century wire reporting",
+    "Associated Press stylebook tradition"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "team",
+      "executive"
+    ],
+    "goals": [
+      "inform",
+      "report"
+    ],
+    "minutes": [
+      3,
+      15
+    ]
+  },
+  "title_style": "Headline titles: factual, specific, under 12 words.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 50,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "bluf",
+      "purpose": "Lead: who, what, when, where in one slide."
+    },
+    {
+      "role": "data-point",
+      "purpose": "The single most important number."
+    },
+    {
+      "role": "evidence",
+      "purpose": "Key supporting details, most important first.",
+      "repeat": true
+    },
+    {
+      "role": "situation",
+      "purpose": "Background for those who want it.",
+      "optional": true
+    },
+    {
+      "role": "plan",
+      "purpose": "What happens next."
+    }
+  ],
+  "pitfalls": [
+    "Building up to the news instead of opening with it.",
+    "Background placed before the key facts.",
+    "Burying the one number people need."
+  ],
+  "example": {
+    "topic": "A fictional logistics company announcing a depot reopening",
+    "outline": [
+      "The north depot reopens Monday after flood repairs",
+      "All 14 delivery routes resume on schedule",
+      "Pumps, power and docks passed inspection Friday",
+      "Background: the depot closed after June storms",
+      "Staff return in two shifts starting Sunday"
+    ]
+  }
+}

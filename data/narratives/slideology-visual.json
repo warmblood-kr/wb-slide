@@ -1,0 +1,78 @@
+{
+  "id": "slideology-visual",
+  "name": "Slideology (visual-first slides)",
+  "family": "report",
+  "summary": "One message per slide carried mainly by an image, diagram or big number, with minimal text the audience can grasp in seconds.",
+  "references": [
+    "Nancy Duarte, slide:ology (2008)",
+    "Garr Reynolds, Presentation Zen (2008)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "customer",
+      "team"
+    ],
+    "goals": [
+      "inform",
+      "inspire",
+      "teach"
+    ],
+    "minutes": [
+      5,
+      30
+    ]
+  },
+  "title_style": "Very short titles, under 6 words; the visual carries the message.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 20,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the talk with a strong image.",
+      "layout": "title-image"
+    },
+    {
+      "role": "hook",
+      "purpose": "One striking picture or fact."
+    },
+    {
+      "role": "evidence",
+      "purpose": "Show the trend as a single picture.",
+      "layout": "title-image",
+      "repeat": true
+    },
+    {
+      "role": "data-point",
+      "purpose": "One big number with its meaning."
+    },
+    {
+      "role": "solution",
+      "purpose": "Show the idea as a simple diagram.",
+      "layout": "title-image"
+    },
+    {
+      "role": "close",
+      "purpose": "End on one image-backed line."
+    }
+  ],
+  "pitfalls": [
+    "Turning a visual slide back into a bullet list.",
+    "Decorative images that do not carry the point.",
+    "Several messages fighting on one slide."
+  ],
+  "example": {
+    "topic": "A fictional valley council explaining a rainwater storage plan",
+    "outline": [
+      "Rivers we can still save",
+      "Half the river is gone in summer",
+      "Water level, ten summers",
+      "3 towns share one river",
+      "Store winter rain for summer",
+      "Keep the river running"
+    ]
+  }
+}

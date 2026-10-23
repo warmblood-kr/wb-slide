@@ -1,0 +1,79 @@
+{
+  "id": "duarte-sparkline",
+  "name": "Sparkline (what is versus what could be)",
+  "family": "persuasion",
+  "summary": "Alternate between the current reality and a better future to build tension, then end with a call to action and a vision of the new bliss.",
+  "references": [
+    "Nancy Duarte, Resonate (2010)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "team",
+      "customer"
+    ],
+    "goals": [
+      "inspire",
+      "persuade"
+    ],
+    "minutes": [
+      10,
+      45
+    ]
+  },
+  "title_style": "Short evocative phrases, under 8 words; contrast words between what is and what could be.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "hook",
+      "purpose": "Open with a vivid picture of today."
+    },
+    {
+      "role": "current-state",
+      "purpose": "Describe what is, as the audience lives it."
+    },
+    {
+      "role": "future-state",
+      "purpose": "Describe what could be, in contrast.",
+      "repeat": true
+    },
+    {
+      "role": "contrast",
+      "purpose": "Swing between what is and what could be to build tension.",
+      "repeat": true
+    },
+    {
+      "role": "turning-point",
+      "purpose": "The moment the gap feels unbearable."
+    },
+    {
+      "role": "ask",
+      "purpose": "The call to action that closes the gap."
+    },
+    {
+      "role": "future-state",
+      "purpose": "End on the new bliss: the reward for acting."
+    }
+  ],
+  "pitfalls": [
+    "Staying in the current state too long; the swings keep energy up.",
+    "A call to action without a picture of the reward after it.",
+    "Contrasts so abstract the audience cannot see either side."
+  ],
+  "example": {
+    "topic": "A fictional design studio replacing status emails with a shared board",
+    "outline": [
+      "Every Monday starts with 200 emails",
+      "Our day belongs to the inbox",
+      "Imagine a Monday with zero status emails",
+      "Chasing updates vs. seeing them live",
+      "We lose one full day a week to this",
+      "Move one team to the shared board this month",
+      "A week where work talks for itself"
+    ]
+  }
+}

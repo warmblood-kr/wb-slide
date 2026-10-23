@@ -1,0 +1,77 @@
+{
+  "id": "assertion-evidence",
+  "name": "Assertion-Evidence",
+  "family": "logic",
+  "summary": "Each slide carries a full-sentence assertion as its title and visual evidence as its body, with no bullet lists.",
+  "references": [
+    "Michael Alley, The Craft of Scientific Presentations (2003)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "technical",
+      "academic"
+    ],
+    "goals": [
+      "teach",
+      "inform",
+      "persuade"
+    ],
+    "minutes": [
+      10,
+      45
+    ]
+  },
+  "title_style": "Assertion titles: a full-sentence claim of one or two lines, under 20 words.",
+  "density": {
+    "max_bullets": 0,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the talk as its main claim."
+    },
+    {
+      "role": "agenda",
+      "purpose": "Preview the assertions.",
+      "optional": true
+    },
+    {
+      "role": "argument",
+      "purpose": "Assertion with visual evidence.",
+      "layout": "title-image",
+      "repeat": true
+    },
+    {
+      "role": "evidence",
+      "purpose": "Further visual evidence for the assertion.",
+      "layout": "title-image",
+      "repeat": true
+    },
+    {
+      "role": "answer",
+      "purpose": "State the overall conclusion."
+    },
+    {
+      "role": "recap",
+      "purpose": "Restate the assertions in order."
+    }
+  ],
+  "pitfalls": [
+    "Topic titles instead of assertions.",
+    "Sneaking bullet lists back in as evidence.",
+    "Visuals that do not prove the assertion above them."
+  ],
+  "example": {
+    "topic": "A fictional agricultural research team presenting greenhouse results",
+    "outline": [
+      "Cooler nights explain most of the yield gain in our trial",
+      "Three findings from the two-year greenhouse trial",
+      "Yield rose fastest in beds with the lowest night temperature",
+      "Night temperature tracks yield better than light or water",
+      "Cooling at night is the cheapest lever for yield",
+      "Three findings point to night cooling"
+    ]
+  }
+}
