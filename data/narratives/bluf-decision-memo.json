@@ -1,0 +1,71 @@
+{
+  "id": "bluf-decision-memo",
+  "name": "BLUF Decision Memo",
+  "family": "logic",
+  "summary": "State the bottom line and the decision needed first, then give just enough options, risks and support to make it.",
+  "references": [
+    "US military writing standard (Army Regulation 25-50)",
+    "Kabir Sehgal, How to Write Email with Military Precision (HBR, 2016)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "executive"
+    ],
+    "goals": [
+      "decide"
+    ],
+    "minutes": [
+      2,
+      10
+    ]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "bluf",
+      "purpose": "The bottom line and the decision requested."
+    },
+    {
+      "role": "situation",
+      "purpose": "Only the context required to decide.",
+      "optional": true
+    },
+    {
+      "role": "options",
+      "purpose": "Real alternatives with trade-offs."
+    },
+    {
+      "role": "recommendation",
+      "purpose": "The pick and the reason."
+    },
+    {
+      "role": "risk",
+      "purpose": "What could go wrong and the mitigation."
+    },
+    {
+      "role": "ask",
+      "purpose": "The exact decision and deadline."
+    }
+  ],
+  "pitfalls": [
+    "Building context before stating the decision.",
+    "Presenting options without a recommendation.",
+    "Too much detail for a short decision slot."
+  ],
+  "example": {
+    "topic": "A fictional operations team asking to extend a cleaning vendor",
+    "outline": [
+      "Decision needed: extend the vendor contract by six months",
+      "The current contract ends in eight weeks",
+      "Extend, rebid now, or bring the work in-house",
+      "Extend: rebidding now risks a gap in service",
+      "Risk: a price rise, capped at 3% in the extension",
+      "Sign off by Friday to avoid a lapse"
+    ]
+  }
+}
