@@ -97,7 +97,7 @@ e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns ca
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
 `…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`,
 `…tone: expected info or warning` (a `<wb-callout tone>` other than `info`/`warning`),
-`$.slides[I].layout: expected cover or section or quote` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`),
+`$.slides[I].layout: expected cover or section or quote` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
 `$.slides[I].subtitle: expected 1–2000 characters, not blank` (an empty `<wb-quote by="">`: fill or drop `by`),
 `$.slides[I].number: expected 1–8 characters, not blank` (shorten or fill `<wb-section number>`).
 Image errors on `…src`: `expected a relative local path without .. or a scheme`, `cannot read image: …`,

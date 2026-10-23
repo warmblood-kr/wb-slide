@@ -204,6 +204,7 @@ class RenderTest(unittest.TestCase):
             ink = ImageChops.difference(quote, blank).crop((0, 0, 1920, 960)).getbbox()
             axis = ImageChops.difference(quote, blank).crop((0, 960, 1920, 1080)).getbbox()[0]
             self.assertLess(ink[0], axis - 20)
+            self.assertGreater(ink[0], 16)  # the hung mark stays on the slide, not clipped at the edge
             self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 80)
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
