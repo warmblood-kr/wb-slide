@@ -7,12 +7,17 @@
   --color-background: var(--wb-bg);
   --color-border: var(--wb-border);
 }
+/* Korean wraps between words, never inside one; very long tokens may still break. */
+.ms-slide-container { word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; }
+/* Short titles: even line lengths instead of a lone last word. */
+.ms-slide-container :is(h1, h2) { text-wrap: balance; }
 .ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
 .ms-slide-title {
   font-size: var(--wb-title-size);
   font-weight: var(--wb-title-weight);
   color: var(--wb-title-color);
-  line-height: 1.25;
+  line-height: var(--wb-title-leading);
+  letter-spacing: var(--wb-title-tracking);
 }
 .ms-slide-subtitle { font-size: var(--wb-subtitle-size); color: var(--wb-muted); margin: 0; }
 /* --wb-vertical: start | safe center | space-evenly places the body under the title. */
@@ -31,7 +36,9 @@
 .wb-list li::marker { color: var(--wb-accent); }
 .panel { background: var(--wb-card-bg); border-color: var(--wb-border); border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
 .panel > p:last-child { margin-bottom: 0; }
-.panel-label { color: var(--wb-accent); }
+.panel-label { color: var(--wb-accent); font-size: var(--wb-label-size); }
+/* Body copy directly under the title stops at the theme's reading measure. */
+.ms-slot-area > p, .ms-slot-area > .wb-list { max-width: var(--wb-measure); }
 /* Columns fill the content width with equal shares (see #22). */
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
@@ -49,3 +56,13 @@
 /* section: divider title, left-aligned, starting just under mid-height (canvas is 540px). */
 .ms-section-layout:has(> .wb-head) { place-items: start; align-content: start; text-align: left; padding-top: calc(540px * 0.45); }
 .ms-section-layout .wb-head-title { font-size: var(--wb-center-size); }
+/* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
+.wb-kpi { margin: 0 0 var(--wb-gap); }
+.wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }
+.wb-kpi .stat-label { font-size: var(--wb-body-size); color: var(--wb-muted); margin-top: calc(var(--wb-gap) / 4); }
+.ms-slot-area .wb-kpi .source, .ms-section-layout .wb-kpi .source { font-size: calc(var(--wb-body-size) * 0.7); color: var(--wb-muted); margin: calc(var(--wb-gap) / 2) 0 0; }
+/* <wb-callout>: tinted box keyed to the theme accent (warning keeps the red edge). */
+.info-box, .warn-box { border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
+.info-box > p:last-child, .warn-box > p:last-child { margin-bottom: 0; }
+/* On a bare centred slide the big statement rule must not enlarge callout text. */
+.ms-section-layout :is(.info-box, .warn-box) p { font-size: var(--wb-body-size); font-weight: 400; color: var(--wb-text); line-height: 1.6; }

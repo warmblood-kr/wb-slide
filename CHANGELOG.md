@@ -6,7 +6,11 @@ All notable changes to wb-slide.
 
 ### Added
 
-- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme default|night|tokens.css]`
+- **The default markup theme is now the design study's warm "paper" look** (alias `paper`); the earlier
+  white default is `--theme classic`. New built-in themes `graphite` and `signal`, new tokens
+  `--wb-title-tracking`, `--wb-title-leading`, `--wb-measure`, `--wb-stat-size`, `--wb-label-size`,
+  `--wb-inverse-bg` and `--wb-inverse-text`, and Korean `word-break: keep-all` in the preset.
+- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme NAME|tokens.css]`
   compiles `<wb-slide>`/`<wb-title>`/body text deterministically to the typed spec
   and applies a themeable slide preset (Pretendard, 32px title, safe areas). See
   `docs/markup-dsl.md`.
@@ -25,6 +29,7 @@ All notable changes to wb-slide.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec
   directory only, embedded as data URIs; #22). Markup `<wb-columns>`/`<wb-column>`, `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).
+- Markup `<wb-stat value note?>caption</wb-stat>` (lowers to spec `kpi`, caption → `label`) and `<wb-callout tone="info|warning">` (lowers to `callout`); preset styles both from `--wb-*` tokens. No spec change.
 
 ## v0.9.0 — 2026-06-12
 

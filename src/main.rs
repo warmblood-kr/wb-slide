@@ -16,6 +16,7 @@ mod render;
 mod components;
 mod spec;
 mod markup;
+mod narrative;
 use theme::{LoadedTheme, ThemeSpec};
 
 #[derive(Embed)]
@@ -53,7 +54,7 @@ enum Commands {
         /// Export semantic slide markup (<wb-slide>, <wb-title>) with the slide preset
         #[arg(long, conflicts_with_all = ["dir", "spec", "refresh_themes", "embed"])]
         markup: Option<PathBuf>,
-        /// Preset theme for --markup: a built-in name (default, night) or a token file
+        /// Preset theme for --markup: a built-in name (default, night, paper, graphite, signal) or a token file
         #[arg(long, requires = "markup")]
         theme: Option<String>,
         #[arg(short, long, default_value = "export.html")]
@@ -78,6 +79,11 @@ enum Commands {
         #[arg(long)]
         strict: bool,
     },
+    /// Built-in narrative strategies (story structures for decks)
+    Narrative {
+        #[command(subcommand)]
+        action: NarrativeAction,
+    },
     /// Show version and check for updates
     Version,
     /// Update to the latest version
@@ -88,6 +94,14 @@ enum Commands {
         #[arg(short, long, default_value = "3030")]
         port: u16,
     },
+}
+
+#[derive(Subcommand)]
+enum NarrativeAction {
+    /// List strategy ids
+    List,
+    /// Print one strategy as JSON
+    Show { id: String },
 }
 
 struct Slide {
@@ -1042,6 +1056,20 @@ async fn main() {
 
             if errors > 0 || (strict && warnings > 0) {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Narrative { action } => {
+            let out = match action {
+                NarrativeAction::List => narrative::list(),
+                NarrativeAction::Show { id } => narrative::show(&id),
+            };
+            match out {
+                Ok(text) => println!("{}", text.trim_end()),
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
         }
 
