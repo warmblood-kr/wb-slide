@@ -43,6 +43,11 @@
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }
+/* Deck folio: a small caps running label centred in the top margin band, above where content starts.
+   Spans the safe width so a long label wraps inside the band instead of running off the slide. */
+.ms-folio { position: absolute; top: calc(var(--wb-safe-y) / 2); left: var(--wb-safe-x); right: var(--wb-safe-x); transform: translateY(-50%); z-index: 10; font-size: var(--wb-label-size); font-weight: 600; line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wb-muted); }
+/* Chapter openers drop the running head (cover has no chrome at all): it would crowd the section numeral. */
+.slide-section:has(> .ms-section-layout > .wb-head) .ms-folio { display: none; }
 /* Layout variants (spec `layout`): a heading group (.wb-head) then optional blocks.
    One block per variant below; a new variant adds one row to LAYOUTS in spec.rs. */
 .wb-head::before { content: ""; display: block; width: 48px; height: 4px; background: var(--wb-accent); margin-bottom: var(--wb-gap); }
@@ -85,7 +90,8 @@
 .ms-split-layout .wb-head-title { font-size: var(--wb-title-size); line-height: var(--wb-title-leading); letter-spacing: var(--wb-title-tracking); }
 .wb-split-image { position: absolute; top: 0; left: 0; width: 45%; height: 100%; object-fit: cover; }
 .wb-split-right { left: auto; right: 0; }
-.slide-split:has(.wb-split-left) .ms-footer-logo { left: 52%; }
+.slide-split:has(.wb-split-left) :is(.ms-footer-logo, .ms-folio) { left: 52%; }
+.slide-split:has(.wb-split-right) .ms-folio { right: 52%; }
 .slide-split:has(.wb-split-right) .ms-page-number { right: 52%; }
 /* agenda: title in the left third, list in the right two-thirds; hairlines between items, no bullets.
    Numerals are CSS counters (01–06), tabular, in accent at 4/3 of the item size (32px over 24px). */

@@ -315,6 +315,7 @@ fn render_all_slides(
 ) -> Result<render::RenderedSlides, String> {
     let global_watermark = global_meta.iter().find(|(k, _)| k == "watermark").map(|(_, v)| v.as_str()).unwrap_or("");
     let global_footer = global_meta.iter().find(|(k, _)| k == "footer").map(|(_, v)| v.as_str()).unwrap_or("");
+    let global_folio = global_meta.iter().find(|(k, _)| k == "folio").map(|(_, v)| v.as_str()).unwrap_or("");
 
     let total = slides.len();
     let mut out = render::RenderedSlides::default();
@@ -333,6 +334,9 @@ fn render_all_slides(
         }
         if !global_footer.is_empty() && get_fm(slide, "footer").is_none() {
             attrs.push(("footer".to_string(), global_footer.to_string()));
+        }
+        if !global_folio.is_empty() && get_fm(slide, "folio").is_none() {
+            attrs.push(("folio".to_string(), global_folio.to_string()));
         }
 
         let (html, maybe_js) = render::render_slide(
@@ -1650,6 +1654,18 @@ mod tests {
         assert!(slides[1].slots[0].1.contains("Left content"));
         assert_eq!(slides[1].slots[1].0, "right");
         assert!(slides[1].slots[1].1.contains("Right content"));
+    }
+
+    #[test]
+    fn spec_folio_is_chrome_except_on_cover() {
+        let src = r#"{"schema_version":1,"title":"t","folio":"A & B","slides":[{"layout":"cover","heading":"c","blocks":[]},{"heading":"h","blocks":[{"type":"text","text":"b"}]}]}"#;
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let (meta, slides) = spec::parse(src.as_bytes()).unwrap();
+        let html = render_all_slides(&slides, &meta, &layouts).unwrap().html;
+        assert_eq!(html.matches(r#"<div class="ms-folio">A &amp; B</div>"#).count(), 1);
+        let (meta, slides) = spec::parse(src.replace(r#""folio":"A & B","#, "").as_bytes()).unwrap();
+        assert!(!render_all_slides(&slides, &meta, &layouts).unwrap().html.contains("ms-folio"));
     }
 
     #[test]

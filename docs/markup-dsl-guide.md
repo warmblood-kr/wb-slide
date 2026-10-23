@@ -33,13 +33,14 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | `<wb-columns>` / `<wb-column>` | none | slide body; columns hold only 2–3 `<wb-column>` | `columns` block |
 | `<wb-image src="…" alt="…" />` | `src`, `alt` (both required, non-blank) | body; no content; must end `/>` or have `</wb-image>` | `image` block |
 | `<wb-footer>` | none | top level, outside slides | deck `footer` on every slide |
+| `<wb-folio>` | none | top level, outside slides | deck `folio`: small caps label top-left |
 | `<wb-notes>` | none | directly in a slide; text only | slide `notes` (hidden) |
 
 Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-columns>`, `<wb-image>`. Put 2–3 `<wb-stat>` in separate `<wb-column>`s to show figures side by side. A `<wb-column>` takes the same body content except `<wb-columns>`.
 
 ## 3. Nesting and ordering rules
 
-- Top level holds only `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>`, `<wb-agenda>`, `<wb-footer>`, whitespace and comments. No stray text.
+- Top level holds only `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>`, `<wb-agenda>`, `<wb-footer>`, `<wb-folio>`, whitespace and comments. No stray text.
 - `<wb-title>` must be the first element in a slide; `<wb-subtitle>` only right after it.
 - No `<wb-title>` → the slide body is centered on both axes. A subtitle without a title is an error.
 - Every slide needs body content. A title alone fails, unless the slide has `layout`.
@@ -50,11 +51,12 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `<wb-agenda>`: title in the left third, the items in the right two-thirds, numbered `01`–`06` in the accent (the slide draws the numbers: do not write them), a hairline between items. 3–6 `<wb-item>`s, each one line of ≤8 words (a long item wraps to two lines). Put the items directly in `<wb-agenda>`, not in a `<wb-list>`. Requires `<wb-title>` first (e.g. `목차`, `Agenda`).
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
+- `<wb-folio>`: at most once, at deck level. A short running label (deck or chapter name, e.g. `2026 파일럿 리뷰`) in small muted caps at the top-left of every slide except the cover and section dividers. Use it instead of a logo or deck name repeated in each slide.
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards, callouts, stats or columns.
 - `<wb-callout>` `tone` is `info` (accent-tinted box) or `warning` (red edge). Any other value fails at the spec step (see §5).
 - `<wb-stat>`: `value` is the figure (e.g. `+38%`), the content is its caption (keep it ≤10 words), `note` is an optional small source line.
 - Text collapses whitespace; a single newline joins lines into one paragraph. A blank (whitespace-only) line separates paragraphs (one `text` block each), in the body and inside `<wb-card>` and `<wb-callout>`. Text before and after a list, card, callout, stat, columns or image becomes separate blocks.
-- `<wb-section>`, `<wb-quote>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
+- `<wb-section>`, `<wb-quote>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>`, `<wb-folio>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
 - Only the tags above with only their listed attributes. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`, `alt` on a card…) or self-closing tag except `<wb-image />` is an error (`<wb-stat />`, `<wb-callout />` included).
 - Deck title (not shown on slides) = the first `<wb-title>` outside section, quote and agenda slides (`<wb-section>`, `layout="section"`, `<wb-quote>`, `<wb-agenda>`); else the first section or agenda title; else the first non-blank string in the first slide; else the first quote.
@@ -69,6 +71,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - Section `number`: 1–8 characters, not blank.
 - Every string (title, item, paragraph, label, caption, value, note, alt, notes): 1–2000 characters, not blank.
 - Footer: at most 200 characters.
+- Folio: 1–60 characters, not blank (keep it ≤6 words: it is one line at 12px).
 - Images: at most 8 per deck, each at most 2 MiB.
 - Theme file: 8 KiB.
 
@@ -78,7 +81,7 @@ Markup errors (byte offsets count from the start of the file):
 
 | Message | Fix |
 |---|---|
-| `unexpected <x> at byte N` | Tag not allowed there (unknown tag, wrong parent, title not first, second footer/notes). Move or remove it. |
+| `unexpected <x> at byte N` | Tag not allowed there (unknown tag, wrong parent, title not first, second footer/folio/notes). Move or remove it. |
 | `unexpected closing <x> at byte N` | Mismatched close tag. Close tags in reverse order. |
 | `unclosed <x> at end of input` | Add the missing `</x>`. |
 | `unsupported attributes or self-closing tag at byte N` | Remove the attribute not listed for that tag, or write `<x></x>` instead of `<x/>` (e.g. `<wb-stat value="…">caption</wb-stat>`, never `<wb-stat value="…"/>`). |
@@ -101,7 +104,7 @@ Markup errors (byte offsets count from the start of the file):
 Spec errors after compiling name a field path: `$.slides[I].blocks[J]…: reason`,
 e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns cannot nest`,
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
-`…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`,
+`…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`, `$.folio: expected 1–60 characters, not blank`,
 `…tone: expected info or warning` (a `<wb-callout tone>` other than `info`/`warning`),
 `$.slides[I].layout: expected cover or section or quote or split or agenda` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`, splits `<wb-split>`, agendas `<wb-agenda>`), `$.slides[I].blocks[0].items: expected 3–6 items with layout agenda` (give `<wb-agenda>` 3–6 `<wb-item>`s), `$.slides[I].side: expected left or right` (fix `<wb-split side>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
 `$.slides[I].subtitle: expected 1–2000 characters, not blank` (an empty `<wb-quote by="">`: fill or drop `by`),
@@ -132,7 +135,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 `--wb-accent`, `--wb-bg`, `--wb-card-bg`, `--wb-border`, `--wb-radius`, `--wb-safe-x`,
 `--wb-safe-y`, `--wb-gap`, `--wb-image-height`, `--wb-vertical`, `--wb-title-tracking`,
 `--wb-title-leading`, `--wb-measure` (max width of body text under a title),
-`--wb-label-size`, `--wb-stat-size` (also the section number size), `--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`
+`--wb-label-size` (also the folio size), `--wb-stat-size` (also the section number size), `--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`
 (background, text and accent of a pure section divider; keep the accent readable on the inverse background).
 
 `--wb-vertical` accepts only `start`, `safe center` or `space-evenly`.
@@ -140,6 +143,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 ## 7. Example
 
 ```html
+<wb-folio>Acme pilot review</wb-folio>
 <wb-footer>Acme pilot review · fictional data</wb-footer>
 <wb-slide>
   <wb-title>Pilot review: Q3</wb-title>

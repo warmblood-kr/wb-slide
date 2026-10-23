@@ -287,7 +287,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
     }
     let v: Value =
         serde_json::from_slice(bytes).map_err(|e| error("$", &format!("invalid JSON: {e}")))?;
-    let root = object(&v, "$", &["schema_version", "title", "footer", "slides"])?;
+    let root = object(&v, "$", &["schema_version", "title", "footer", "folio", "slides"])?;
     if field(root, "schema_version", "$")?.as_u64() != Some(1) {
         return Err(error("$.schema_version", "expected integer 1"));
     }
@@ -410,6 +410,12 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             return Err(error("$.footer", "expected at most 200 characters"));
         }
         meta.push(("footer".into(), escape(&footer)));
+    }
+    if let Some(folio) = optional(root, "folio", "$")? {
+        if folio.trim().is_empty() || folio.chars().count() > 60 {
+            return Err(error("$.folio", "expected 1–60 characters, not blank"));
+        }
+        meta.push(("folio".into(), escape(&folio)));
     }
     Ok((meta, slides))
 }
@@ -553,6 +559,20 @@ mod tests {
         v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"img/a.svg","alt":"a"}); 9]);
         assert!(parse_in(v.to_string().as_bytes(), Some(&inside)).err().unwrap().contains("at most 8 images"));
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn folio_is_short_escaped_deck_text() {
+        let mut v = base();
+        v["folio"] = json!("<b>팀</b> & 가상");
+        let (meta, _) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(meta[1], ("folio".to_string(), "&lt;b&gt;팀&lt;/b&gt; &amp; 가상".to_string()));
+        v["folio"] = json!("x".repeat(60));
+        assert!(parse(v.to_string().as_bytes()).is_ok());
+        for bad in [json!("x".repeat(61)), json!("  "), json!(""), json!(1)] {
+            v["folio"] = bad;
+            assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.folio"));
+        }
     }
 
     #[test]

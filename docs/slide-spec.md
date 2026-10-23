@@ -31,7 +31,9 @@ output paths resolve from the working directory, not the spec directory.
 
 Root requires integer `schema_version: 1`, `title` and `slides`. Optional
 `footer` is literal text, at most 200 characters, shown bottom-left on every
-slide. Each slide
+slide. Optional `folio` is a short running label (literal text, 1–60
+characters, not blank) shown top-left in the margin band, in small muted caps,
+on every slide except the cover and section dividers. Each slide
 requires `blocks` (unless it has `layout`, below); `heading` and `subtitle` are optional. A slide with a
 heading uses the built-in `slide-feature` layout. A slide without one shows its
 blocks centered (`slide-section`); `subtitle` then is an error. Optional

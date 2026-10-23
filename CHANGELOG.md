@@ -6,6 +6,11 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-folio>label</wb-folio>`**: a deck-level running label (spec root `folio`, 1–60 characters, not
+  blank, escaped). Rendered as `.ms-folio` chrome in the top margin band (centred at `--wb-safe-y`/2, left at
+  `--wb-safe-x`), `--wb-label-size`, weight 600, caps, +0.08em, `--wb-muted`. Shown on every slide except the
+  cover (no chrome) and section openers (`<wb-section>` and `layout="section"`); on `<wb-split>` it moves to
+  the text column. At most once, top level. No new token.
 - **`<wb-agenda><wb-title>목차</wb-title><wb-item>…</wb-item>…</wb-agenda>`**: an agenda slide (spec
   `layout: agenda` → new built-in `slide-agenda`; one `list` block of 3–6 items, checked by the spec).
   Title in the left third, items in the right two-thirds at `--wb-subtitle-size`, numbered `01`–`06` by a CSS
