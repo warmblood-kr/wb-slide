@@ -16,6 +16,11 @@ from render import render
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# --wb-inverse-bg per theme: a pure section divider paints it edge to edge.
+INVERSE = {"classic": (0x11, 0x18, 0x27), "default": (0x1C, 0x1B, 0x19), "night": (0xF9, 0xFA, 0xFB),
+           "graphite": (0xF7, 0xF8, 0xF8), "signal": (0xD7, 0xFF, 0x3A)}
+
+
 class RenderTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -151,7 +156,7 @@ class RenderTest(unittest.TestCase):
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 7)
+            self.assertEqual(manifest["slide_count"], 8)
             self.assertIn("가상 레이아웃 소개", manifest["slides"][0]["text"])
             self.assertIn("안녕하세요", manifest["slides"][1]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
@@ -164,13 +169,13 @@ class RenderTest(unittest.TestCase):
             self.assertIn("라벨이 붙은 패널", manifest["slides"][3]["text"])
             self.assertIn("준비 6주", manifest["slides"][4]["text"])
             self.assertIn("+38%", manifest["slides"][4]["text"])
-            self.assertIn("원격 주소는 오류", manifest["slides"][6]["text"])
-            self.assertIn("변환 과정", manifest["slides"][5]["text"])
+            self.assertIn("원격 주소는 오류", manifest["slides"][7]["text"])
+            self.assertIn("변환 과정", manifest["slides"][6]["text"])
             # The local SVG is embedded and painted: its solid #2563EB box shows up.
-            flow = Image.open(self.root / theme / manifest["slides"][6]["file"]).convert("RGB")
+            flow = Image.open(self.root / theme / manifest["slides"][7]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
-            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 7)
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 8)
             # layout="cover": the head group sits bottom-left, with no chrome.
             cover = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
             ink = ImageChops.difference(cover, Image.new("RGB", cover.size, cover.getpixel((4, 4)))).getbbox()
@@ -179,10 +184,18 @@ class RenderTest(unittest.TestCase):
             self.assertLess(ink[2], 1700)  # no page number at the right edge
             self.assertLess(ink[3], 1000)  # no footer in the bottom band
             # layout="section": left-aligned head whose top (accent bar) starts near mid-height.
-            section = Image.open(self.root / theme / manifest["slides"][5]["file"]).convert("RGB")
+            section = Image.open(self.root / theme / manifest["slides"][6]["file"]).convert("RGB")
             ink = ImageChops.difference(section, Image.new("RGB", section.size, section.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
             self.assertLess(ink[0], 400)
             self.assertLess(abs(ink[1] / 1080 - 0.5), 0.06)
+            # <wb-section>: inverse slide, accent numeral top-left, title just under mid-height.
+            self.assertIn("02", manifest["slides"][5]["text"])
+            self.assertIn("마크업에서 슬라이드까지", manifest["slides"][5]["text"])
+            divider = Image.open(self.root / theme / manifest["slides"][5]["file"]).convert("RGB")
+            self.assertEqual(divider.getpixel((4, 4)), INVERSE[theme])
+            ink = ImageChops.difference(divider, Image.new("RGB", divider.size, INVERSE[theme])).crop((0, 0, 1900, 960)).getbbox()
+            self.assertLess(ink[0], 160)
+            self.assertLess(ink[1], 200)  # the numeral starts in the top band, well above the title
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
             ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()

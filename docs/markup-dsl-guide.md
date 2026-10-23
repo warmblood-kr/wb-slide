@@ -20,6 +20,7 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | Tag | Attributes | Where | Becomes |
 |---|---|---|---|
 | `<wb-slide>` | `layout` (optional: `cover` or `section`) | top level | one slide |
+| `<wb-section number="…">Title</wb-section>` | `number` (optional; 1–8 characters, e.g. `01`) | top level; text only, one collapsed line (the title) | one section-divider slide (`layout: section`, `heading`, `number`, no blocks) |
 | `<wb-title>` | none | first child of a slide | `heading` (title-top layout) |
 | `<wb-subtitle>` | none | directly after `<wb-title>` | `subtitle` |
 | `<wb-list>` / `<wb-item>` | none | body; list holds only items, items hold only text | `list` block |
@@ -35,21 +36,22 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 
 ## 3. Nesting and ordering rules
 
-- Top level holds only `<wb-slide>`, `<wb-footer>`, whitespace and comments. No stray text.
+- Top level holds only `<wb-slide>`, `<wb-section>`, `<wb-footer>`, whitespace and comments. No stray text.
 - `<wb-title>` must be the first element in a slide; `<wb-subtitle>` only right after it.
 - No `<wb-title>` → the slide body is centered on both axes. A subtitle without a title is an error.
 - Every slide needs body content. A title alone fails, unless the slide has `layout`.
 - `layout="cover"`: title slide, no footer or page number; title and subtitle at bottom-left. `layout="section"`: section divider; title and subtitle at left from mid-height, optional short body under them. Both require `<wb-title>` first; `<wb-subtitle>` and body are optional. Use only these two values.
+- `<wb-section>`: a pure divider: inverse colours (`--wb-inverse-*`), the `number` large in `--wb-inverse-accent` at the top-left, the title at left from mid-height, footer and page number kept. Text only: no child tags (no `<wb-notes>`). A `layout="section"` slide with only a title (and subtitle) gets the same inverse look; one with body keeps the deck colours.
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards, callouts, stats or columns.
 - `<wb-callout>` `tone` is `info` (accent-tinted box) or `warning` (red edge). Any other value fails at the spec step (see §5).
 - `<wb-stat>`: `value` is the figure (e.g. `+38%`), the content is its caption (keep it ≤10 words), `note` is an optional small source line.
 - Text collapses whitespace; a single newline joins lines into one paragraph. A blank (whitespace-only) line separates paragraphs (one `text` block each), in the body and inside `<wb-card>` and `<wb-callout>`. Text before and after a list, card, callout, stat, columns or image becomes separate blocks.
-- `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
+- `<wb-section>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
 - Only the tags above with only their listed attributes. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`, `alt` on a card…) or self-closing tag except `<wb-image />` is an error (`<wb-stat />`, `<wb-callout />` included).
-- Deck title (not shown on slides) = the first `<wb-title>` in the deck; else the first non-blank string in the first slide.
+- Deck title (not shown on slides) = the first `<wb-title>` outside section slides (`<wb-section>`, `layout="section"`); else the first section title; else the first non-blank string in the first slide.
 - Image `src`: plain `dir/file.ext` under the markup file's directory. No leading `./`, no `/`-absolute path, no `..`, no `:` or `\`. The file must exist as a regular file and must not resolve (via symlinks) outside that directory. Types `.png .jpg .jpeg .webp .svg` (any case).
 
 ## 4. Limits
@@ -58,6 +60,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - Slides: 1–20 per deck.
 - Blocks: 1–64 per slide or column (0–64 on a slide with `layout`); at most 64 leaf blocks per slide, columns included.
 - List items: 1–16. Card and callout paragraphs: 1–16.
+- Section `number`: 1–8 characters, not blank.
 - Every string (title, item, paragraph, label, caption, value, note, alt, notes): 1–2000 characters, not blank.
 - Footer: at most 200 characters.
 - Images: at most 8 per deck, each at most 2 MiB.
@@ -80,7 +83,7 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-stat> at byte N needs value="…"` / `<wb-callout> at byte N needs tone="…"` | Add the attribute. |
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
 | `cannot read markup: …` | Fix the input path. |
-| `wb-slide[I]: body text is required` | Add body to slide I (0-based). |
+| `wb-slide[I]: body text is required` | Add body to slide I (0-based; `<wb-section>` slides count). |
 | `wb-slide[I]: <wb-title> is required with layout at byte N` | Put a `<wb-title>` first in that slide, or drop `layout`. |
 | `no <wb-slide> found` | Add a slide. |
 | `nesting deeper than 8 at byte N` / `markup exceeds 64 KiB` | Flatten or shorten. |
@@ -92,11 +95,12 @@ e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns ca
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
 `…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`,
 `…tone: expected info or warning` (a `<wb-callout tone>` other than `info`/`warning`),
-`$.slides[I].layout: expected cover or section` (use one of those values).
+`$.slides[I].layout: expected cover or section` (use one of those values),
+`$.slides[I].number: expected 1–8 characters, not blank` (shorten or fill `<wb-section number>`).
 Image errors on `…src`: `expected a relative local path without .. or a scheme`, `cannot read image: …`,
 `expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
 `image resolves outside the spec directory`, `at most 8 images per deck`.
-Slide I is the I-th `<wb-slide>` counting from 0. The render manifest counts from 1 (`index`, `slide-001.png`): manifest slide N is error slide N−1.
+Slide I is the I-th `<wb-slide>` or `<wb-section>` counting from 0. The render manifest counts from 1 (`index`, `slide-001.png`): manifest slide N is error slide N−1.
 
 **Repair loop**
 1. Run `export`. On a nonzero exit, read the message, fix only the named spot (byte N or slide/field path), rerun.
@@ -118,8 +122,9 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 `--wb-subtitle-size`, `--wb-body-size`, `--wb-center-size`, `--wb-text`, `--wb-muted`,
 `--wb-accent`, `--wb-bg`, `--wb-card-bg`, `--wb-border`, `--wb-radius`, `--wb-safe-x`,
 `--wb-safe-y`, `--wb-gap`, `--wb-image-height`, `--wb-vertical`, `--wb-title-tracking`,
-`--wb-title-leading`, `--wb-measure` (max width of body text under a title), `--wb-stat-size`,
-`--wb-label-size`, `--wb-inverse-bg`, `--wb-inverse-text` (the stat size and inverse colours are reserved; nothing reads them yet).
+`--wb-title-leading`, `--wb-measure` (max width of body text under a title),
+`--wb-label-size`, `--wb-stat-size` (also the section number size), `--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`
+(background, text and accent of a pure section divider; keep the accent readable on the inverse background).
 
 `--wb-vertical` accepts only `start`, `safe center` or `space-evenly`.
 
@@ -151,6 +156,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
   </wb-columns>
   <wb-callout tone="warning">All figures are synthetic.</wb-callout>
 </wb-slide>
+<wb-section number="02">What we learned</wb-section>
 <wb-slide>Questions?</wb-slide>
 ```
 

@@ -56,6 +56,20 @@
 /* section: divider title, left-aligned, starting just under mid-height (canvas is 540px). */
 .ms-section-layout:has(> .wb-head) { place-items: start; align-content: start; text-align: left; padding-top: calc(540px * 0.45); }
 .ms-section-layout .wb-head-title { font-size: var(--wb-center-size); }
+/* Pure divider (a section head and nothing else, e.g. <wb-section>): inverse slide.
+   Tokens are re-pointed on the slide so title, chrome and accent follow; a section with body stays light. */
+.ms-slide-container:has(> .ms-section-layout > .wb-head):not(:has(> .ms-section-layout > :not(.wb-head, .wb-notes))) {
+  background: var(--wb-inverse-bg);
+  --wb-title-color: var(--wb-inverse-text);
+  --wb-muted: color-mix(in srgb, var(--wb-inverse-text) 72%, var(--wb-inverse-bg));
+  --wb-accent: var(--wb-inverse-accent);
+  --color-text: var(--wb-inverse-text);
+  --color-text-muted: var(--wb-muted);
+  color: var(--wb-inverse-text);
+}
+/* Section number ("01"): large accent numeral at the top-left of the safe area; it replaces the accent bar. */
+.wb-head-number { position: absolute; top: var(--wb-safe-y); left: var(--wb-safe-x); font-size: var(--wb-stat-size); font-weight: var(--wb-title-weight); line-height: 1; letter-spacing: var(--wb-title-tracking); color: var(--wb-accent); font-variant-numeric: tabular-nums; }
+.wb-head:has(> .wb-head-number)::before { display: none; }
 /* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
 .wb-kpi { margin: 0 0 var(--wb-gap); }
 .wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }
