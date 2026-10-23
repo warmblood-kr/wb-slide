@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-folio", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -298,7 +298,7 @@ fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
 pub fn compile(markup: &str) -> Result<String> {
-    let (mut slides, mut footer) = (Vec::new(), None);
+    let (mut slides, mut footer, mut folio) = (Vec::new(), None, None);
     for node in tree(markup)? {
         match node {
             Node::El(e) if e.name == "wb-slide" => slides.push(slide(e, slides.len())?),
@@ -346,6 +346,8 @@ pub fn compile(markup: &str) -> Result<String> {
             }
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
+            // One deck-level folio: a short running label top-left; the spec checks length.
+            Node::El(e) if e.name == "wb-folio" && folio.is_none() => folio = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
             Node::Text(_) => {}
         }
@@ -358,6 +360,9 @@ pub fn compile(markup: &str) -> Result<String> {
     let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     if let Some(footer) = footer {
         spec["footer"] = json!(footer);
+    }
+    if let Some(folio) = folio {
+        spec["folio"] = json!(folio);
     }
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
@@ -691,6 +696,17 @@ mod tests {
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
+    }
+
+    #[test]
+    fn folio_is_deck_level() {
+        let s = spec("<wb-folio> 가상 &amp; 팀 </wb-folio><wb-slide>x</wb-slide>");
+        assert_eq!(s["folio"], "가상 & 팀");
+        assert!(spec("<wb-slide>x</wb-slide>").get("folio").is_none());
+        for m in ["<wb-folio>a</wb-folio><wb-folio>b</wb-folio><wb-slide>x</wb-slide>", "<wb-slide><wb-folio>a</wb-folio>x</wb-slide>", "<wb-folio x=\"1\">a</wb-folio><wb-slide>x</wb-slide>"] {
+            assert!(compile(m).is_err(), "{m}");
+        }
+        assert!(compile("<wb-folio>a</wb-folio><wb-folio>b</wb-folio><wb-slide>x</wb-slide>").unwrap_err().contains("unexpected <wb-folio>"));
     }
 
     #[test]

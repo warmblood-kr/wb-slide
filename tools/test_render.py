@@ -162,6 +162,8 @@ class RenderTest(unittest.TestCase):
             self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
             self.assertTrue(all("합성 자료" in s["text"] for s in manifest["slides"]))
             self.assertIn("기능 확인용 합성 자료", manifest["slides"][2]["text"])
+            # <wb-folio>: running label in caps on every slide except the cover and section openers.
+            self.assertEqual([i for i, s in enumerate(manifest["slides"]) if "WB-SLIDE · 합성 덱" not in s["text"]], [0, 5, 6])
             self.assertEqual(manifest["slides"][2]["notes"], "청중에게 합성 자료임을 먼저 알립니다.")
             self.assertNotIn("청중에게", manifest["slides"][2]["text"])
             self.assertEqual(manifest["slides"][1]["notes"], "")
@@ -201,11 +203,11 @@ class RenderTest(unittest.TestCase):
             self.assertIn("김가상, 합성 팀장", manifest["slides"][8]["text"])
             quote = Image.open(self.root / theme / manifest["slides"][8]["file"]).convert("RGB")
             blank = Image.new("RGB", quote.size, quote.getpixel((4, 4)))
-            ink = ImageChops.difference(quote, blank).crop((0, 0, 1920, 960)).getbbox()
+            ink = ImageChops.difference(quote, blank).crop((0, 96, 1920, 960)).getbbox()
             axis = ImageChops.difference(quote, blank).crop((0, 960, 1920, 1080)).getbbox()[0]
             self.assertLess(ink[0], axis - 20)
             self.assertGreater(ink[0], 16)  # the hung mark stays on the slide, not clipped at the edge
-            self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 80)
+            self.assertLess(abs((ink[1] + ink[3]) / 2 + 96 - 540), 80)
             # <wb-split side="left">: the image covers x 0–45% at full height (bleed, no radius);
             # title, body and footer all start in the text column at 52%.
             self.assertIn("현장에서 본 것", manifest["slides"][9]["text"])
@@ -221,20 +223,26 @@ class RenderTest(unittest.TestCase):
             self.assertIn("다음 분기 계획", manifest["slides"][10]["text"])
             agenda = Image.open(self.root / theme / manifest["slides"][10]["file"]).convert("RGB")
             diff = ImageChops.difference(agenda, Image.new("RGB", agenda.size, agenda.getpixel((4, 4))))
-            head = diff.crop((0, 0, 640, 960)).getbbox()
-            accent = agenda.getpixel((head[0] + 2, head[1] + 2))  # the head's accent bar
+            head = diff.crop((0, 96, 640, 960)).getbbox()
+            accent = agenda.getpixel((head[0] + 2, head[1] + 96 + 2))  # the head's accent bar
             items = diff.crop((640, 0, 1920, 960)).getbbox()
             self.assertGreater(items[0] + 640, 640 + 40)
             numerals = agenda.crop((items[0] + 640, items[1], items[0] + 640 + 60, items[3]))
             self.assertIn(accent, [c for _, c in numerals.getcolors(1 << 22)])
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
-            ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
+            ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 96, 1900, 960)).getbbox()
             self.assertLess(abs((ink[0] + ink[2]) / 2 - 960), 40)
-            self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 40)
+            self.assertLess(abs((ink[1] + ink[3]) / 2 + 96 - 540), 40)
             # Preset --wb-center-size (40px+) applies: glyphs are far taller than unstyled 16px text.
             self.assertGreater(ink[3] - ink[1], 60)
             png = Image.open(self.root / theme / manifest["slides"][2]["file"]).convert("RGB")
+            # Folio ink lives in the top margin band (above --wb-safe-y, 96px+ at 2x), left on the content axis.
+            diff = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4))))
+            folio, content = diff.crop((0, 0, 1920, 90)).getbbox(), diff.crop((0, 90, 1920, 960)).getbbox()
+            self.assertGreater(folio[1], 16)
+            self.assertLess(abs(folio[0] - content[0]), 8)
+            self.assertLess(folio[3] - folio[1], 40)  # one 11–12px line
             # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
             body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
             self.assertIsNotNone(body)
