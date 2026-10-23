@@ -360,7 +360,22 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
 
 /// Preset CSS: default tokens, then the chosen theme (built-in name or token file), then role styles.
 pub fn preset_css(theme: Option<&str>) -> Result<String> {
-    let overrides = match theme {
+    Ok(format!(":root {{\n{}{}}}\n{ROLE_CSS}", tokens(DEFAULT_THEME, "default")?, overrides(theme)?))
+}
+
+/// Resolved token values (default, then the chosen theme; later wins), for renderers outside CSS.
+pub fn token_values(theme: Option<&str>) -> Result<Vec<(String, String)>> {
+    let css = tokens(DEFAULT_THEME, "default")? + &overrides(theme)?;
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (name, value) in css.lines().filter_map(|l| l.trim().strip_suffix(';')?.split_once(':')) {
+        out.retain(|(n, _)| n != name.trim());
+        out.push((name.trim().to_string(), value.trim().to_string()));
+    }
+    Ok(out)
+}
+
+fn overrides(theme: Option<&str>) -> Result<String> {
+    Ok(match theme {
         // paper is the default look; the name stays as an alias.
         None | Some("default") | Some("paper") => String::new(),
         Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
@@ -381,8 +396,7 @@ pub fn preset_css(theme: Option<&str>) -> Result<String> {
             }
             tokens(&String::from_utf8(source).map_err(|_| format!("theme {path}: not UTF-8"))?, path)?
         }
-    };
-    Ok(format!(":root {{\n{}{overrides}}}\n{ROLE_CSS}", tokens(DEFAULT_THEME, "default")?))
+    })
 }
 
 #[cfg(test)]
