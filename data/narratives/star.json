@@ -1,0 +1,75 @@
+{
+  "id": "star",
+  "name": "STAR (Situation, Task, Action, Result)",
+  "family": "report",
+  "summary": "Tell a case or achievement through its situation, the task faced, the actions taken and the measurable result.",
+  "references": [
+    "Behavioral interviewing method, DDI (Development Dimensions International), 1970s"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "team",
+      "executive",
+      "general"
+    ],
+    "goals": [
+      "report",
+      "inform",
+      "teach"
+    ],
+    "minutes": [
+      3,
+      15
+    ]
+  },
+  "title_style": "Plain label-plus-claim titles, under 12 words.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the case."
+    },
+    {
+      "role": "situation",
+      "purpose": "Situation: the context."
+    },
+    {
+      "role": "problem",
+      "purpose": "Task: what had to be achieved."
+    },
+    {
+      "role": "plan",
+      "purpose": "Action: what was done, step by step.",
+      "repeat": true
+    },
+    {
+      "role": "result",
+      "purpose": "Result: the measurable outcome."
+    },
+    {
+      "role": "lesson",
+      "purpose": "What carries over to the next case.",
+      "optional": true
+    }
+  ],
+  "pitfalls": [
+    "Actions described as 'we' with no clear owner.",
+    "A result with no number or concrete outcome.",
+    "A situation so long the action gets squeezed."
+  ],
+  "example": {
+    "topic": "A fictional retailer's team saving a catalog launch",
+    "outline": [
+      "Case: rescuing the spring catalog launch",
+      "Situation: launch was three weeks away and 40% done",
+      "Task: ship on the original date without overtime",
+      "Action: cut scope to top-selling items first",
+      "Result: launched on time with 90% of items",
+      "Scope cuts beat late nights"
+    ]
+  }
+}

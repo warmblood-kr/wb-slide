@@ -1,0 +1,101 @@
+{
+  "id": "consulting-storyline",
+  "name": "Consulting Storyline (horizontal logic)",
+  "family": "logic",
+  "summary": "A ghost-deck storyline where action titles alone tell the full argument, from context through findings to recommendation and next steps.",
+  "references": [
+    "Barbara Minto, The Pyramid Principle (1987)",
+    "Gene Zelazny, Say It with Charts (1985)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "executive",
+      "team"
+    ],
+    "goals": [
+      "decide",
+      "persuade",
+      "report"
+    ],
+    "minutes": [
+      20,
+      60
+    ]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words. Read in order, the titles alone tell the whole argument.",
+  "density": {
+    "max_bullets": 5,
+    "max_words": 60,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Engagement name and the core question."
+    },
+    {
+      "role": "bluf",
+      "purpose": "Executive summary: the answer in one slide."
+    },
+    {
+      "role": "agenda",
+      "purpose": "Storyline overview."
+    },
+    {
+      "role": "situation",
+      "purpose": "Context the client already accepts."
+    },
+    {
+      "role": "section",
+      "purpose": "Divide the findings section.",
+      "optional": true
+    },
+    {
+      "role": "argument",
+      "purpose": "One finding per slide, each an action title.",
+      "repeat": true
+    },
+    {
+      "role": "evidence",
+      "purpose": "Chart or data supporting each finding.",
+      "repeat": true
+    },
+    {
+      "role": "options",
+      "purpose": "Alternatives assessed."
+    },
+    {
+      "role": "recommendation",
+      "purpose": "The recommended path."
+    },
+    {
+      "role": "risk",
+      "purpose": "Key risks and mitigations."
+    },
+    {
+      "role": "plan",
+      "purpose": "Next steps with owners and dates."
+    }
+  ],
+  "pitfalls": [
+    "Topic titles ('Market overview') instead of action titles.",
+    "Findings that do not lead to the recommendation.",
+    "Charts that do not prove the title above them."
+  ],
+  "example": {
+    "topic": "A fictional grocery chain choosing its next expansion region",
+    "outline": [
+      "Regional growth review: where should we expand next?",
+      "Expand into the coastal region first; it pays back fastest",
+      "Context, findings, options, recommendation, next steps",
+      "Inland stores are near capacity and growing slowly",
+      "What we found",
+      "Coastal demand is underserved by current competitors",
+      "Synthetic survey: coastal shoppers travel 40 minutes to shop",
+      "Coast, north corridor or deeper inland: three paths compared",
+      "Coast wins on payback, risk and fit with our brand",
+      "Seasonal swings are manageable with flexible staffing",
+      "Site selection by spring, first store open by autumn"
+    ]
+  }
+}

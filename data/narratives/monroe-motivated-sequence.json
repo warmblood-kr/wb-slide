@@ -1,0 +1,72 @@
+{
+  "id": "monroe-motivated-sequence",
+  "name": "Monroe's Motivated Sequence",
+  "family": "persuasion",
+  "summary": "Move the audience through attention, need, satisfaction, visualization and action to drive a specific response.",
+  "references": [
+    "Alan H. Monroe, Principles and Types of Speech (1935)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "customer",
+      "team"
+    ],
+    "goals": [
+      "persuade",
+      "sell"
+    ],
+    "minutes": [
+      5,
+      30
+    ]
+  },
+  "title_style": "Direct titles, under 12 words, written to the audience ('you' or 'we').",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "hook",
+      "purpose": "Attention: grab interest with something personal."
+    },
+    {
+      "role": "problem",
+      "purpose": "Need: show the problem affects them."
+    },
+    {
+      "role": "stakes",
+      "purpose": "Need: the cost of leaving it."
+    },
+    {
+      "role": "solution",
+      "purpose": "Satisfaction: the proposal that meets the need."
+    },
+    {
+      "role": "future-state",
+      "purpose": "Visualization: picture life with the solution."
+    },
+    {
+      "role": "ask",
+      "purpose": "Action: the specific step you want now."
+    }
+  ],
+  "pitfalls": [
+    "A need the audience does not feel personally.",
+    "Vague action; name exactly what to do and by when.",
+    "Skipping visualization, which is what makes people act."
+  ],
+  "example": {
+    "topic": "Persuading fictional office staff to back a bike shelter",
+    "outline": [
+      "You walked past three broken bike racks today",
+      "Our staff have nowhere safe to park bikes",
+      "Two bikes stolen this month alone",
+      "A covered, locked bike shelter by the main door",
+      "Picture arriving dry, with your bike still there at five",
+      "Sign the request form before Friday"
+    ]
+  }
+}

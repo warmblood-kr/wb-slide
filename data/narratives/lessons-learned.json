@@ -1,0 +1,87 @@
+{
+  "id": "lessons-learned",
+  "name": "Lessons Learned (blameless postmortem)",
+  "family": "report",
+  "summary": "Review an incident or project without blame: what happened, impact, root causes, what went well, lessons and actions.",
+  "references": [
+    "Google, Site Reliability Engineering, postmortem culture chapter (2016)",
+    "John Allspaw, Blameless PostMortems (2012)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "team",
+      "technical",
+      "executive"
+    ],
+    "goals": [
+      "report",
+      "teach"
+    ],
+    "minutes": [
+      10,
+      45
+    ]
+  },
+  "title_style": "Plain factual titles, under 12 words; describe systems and events, not people.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 50,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the incident and date."
+    },
+    {
+      "role": "bluf",
+      "purpose": "Summary: what happened and the impact."
+    },
+    {
+      "role": "story",
+      "purpose": "Timeline of events.",
+      "layout": "title-list"
+    },
+    {
+      "role": "data-point",
+      "purpose": "Impact in one number.",
+      "optional": true
+    },
+    {
+      "role": "cause",
+      "purpose": "Root and contributing causes."
+    },
+    {
+      "role": "result",
+      "purpose": "Outcomes that held up, measured.",
+      "optional": true
+    },
+    {
+      "role": "lesson",
+      "purpose": "Transferable lessons.",
+      "repeat": true
+    },
+    {
+      "role": "plan",
+      "purpose": "Action items with owners and dates."
+    }
+  ],
+  "pitfalls": [
+    "Naming a person as the cause; look at systems and conditions.",
+    "Action items with no owner or date.",
+    "A timeline so detailed the lessons are lost."
+  ],
+  "example": {
+    "topic": "A fictional online store reviewing a checkout outage",
+    "outline": [
+      "Postmortem: the March order outage",
+      "Orders failed for 47 minutes during the spring sale",
+      "Timeline: alert, rollback attempt, recovery",
+      "About 1,200 orders retried later by customers",
+      "A config change skipped review under deadline pressure",
+      "Alerts fired within one minute",
+      "Deadlines are when review matters most",
+      "Actions: config checks in CI, sale-week freeze"
+    ]
+  }
+}
