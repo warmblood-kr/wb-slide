@@ -156,7 +156,7 @@ class RenderTest(unittest.TestCase):
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 8)
+            self.assertEqual(manifest["slide_count"], 9)
             self.assertIn("가상 레이아웃 소개", manifest["slides"][0]["text"])
             self.assertIn("안녕하세요", manifest["slides"][1]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
@@ -175,7 +175,7 @@ class RenderTest(unittest.TestCase):
             flow = Image.open(self.root / theme / manifest["slides"][7]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
-            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 8)
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 9)
             # layout="cover": the head group sits bottom-left, with no chrome.
             cover = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
             ink = ImageChops.difference(cover, Image.new("RGB", cover.size, cover.getpixel((4, 4)))).getbbox()
@@ -196,6 +196,15 @@ class RenderTest(unittest.TestCase):
             ink = ImageChops.difference(divider, Image.new("RGB", divider.size, INVERSE[theme])).crop((0, 0, 1900, 960)).getbbox()
             self.assertLess(ink[0], 160)
             self.assertLess(ink[1], 200)  # the numeral starts in the top band, well above the title
+            # <wb-quote>: text and attribution; the accent mark hangs left of the text axis (= footer axis), block near mid-height.
+            self.assertIn("한 가지만 말하고", manifest["slides"][8]["text"])
+            self.assertIn("김가상, 합성 팀장", manifest["slides"][8]["text"])
+            quote = Image.open(self.root / theme / manifest["slides"][8]["file"]).convert("RGB")
+            blank = Image.new("RGB", quote.size, quote.getpixel((4, 4)))
+            ink = ImageChops.difference(quote, blank).crop((0, 0, 1920, 960)).getbbox()
+            axis = ImageChops.difference(quote, blank).crop((0, 960, 1920, 1080)).getbbox()[0]
+            self.assertLess(ink[0], axis - 20)
+            self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 80)
             # Bare <wb-slide>: ink is centered on the canvas.
             bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
             ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()

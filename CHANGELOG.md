@@ -6,6 +6,11 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-quote by="Name, role">text</wb-quote>`**: a pull-quote slide (spec `layout: quote` →
+  `slide-quote`; `heading` = quoted text, `subtitle` = attribution, no blocks). Rendered as
+  `<figure><blockquote>` + `<figcaption>`: 32–40px text at `--wb-measure`, accent `“` hung in the left
+  margin, attribution in `--wb-label-size` muted caps, vertically centred. Quotes never become the deck title
+  unless nothing else can. No new token.
 - **`<wb-section number="01">Title</wb-section>`**: a section divider slide (spec `layout: section`,
   new optional slide field `number`, 1–8 characters, section only). A pure divider renders inverse
   (`--wb-inverse-bg`/`--wb-inverse-text`, no longer reserved) with the number large at the top-left in the

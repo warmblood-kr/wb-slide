@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -310,18 +310,25 @@ pub fn compile(markup: &str) -> Result<String> {
                 }
                 slides.push(s);
             }
+            // Pull quote: text only; `by` is the attribution, checked by the spec.
+            Node::El(e) if e.name == "wb-quote" => {
+                let mut s = json!({"layout": "quote", "heading": text_of(&e)?, "blocks": []});
+                if let Ok(by) = attr(&e, "by") {
+                    s["subtitle"] = json!(by.trim());
+                }
+                slides.push(s);
+            }
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
             Node::Text(_) => {}
         }
     }
-    // Deck title: first heading outside section dividers, else any heading, else the first text.
+    // Deck title: first heading outside dividers and quotes, else a section title, else the first text, else a quote.
     let first = slides.first().ok_or("no <wb-slide> found")?;
-    let heading = |skip_sections: bool| {
-        slides.iter().filter(|s| !(skip_sections && s["layout"] == "section")).find_map(|s| s.get("heading"))
-    };
-    let deck_title = heading(true).or_else(|| heading(false)).or_else(|| first_text(&first["blocks"])).cloned();
+    let heading = |skip: &[&str]| slides.iter().filter(|s| !skip.iter().any(|l| s["layout"] == *l)).find_map(|s| s.get("heading"));
+    let deck_title =
+        heading(&["section", "quote"]).or_else(|| heading(&["quote"])).or_else(|| first_text(&first["blocks"])).or_else(|| heading(&[])).cloned();
     let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     if let Some(footer) = footer {
         spec["footer"] = json!(footer);
@@ -445,8 +452,8 @@ mod tests {
         assert_eq!(slides[0].frontmatter[0].1, "slide-cover");
         assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
         // The spec owns the value set.
-        let json = compile("<wb-slide layout=quote><wb-title>T</wb-title></wb-slide>").unwrap();
-        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
+        let json = compile("<wb-slide layout=pull-quote><wb-title>T</wb-title></wb-slide>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote");
         assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
         assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
     }
@@ -472,6 +479,32 @@ mod tests {
             ("<wb-section>장<wb-notes>n</wb-notes></wb-section>", "unexpected <wb-notes>"),
             ("<wb-section layout=cover>장</wb-section>", "unsupported attributes"),
             ("<wb-slide><wb-section>장</wb-section></wb-slide>", "unexpected <wb-section>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn quote_is_a_pull_quote_slide() {
+        let titled = spec("<wb-quote by=\"김 대표\">인용</wb-quote><wb-section>장</wb-section><wb-slide><wb-title>진짜 제목</wb-title>x</wb-slide>");
+        assert_eq!(titled["title"], "진짜 제목");
+        assert_eq!(spec("<wb-quote>인용</wb-quote><wb-section>장</wb-section>")["title"], "장");
+        assert_eq!(spec("<wb-quote>인용</wb-quote><wb-slide>본문</wb-slide>")["title"], "인용");
+        let json = compile("<wb-quote by=\" A &amp; B, CEO \">\n  좋은   &lt;말&gt;\n</wb-quote>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["title"], "좋은 <말>");
+        assert_eq!(s["slides"][0], json!({"layout": "quote", "heading": "좋은 <말>", "subtitle": "A & B, CEO", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>좋은 &lt;말&gt;</p></blockquote><figcaption class=\"wb-quote-by\">A &amp; B, CEO</figcaption></figure>");
+        assert!(spec("<wb-quote>말</wb-quote>")["slides"][0].get("subtitle").is_none());
+        let json = compile("<wb-quote by=\"\">말</wb-quote>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].subtitle: expected 1–2000 characters, not blank");
+        assert!(compile("<wb-quote>말</wb-quote><wb-slide></wb-slide>").unwrap_err().contains("wb-slide[1]: body text is required"));
+        for (m, msg) in [
+            ("<wb-quote> </wb-quote>", "empty <wb-quote> at byte 0"),
+            ("<wb-quote>말<wb-notes>n</wb-notes></wb-quote>", "unexpected <wb-notes>"),
+            ("<wb-quote author=x>말</wb-quote>", "unsupported attributes"),
+            ("<wb-slide><wb-quote>말</wb-quote></wb-slide>", "unexpected <wb-quote>"),
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}");
         }
