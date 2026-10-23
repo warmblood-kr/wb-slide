@@ -1,0 +1,80 @@
+{
+  "id": "minto-pyramid",
+  "name": "Minto Pyramid (answer first, grouped support)",
+  "family": "logic",
+  "summary": "Lead with the governing thought, then support it with a few mutually exclusive key lines, each backed by evidence.",
+  "references": [
+    "Barbara Minto, The Pyramid Principle (1987)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "executive",
+      "team"
+    ],
+    "goals": [
+      "decide",
+      "persuade",
+      "inform"
+    ],
+    "minutes": [
+      5,
+      30
+    ]
+  },
+  "title_style": "Action titles: each title is a full sentence stating the slide's conclusion, under 15 words.",
+  "density": {
+    "max_bullets": 4,
+    "max_words": 50,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the topic as the question being answered."
+    },
+    {
+      "role": "bluf",
+      "purpose": "State the governing thought before anything else."
+    },
+    {
+      "role": "agenda",
+      "purpose": "Preview the three key lines that hold up the answer.",
+      "optional": true
+    },
+    {
+      "role": "argument",
+      "purpose": "One key line per slide, grouped so the lines do not overlap.",
+      "repeat": true
+    },
+    {
+      "role": "evidence",
+      "purpose": "Proof beneath each key line, never above it.",
+      "repeat": true
+    },
+    {
+      "role": "recap",
+      "purpose": "Restate the answer and its key lines as one block."
+    },
+    {
+      "role": "ask",
+      "purpose": "Convert the answer into the decision required."
+    }
+  ],
+  "pitfalls": [
+    "Key lines that overlap or leave gaps; group them so they are distinct and complete.",
+    "Evidence that sits above its claim; the claim always comes first.",
+    "A governing thought that is a topic, not a sentence with a point."
+  ],
+  "example": {
+    "topic": "Should a fictional parts distributor consolidate two warehouses?",
+    "outline": [
+      "Warehouse consolidation: our recommendation",
+      "Merging two warehouses into one cuts costs without slowing delivery",
+      "Three reasons the merger works",
+      "Rent and staffing fall by a third in a single site",
+      "Synthetic model: one site serves 95% of orders within two days",
+      "One site, lower cost, same delivery promise",
+      "Approve the merger plan for next fiscal year"
+    ]
+  }
+}

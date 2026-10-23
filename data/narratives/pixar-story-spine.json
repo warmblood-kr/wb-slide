@@ -1,0 +1,78 @@
+{
+  "id": "pixar-story-spine",
+  "name": "Story Spine (once upon a time ... until finally)",
+  "family": "story",
+  "summary": "Follow a character through routine, disruption, a chain of consequences and a climax to a new normal, then name the moral.",
+  "references": [
+    "Kenn Adams, story spine improv exercise (1991)",
+    "Emma Coats, Pixar story rules (2011)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "team"
+    ],
+    "goals": [
+      "inspire",
+      "teach"
+    ],
+    "minutes": [
+      5,
+      20
+    ]
+  },
+  "title_style": "Story-beat titles: short phrases that follow the spine, such as 'Every day...' or 'Because of that...'.",
+  "density": {
+    "max_bullets": 2,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "character",
+      "purpose": "Once upon a time: who and where."
+    },
+    {
+      "role": "situation",
+      "purpose": "Every day: the routine."
+    },
+    {
+      "role": "complication",
+      "purpose": "Until one day: the disruption."
+    },
+    {
+      "role": "story",
+      "purpose": "Because of that: a chain of consequences.",
+      "repeat": true
+    },
+    {
+      "role": "turning-point",
+      "purpose": "Until finally: the climax."
+    },
+    {
+      "role": "resolution",
+      "purpose": "And ever since then: the new normal."
+    },
+    {
+      "role": "lesson",
+      "purpose": "The moral, in one line."
+    }
+  ],
+  "pitfalls": [
+    "Skipping the routine, so the disruption has no weight.",
+    "Consequences that do not follow from each other.",
+    "Ending without saying what changed for good."
+  ],
+  "example": {
+    "topic": "A fictional hospital ward adopting a nurse's handover checklist",
+    "outline": [
+      "Once there was a night-shift nurse named Mara",
+      "Every night she copied charts by hand",
+      "Until one night a chart was copied wrong",
+      "Because of that, she built a checklist",
+      "Until finally, the whole ward adopted it",
+      "Ever since, no chart has gone missing",
+      "Small fixes spread when they come from the floor"
+    ]
+  }
+}

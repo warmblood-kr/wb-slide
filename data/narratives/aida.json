@@ -1,0 +1,74 @@
+{
+  "id": "aida",
+  "name": "AIDA (Attention, Interest, Desire, Action)",
+  "family": "persuasion",
+  "summary": "A classic sales funnel: capture attention, build interest with relevant detail, create desire with benefits, then ask for action.",
+  "references": [
+    "E. St. Elmo Lewis, advertising funnel model (1898)",
+    "Edward K. Strong, The Psychology of Selling (1925)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "customer",
+      "general"
+    ],
+    "goals": [
+      "sell",
+      "persuade"
+    ],
+    "minutes": [
+      3,
+      15
+    ]
+  },
+  "title_style": "Benefit-led titles, under 10 words, speaking to the buyer.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "hook",
+      "purpose": "Attention: a sharp line that earns attention."
+    },
+    {
+      "role": "problem",
+      "purpose": "Interest: connect to a real situation."
+    },
+    {
+      "role": "how-it-works",
+      "purpose": "Interest: show how it works in brief."
+    },
+    {
+      "role": "benefit",
+      "purpose": "Desire: outcomes the buyer wants.",
+      "repeat": true
+    },
+    {
+      "role": "evidence",
+      "purpose": "Desire: proof that reduces doubt.",
+      "optional": true
+    },
+    {
+      "role": "ask",
+      "purpose": "Action: one clear next step."
+    }
+  ],
+  "pitfalls": [
+    "Features dressed as desire; translate them into outcomes.",
+    "A soft or missing call to action.",
+    "Spending too long on attention before giving substance."
+  ],
+  "example": {
+    "topic": "A fictional smart plant waterer pitched to home buyers",
+    "outline": [
+      "Your plants are thirsty while you are away",
+      "Holidays and busy weeks kill houseplants",
+      "Sensor, reservoir, app: set up in five minutes",
+      "Come home to green leaves, every time",
+      "Synthetic trial: 9 of 10 plants thrived for a month",
+      "Order a starter kit today"
+    ]
+  }
+}
