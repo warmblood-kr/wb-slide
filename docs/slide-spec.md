@@ -50,13 +50,14 @@ Optional slide `layout` picks a layout variant from a closed set:
 | `section` | `slide-section` | divider title left, from mid-height, accent bar; blocks at body size |
 | `quote` | `slide-quote` | pull quote: `heading` is the quoted text, `subtitle` the attribution; no blocks |
 | `split` | `slide-split` | image/text split: slide `image` bleeds to `side`, head and blocks in the other half |
+| `agenda` | `slide-agenda` | head in the left third, one numbered list (3–6 items) in the right two-thirds |
 
 A slide with `layout` requires `heading`, allows `subtitle`, and may have no
 blocks (`blocks` absent or `[]`, at most 64). The body starts with an escaped
 heading group, `<header class="wb-head"><h1 class="wb-head-title">…</h1><p
 class="wb-head-subtitle">…</p></header>` (subtitle only when present), then the
 blocks and notes. Unknown values fail with
-`$.slides[i].layout: expected cover or section or quote or split`; a missing heading with
+`$.slides[i].layout: expected cover or section or quote or split or agenda`; a missing heading with
 `$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
 unchanged.
 
@@ -83,6 +84,12 @@ required for layout split`. The body is `<img class="wb-split-image wb-split-lef
 src="data:…" alt="…">` then the usual head group, blocks and notes. The preset sizes
 the image 45% × 100% at the edge (`object-fit: cover`, no radius), starts the text
 column at 52%, and moves footer/page number to the text side.
+
+`layout: "agenda"` requires exactly one `list` block (`$.slides[i].blocks: expected one
+list block with layout agenda`) with 3–6 items (`$.slides[i].blocks[0].items: expected
+3–6 items with layout agenda`). The body is the usual head group then the list; the
+preset numbers the items `01`–`06` with a CSS counter (accent, tabular), sets them at
+`--wb-subtitle-size` with hairlines between, and places the head in the left third.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|

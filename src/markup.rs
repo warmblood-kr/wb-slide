@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -330,17 +330,31 @@ pub fn compile(markup: &str) -> Result<String> {
                 }
                 slides.push(s);
             }
+            // Agenda: <wb-title> then <wb-item>s, lowered to one list block (numbered by CSS; the spec checks 3–6).
+            Node::El(mut e) if e.name == "wb-agenda" => {
+                let (index, pos) = (slides.len(), e.pos);
+                let (items, rest): (Vec<_>, Vec<_>) = e.kids.into_iter().partition(|k| matches!(k, Node::El(c) if c.name == "wb-item"));
+                let items = items.iter().map(|k| match k { Node::El(c) => text_of(c), _ => unreachable!() }).collect::<Result<Vec<_>>>()?;
+                e.kids = rest;
+                e.attrs.push(("layout".into(), "agenda".into()));
+                let mut s = slide(e, index)?;
+                if s["blocks"] != json!([]) {
+                    return Err(format!("<wb-agenda> at byte {pos} takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>"));
+                }
+                s["blocks"] = json!([{"type": "list", "items": items}]);
+                slides.push(s);
+            }
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
             Node::Text(_) => {}
         }
     }
-    // Deck title: first heading outside dividers and quotes, else a section title, else the first text, else a quote.
+    // Deck title: first heading outside dividers, quotes and agendas, else a section or agenda title, else the first text, else a quote.
     let first = slides.first().ok_or("no <wb-slide> found")?;
     let heading = |skip: &[&str]| slides.iter().filter(|s| !skip.iter().any(|l| s["layout"] == *l)).find_map(|s| s.get("heading"));
     let deck_title =
-        heading(&["section", "quote"]).or_else(|| heading(&["quote"])).or_else(|| first_text(&first["blocks"])).or_else(|| heading(&[])).cloned();
+        heading(&["section", "quote", "agenda"]).or_else(|| heading(&["quote"])).or_else(|| first_text(&first["blocks"])).or_else(|| heading(&[])).cloned();
     let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     if let Some(footer) = footer {
         spec["footer"] = json!(footer);
@@ -465,7 +479,7 @@ mod tests {
         assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
         // The spec owns the value set.
         let json = compile("<wb-slide layout=pull-quote><wb-title>T</wb-title></wb-slide>").unwrap();
-        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split");
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split or agenda");
         assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
         assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
     }
@@ -545,6 +559,35 @@ mod tests {
             ("<wb-slide><wb-split image=a.png alt=a><wb-title>T</wb-title></wb-split></wb-slide>", "unexpected <wb-split>"),
         ] {
             assert!(compile(m).unwrap_err().contains(msg), "{m}: {}", compile(m).unwrap_err());
+        }
+    }
+
+    #[test]
+    fn agenda_is_a_title_beside_numbered_items() {
+        let s = spec("<wb-slide><wb-title>본론</wb-title>x</wb-slide><wb-agenda>\n<wb-title>목차</wb-title>\n<wb-item> 배경 </wb-item>\n<wb-item>A &amp; B</wb-item>\n<wb-item>다음</wb-item>\n<wb-notes>n</wb-notes>\n</wb-agenda>");
+        assert_eq!(s["slides"][1], json!({"layout": "agenda", "heading": "목차", "notes": "n", "blocks": [{"type": "list", "items": ["배경", "A & B", "다음"]}]}));
+        // An agenda title is not the deck title unless nothing else is.
+        assert_eq!(s["title"], "본론");
+        let three = "<wb-item>a</wb-item><wb-item>b</wb-item><wb-item>c</wb-item>";
+        assert_eq!(spec(&format!("<wb-agenda><wb-title>순서</wb-title>{three}</wb-agenda>"))["title"], "순서");
+        let (_, slides) = crate::spec::parse(compile(&format!("<wb-agenda><wb-title>T</wb-title>{three}</wb-agenda>")).unwrap().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-agenda");
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">T</h1></header><ul class=\"wb-list\"><li>a</li><li>b</li><li>c</li></ul>");
+        // The spec owns the count.
+        for n in [2, 7] {
+            let json = compile(&format!("<wb-agenda><wb-title>T</wb-title>{}</wb-agenda>", "<wb-item>x</wb-item>".repeat(n))).unwrap();
+            assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda");
+        }
+        for (m, msg) in [
+            (format!("<wb-agenda>{three}</wb-agenda>"), "wb-agenda[0]: <wb-title> is required with layout"),
+            (format!("<wb-agenda><wb-title>T</wb-title>소개{three}</wb-agenda>"), "<wb-agenda> at byte 0 takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>"),
+            (format!("<wb-agenda><wb-title>T</wb-title><wb-list>{three}</wb-list></wb-agenda>"), "takes only <wb-title>"),
+            (format!("<wb-agenda><wb-title>T</wb-title>{three}<wb-item> </wb-item></wb-agenda>"), "empty <wb-item>"),
+            (format!("<wb-agenda><wb-title>T</wb-title><wb-item>a<wb-stat value=1>x</wb-stat></wb-item></wb-agenda>"), "unexpected <wb-stat>"),
+            (format!("<wb-agenda layout=cover><wb-title>T</wb-title>{three}</wb-agenda>"), "unsupported attributes"),
+            (format!("<wb-slide><wb-agenda><wb-title>T</wb-title>{three}</wb-agenda></wb-slide>"), "unexpected <wb-agenda>"),
+        ] {
+            assert!(compile(&m).unwrap_err().contains(msg), "{m}: {}", compile(&m).unwrap_err());
         }
     }
 

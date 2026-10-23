@@ -23,9 +23,10 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | `<wb-section number="…">Title</wb-section>` | `number` (optional; 1–8 characters, e.g. `01`) | top level; text only, one collapsed line (the title) | one section-divider slide (`layout: section`, `heading`, `number`, no blocks) |
 | `<wb-quote by="…">Text</wb-quote>` | `by` (optional; attribution, e.g. `Name, role`) | top level; text only, one collapsed line (≤25 words) | one pull-quote slide (`layout: quote`, `heading` = text, `subtitle` = `by`, no blocks) |
 | `<wb-split image="…" alt="…" side="…">` | `image`, `alt` (both required, non-blank), `side` (optional: `left` default, or `right`) | top level; `<wb-title>` first, then the same content as `<wb-slide>` | one image/text split slide (`layout: split`, slide `image` {`src`,`alt`}, `side`) |
+| `<wb-agenda>` | none | top level; `<wb-title>` first, optional `<wb-subtitle>`, then 3–6 `<wb-item>`s and optional `<wb-notes>`; no other text or tags | one agenda slide (`layout: agenda`, one `list` block of the items) |
 | `<wb-title>` | none | first child of a slide | `heading` (title-top layout) |
 | `<wb-subtitle>` | none | directly after `<wb-title>` | `subtitle` |
-| `<wb-list>` / `<wb-item>` | none | body; list holds only items, items hold only text | `list` block |
+| `<wb-list>` / `<wb-item>` | none | body; list holds only items, items hold only text (`<wb-agenda>` takes `<wb-item>`s directly) | `list` block |
 | `<wb-card label="…">` | `label` (optional; if present, non-blank) | body; text only, blank lines split paragraphs (≤16) | `panel` block |
 | `<wb-callout tone="…">` | `tone` (required; `info` or `warning`) | body; text only, blank lines split paragraphs (≤16) | `callout` block |
 | `<wb-stat value="…">caption</wb-stat>` | `value` (required, non-blank), `note` (optional; if present, non-blank) | body; text only, one collapsed line (the caption); needs `</wb-stat>` | `kpi` block (`value`, caption → `label`, `note`) |
@@ -38,7 +39,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 
 ## 3. Nesting and ordering rules
 
-- Top level holds only `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>`, `<wb-footer>`, whitespace and comments. No stray text.
+- Top level holds only `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>`, `<wb-agenda>`, `<wb-footer>`, whitespace and comments. No stray text.
 - `<wb-title>` must be the first element in a slide; `<wb-subtitle>` only right after it.
 - No `<wb-title>` → the slide body is centered on both axes. A subtitle without a title is an error.
 - Every slide needs body content. A title alone fails, unless the slide has `layout`.
@@ -46,6 +47,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `<wb-section>`: a pure divider: inverse colours (`--wb-inverse-*`), the `number` large in `--wb-inverse-accent` at the top-left, the title at left from mid-height, footer and page number kept. Text only: no child tags (no `<wb-notes>`). A `layout="section"` slide with only a title (and subtitle) gets the same inverse look; one with body keeps the deck colours.
 - `<wb-quote>`: one quotation, ≤25 words, vertically centred on the left axis with an accent mark hung in the margin; `by` shows under it in small muted caps. Text only: no child tags, no quote marks of your own (the slide draws them). Use `<wb-quote>`, not `<wb-slide layout="quote">`.
 - `<wb-split>`: the image fills 45% of the width at full height on `side` (edge to edge, cropped to fill, square corners); title and body sit top-aligned in the other half (from 52%). Footer and page number move to the text side. Requires `<wb-title>` first; `<wb-subtitle>`, body and `<wb-notes>` as in `<wb-slide>`. The text column is ~400px wide: keep it to a title of ≤12 words and ≤3 short paragraphs or a ≤5-item list; avoid `<wb-columns>` (too narrow). The image counts toward the 8-image limit and follows the image `src` rules below. Use a photo or full-frame picture; a wide diagram gets cropped (use `<wb-image>` for diagrams).
+- `<wb-agenda>`: title in the left third, the items in the right two-thirds, numbered `01`–`06` in the accent (the slide draws the numbers: do not write them), a hairline between items. 3–6 `<wb-item>`s, each one line of ≤8 words (a long item wraps to two lines). Put the items directly in `<wb-agenda>`, not in a `<wb-list>`. Requires `<wb-title>` first (e.g. `목차`, `Agenda`).
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards, callouts, stats or columns.
@@ -55,7 +57,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `<wb-section>`, `<wb-quote>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
 - Only the tags above with only their listed attributes. Any other tag (`<p>`, `<b>`, `<svg>`…), attribute (`class`, `style`, `alt` on a card…) or self-closing tag except `<wb-image />` is an error (`<wb-stat />`, `<wb-callout />` included).
-- Deck title (not shown on slides) = the first `<wb-title>` outside section and quote slides (`<wb-section>`, `layout="section"`, `<wb-quote>`); else the first section title; else the first non-blank string in the first slide; else the first quote.
+- Deck title (not shown on slides) = the first `<wb-title>` outside section, quote and agenda slides (`<wb-section>`, `layout="section"`, `<wb-quote>`, `<wb-agenda>`); else the first section or agenda title; else the first non-blank string in the first slide; else the first quote.
 - Image `src` (and `<wb-split image>`): plain `dir/file.ext` under the markup file's directory. No leading `./`, no `/`-absolute path, no `..`, no `:` or `\`. The file must exist as a regular file and must not resolve (via symlinks) outside that directory. Types `.png .jpg .jpeg .webp .svg` (any case).
 
 ## 4. Limits
@@ -63,7 +65,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - Markup: 64 KiB, UTF-8, nesting depth 8. The compiled spec JSON is also capped at 64 KiB (`$: spec exceeds 64 KiB`): split a deck that hits it.
 - Slides: 1–20 per deck.
 - Blocks: 1–64 per slide or column (0–64 on a slide with `layout`); at most 64 leaf blocks per slide, columns included.
-- List items: 1–16. Card and callout paragraphs: 1–16.
+- List items: 1–16 (agenda: 3–6). Card and callout paragraphs: 1–16.
 - Section `number`: 1–8 characters, not blank.
 - Every string (title, item, paragraph, label, caption, value, note, alt, notes): 1–2000 characters, not blank.
 - Footer: at most 200 characters.
@@ -87,9 +89,10 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-stat> at byte N needs value="…"` / `<wb-callout> at byte N needs tone="…"` | Add the attribute. |
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
 | `cannot read markup: …` | Fix the input path. |
-| `wb-slide[I]: body text is required` | Add body to slide I (0-based; `<wb-section>`, `<wb-quote>` and `<wb-split>` slides count). |
-| `wb-slide[I]: <wb-title> is required with layout at byte N` / `wb-split[I]: …` | Put a `<wb-title>` first in that slide, or drop `layout`. |
+| `wb-slide[I]: body text is required` | Add body to slide I (0-based; `<wb-section>`, `<wb-quote>`, `<wb-split>` and `<wb-agenda>` slides count). |
+| `wb-slide[I]: <wb-title> is required with layout at byte N` / `wb-split[I]: …` / `wb-agenda[I]: …` | Put a `<wb-title>` first in that slide, or drop `layout`. |
 | `<wb-split> at byte N needs image="…"` / `needs alt="…"` | Add the attribute. |
+| `<wb-agenda> at byte N takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>` | Move other text or tags out; one `<wb-item>` per agenda line. |
 | `no <wb-slide> found` | Add a slide. |
 | `nesting deeper than 8 at byte N` / `markup exceeds 64 KiB` | Flatten or shorten. |
 | `markup error at byte N: …` | Malformed syntax at N. Write a literal `<` as `&lt;`, `&` as `&amp;`. |
@@ -100,13 +103,13 @@ e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns ca
 `…items: expected 1–16 items`, `…: expected 1–2000 characters, not blank`,
 `…label: expected 1–2000 characters, not blank` (empty `label=""`/`alt=""`), `$.footer: expected at most 200 characters`,
 `…tone: expected info or warning` (a `<wb-callout tone>` other than `info`/`warning`),
-`$.slides[I].layout: expected cover or section or quote or split` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`, splits `<wb-split>`), `$.slides[I].side: expected left or right` (fix `<wb-split side>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
+`$.slides[I].layout: expected cover or section or quote or split or agenda` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`, splits `<wb-split>`, agendas `<wb-agenda>`), `$.slides[I].blocks[0].items: expected 3–6 items with layout agenda` (give `<wb-agenda>` 3–6 `<wb-item>`s), `$.slides[I].side: expected left or right` (fix `<wb-split side>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
 `$.slides[I].subtitle: expected 1–2000 characters, not blank` (an empty `<wb-quote by="">`: fill or drop `by`),
 `$.slides[I].number: expected 1–8 characters, not blank` (shorten or fill `<wb-section number>`).
 Image errors on `…src` (`$.slides[I].image.src` for `<wb-split image>`): `expected a relative local path without .. or a scheme`, `cannot read image: …`,
 `expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
 `image resolves outside the spec directory`, `at most 8 images per deck`.
-Slide I is the I-th `<wb-slide>`, `<wb-section>`, `<wb-quote>` or `<wb-split>` counting from 0. The render manifest counts from 1 (`index`, `slide-001.png`): manifest slide N is error slide N−1.
+Slide I is the I-th `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>` or `<wb-agenda>` counting from 0. The render manifest counts from 1 (`index`, `slide-001.png`): manifest slide N is error slide N−1.
 
 **Repair loop**
 1. Run `export`. On a nonzero exit, read the message, fix only the named spot (byte N or slide/field path), rerun.
