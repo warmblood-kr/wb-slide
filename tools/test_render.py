@@ -146,7 +146,7 @@ class RenderTest(unittest.TestCase):
 
     def test_markup_preset_themes_apply(self):
         corners = {}
-        for theme in ["default", "night"]:
+        for theme in ["classic", "default", "night", "graphite", "signal"]:
             output = self.root / f"{theme}.html"
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
@@ -156,12 +156,14 @@ class RenderTest(unittest.TestCase):
             self.assertIn("가상 시범 운영 검토", manifest["slides"][1]["text"])
             self.assertTrue(all("합성 자료" in s["text"] for s in manifest["slides"]))
             self.assertIn("기능 확인용 합성 자료", manifest["slides"][1]["text"])
+            self.assertIn("원격 주소는 오류", manifest["slides"][4]["text"])
             self.assertEqual(manifest["slides"][1]["notes"], "청중에게 합성 자료임을 먼저 알립니다.")
             self.assertNotIn("청중에게", manifest["slides"][1]["text"])
             self.assertEqual(manifest["slides"][0]["notes"], "")
             self.assertIn("카드와 단 나누기", manifest["slides"][2]["text"])
             self.assertIn("라벨이 붙은 패널", manifest["slides"][2]["text"])
             self.assertIn("준비 6주", manifest["slides"][3]["text"])
+            self.assertIn("+38%", manifest["slides"][3]["text"])
             # The local SVG is embedded and painted: its solid #2563EB box shows up.
             flow = Image.open(self.root / theme / manifest["slides"][4]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
@@ -178,10 +180,17 @@ class RenderTest(unittest.TestCase):
             # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
             body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
             self.assertIsNotNone(body)
-            self.assertGreater(body[1], 120)
+            # The study themes hang the body from the top axis (--wb-vertical: start).
+            if theme in ("classic", "night"):
+                self.assertGreater(body[1], 120)
+            else:
+                self.assertLess(body[1], 60)
             corners[theme] = png.getpixel((4, 4))
-        self.assertEqual(corners["default"], (255, 255, 255))
+        self.assertEqual(corners["classic"], (255, 255, 255))
+        self.assertEqual(corners["default"], (0xF5, 0xF2, 0xEA))
         self.assertEqual(corners["night"], (0x11, 0x18, 0x27))
+        self.assertEqual(corners["graphite"], (0x0B, 0x0C, 0x0E))
+        self.assertEqual(corners["signal"], (0x3B, 0x2B, 0xDB))
 
     def check(self, source):
         result = subprocess.run([sys.executable, ROOT / "tools/render.py", source, "--output", self.root / "checked",
