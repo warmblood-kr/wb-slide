@@ -4,8 +4,10 @@
 use serde_json::{Map, Value};
 
 mod cycle;
+mod fishbone;
 mod hub;
 mod quadrant;
+mod timeline;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -14,7 +16,7 @@ pub const H: f64 = 360.0;
 pub const PAD: f64 = 24.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant", "hub", "cycle"];
+pub const TYPES: &[&str] = &["quadrant", "hub", "cycle", "timeline", "fishbone"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
@@ -24,6 +26,8 @@ pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
         "quadrant" => quadrant::draw(data, &mut svg)?,
         "hub" => hub::draw(data, &mut svg)?,
         "cycle" => cycle::draw(data, &mut svg)?,
+        "timeline" => timeline::draw(data, &mut svg)?,
+        "fishbone" => fishbone::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
