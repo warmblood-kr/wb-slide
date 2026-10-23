@@ -297,7 +297,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
         .enumerate()
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
-            let s = object(v, &p, &["layout", "heading", "subtitle", "blocks", "notes"])?;
+            let s = object(v, &p, &["layout", "heading", "subtitle", "number", "blocks", "notes"])?;
             let layout = optional(s, "layout", &p)?
                 .map(|name| {
                     LAYOUTS.iter().find(|(n, _)| *n == name).map(|(_, l)| *l).ok_or_else(|| {
@@ -308,6 +308,16 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
                 .transpose()?;
             let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
+            // Section number ("01"): a short label shown over the divider title.
+            let short = |n: String| (n.chars().count() <= 8).then_some(n);
+            let number = match optional(s, "number", &p).map(|n| n.map(short)) {
+                Ok(None) => None,
+                Ok(Some(Some(n))) => Some(n),
+                _ => return Err(error(&format!("{p}.number"), "expected 1–8 characters, not blank")),
+            };
+            if number.is_some() && layout != Some("slide-section") {
+                return Err(error(&format!("{p}.number"), "requires layout section"));
+            }
             // A variant may have no blocks: absent or [] means none.
             let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
             let mut body_html = if layout.is_some() && no_blocks {
@@ -325,7 +335,8 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
                     error(&format!("{p}.heading"), &format!("required for layout {}", s["layout"].as_str().unwrap()))
                 })?;
                 let sub = subtitle.map_or(String::new(), |t| format!("<p class=\"wb-head-subtitle\">{}</p>", escape(&t)));
-                let head = format!("<header class=\"wb-head\"><h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading));
+                let num = number.map_or(String::new(), |n| format!("<span class=\"wb-head-number\">{}</span>", escape(&n)));
+                let head = format!("<header class=\"wb-head\">{num}<h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading));
                 return Ok(Slide {
                     frontmatter: vec![("layout".into(), layout.into())],
                     body_html: head + &body_html,
@@ -557,6 +568,22 @@ mod tests {
         assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">장</h1></header>");
         v["slides"][0].as_object_mut().unwrap().remove("blocks");
         assert!(parse(v.to_string().as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn section_number_heads_the_divider() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "section", "heading": "장", "number": "<01>"});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><span class=\"wb-head-number\">&lt;01&gt;</span><h1 class=\"wb-head-title\">장</h1></header>");
+        for (n, msg) in [(json!("123456789"), "expected 1–8 characters, not blank"), (json!(" "), "expected 1–8 characters, not blank"), (json!(1), "expected 1–8 characters, not blank")] {
+            v["slides"][0]["number"] = n;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), format!("$.slides[0].number: {msg}"));
+        }
+        for slide in [json!({"layout": "cover", "heading": "h", "number": "01"}), json!({"heading": "h", "number": "01", "blocks": [{"type":"text","text":"x"}]})] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].number: requires layout section");
+        }
     }
 
     #[test]

@@ -6,6 +6,10 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-section number="01">Title</wb-section>`**: a section divider slide (spec `layout: section`,
+  new optional slide field `number`, 1–8 characters, section only). A pure divider renders inverse
+  (`--wb-inverse-bg`/`--wb-inverse-text`, no longer reserved) with the number large at the top-left in the
+  new token `--wb-inverse-accent`; a section slide with body keeps the deck colours.
 - **The default markup theme is now the design study's warm "paper" look** (alias `paper`); the earlier
   white default is `--theme classic`. New built-in themes `graphite` and `signal`, new tokens
   `--wb-title-tracking`, `--wb-title-leading`, `--wb-measure`, `--wb-stat-size`, `--wb-label-size`,

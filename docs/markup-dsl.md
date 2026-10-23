@@ -92,8 +92,11 @@ The study themes (`default`/`paper`, `graphite`, `signal`) follow the design stu
 - tight titles (`--wb-title-tracking`, `--wb-title-leading`);
 - body text capped at a 60% measure (`--wb-measure`);
 - the body hung from the top axis (`--wb-vertical: start`).
-`--wb-label-size` sizes card labels. `--wb-stat-size` and `--wb-inverse-bg`/`--wb-inverse-text` are reserved
-for the stat and section patterns (next PRs); no rule reads them yet. `classic` and `night` keep the earlier look.
+`--wb-label-size` sizes card labels. A pure section divider (`<wb-section>`, or a `layout: section` slide with
+only its head) is an inverse slide: `--wb-inverse-bg`/`--wb-inverse-text`, with `--wb-inverse-accent` for the
+accent bar or the section `number`, which is set at `--wb-stat-size` top-left. The inverse accent is a separate
+token because the deck accent can fail on the inverse ground (signal's accent *is* its inverse background;
+night's amber is 2.1:1 on its light inverse); each built-in sets it to ≥4.5:1. `classic` and `night` keep the earlier look.
 
 **Alternate theme example.** The `night` theme is built in (`--theme night`).
 A custom theme is a token file. This one overrides only some tokens and
@@ -128,6 +131,7 @@ Rendered samples: `samples/markup/default.png`, `classic.png`, `night.png`, `gra
 - `<wb-notes>text</wb-notes>` sits directly inside a `<wb-slide>`, at most once. It takes plain text only (whitespace collapses, entities decode) and becomes that slide's spec `notes`: hidden on the slide, listed in the render manifest. A line holding only `<wb-notes>` does not split a paragraph. Notes stay readable in the HTML source, so keep secrets out.
 - A slide without `<wb-title>` shows its body centered on both axes (`<wb-slide>hello</wb-slide>`). It maps to a spec slide without `heading`, which renders with `slide-section`. The preset sizes this text with `--wb-center-size`.
 - `<wb-slide layout="cover|section">` passes `layout` to the spec (see `docs/slide-spec.md`). Such a slide must start with `<wb-title>` (`wb-slide[I]: <wb-title> is required with layout at byte N`), may have a `<wb-subtitle>`, and may have an empty body. The value itself is checked by the spec (`$.slides[I].layout: expected cover or section`), which owns the closed set, so markup needs no change per variant.
+- `<wb-section number="01">Title</wb-section>` is a top-level sibling of `<wb-slide>`: text only (the title), no child tags. It lowers to `{"layout": "section", "heading": Title, "number": "01", "blocks": []}`; `number` is optional and the spec checks it (1–8 characters, only with layout `section`). It counts as a slide in `wb-slide[I]` error indices.
 - Remaining text becomes body. Whitespace collapses as in HTML, and blank-line-separated runs become separate `text` blocks.
 - Deck `title` is the first heading. If no slide has a heading, it is the first slide's first text.
 - Markup input is limited to 64 KiB and 8 levels of nesting. Both limits are checked before compiling, and the spec's own limits still apply afterwards.

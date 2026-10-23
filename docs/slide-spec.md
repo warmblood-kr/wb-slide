@@ -58,6 +58,12 @@ blocks and notes. Unknown values fail with
 `$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
 unchanged.
 
+Optional slide `number` (1–8 characters, not blank, e.g. `"01"`) is allowed only
+with `layout: "section"` (`$.slides[i].number: requires layout section`). It is
+emitted escaped first in the head group, `<span class="wb-head-number">01</span>`,
+and shown large in the accent at the top-left. A section slide with no blocks
+renders inverse (`--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`).
+
 | Block type | Required fields | Optional fields |
 |---|---|---|
 | text | text | none |

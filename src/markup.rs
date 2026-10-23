@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -302,6 +302,14 @@ pub fn compile(markup: &str) -> Result<String> {
     for node in tree(markup)? {
         match node {
             Node::El(e) if e.name == "wb-slide" => slides.push(slide(e, slides.len())?),
+            // Section divider: title text only; the spec checks the number.
+            Node::El(e) if e.name == "wb-section" => {
+                let mut s = json!({"layout": "section", "heading": text_of(&e)?, "blocks": []});
+                if let Ok(number) = attr(&e, "number") {
+                    s["number"] = json!(number.trim());
+                }
+                slides.push(s);
+            }
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
@@ -424,6 +432,29 @@ mod tests {
         assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
         assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
         assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
+    }
+
+    #[test]
+    fn section_is_a_numbered_divider() {
+        let json = compile("<wb-section number=\" 01 \">\n  첫   장\n</wb-section><wb-slide>x</wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["title"], "첫 장");
+        assert_eq!(s["slides"][0], json!({"layout": "section", "heading": "첫 장", "number": "01", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert!(slides[0].body_html.starts_with("<header class=\"wb-head\"><span class=\"wb-head-number\">01</span>"));
+        assert!(spec("<wb-section>장</wb-section>")["slides"][0].get("number").is_none());
+        // Slide indices in errors count sections too.
+        assert!(compile("<wb-section>장</wb-section><wb-slide></wb-slide>").unwrap_err().contains("wb-slide[1]: body text is required"));
+        let json = compile("<wb-section number=\"123456789\">장</wb-section>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].number: expected 1–8 characters, not blank");
+        for (m, msg) in [
+            ("<wb-section> </wb-section>", "empty <wb-section> at byte 0"),
+            ("<wb-section>장<wb-notes>n</wb-notes></wb-section>", "unexpected <wb-notes>"),
+            ("<wb-section layout=cover>장</wb-section>", "unsupported attributes"),
+            ("<wb-slide><wb-section>장</wb-section></wb-slide>", "unexpected <wb-section>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
     }
 
     #[test]
