@@ -1,0 +1,82 @@
+{
+  "id": "tell-show-tell",
+  "name": "Tell, Show, Tell",
+  "family": "report",
+  "summary": "Tell them what you will say, say it with examples, then tell them what you said; ideal for teaching and retention.",
+  "references": [
+    "Folk speechwriting maxim: tell them what you will tell them, tell them, tell them what you told them"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "team",
+      "general",
+      "technical",
+      "academic"
+    ],
+    "goals": [
+      "teach",
+      "inform"
+    ],
+    "minutes": [
+      10,
+      60
+    ]
+  },
+  "title_style": "Plain descriptive titles, under 10 words, mirroring the agenda wording.",
+  "density": {
+    "max_bullets": 5,
+    "max_words": 50,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "title",
+      "purpose": "Name the lesson."
+    },
+    {
+      "role": "agenda",
+      "purpose": "Tell: what you will cover."
+    },
+    {
+      "role": "section",
+      "purpose": "Mark each part.",
+      "repeat": true,
+      "optional": true
+    },
+    {
+      "role": "argument",
+      "purpose": "Show: one point per slide.",
+      "repeat": true
+    },
+    {
+      "role": "evidence",
+      "purpose": "Show: a worked example.",
+      "repeat": true
+    },
+    {
+      "role": "recap",
+      "purpose": "Tell: what you covered."
+    },
+    {
+      "role": "close",
+      "purpose": "One line to remember."
+    }
+  ],
+  "pitfalls": [
+    "An agenda and recap that do not match the body.",
+    "Recap that adds new content.",
+    "Too many points to fit three tells."
+  ],
+  "example": {
+    "topic": "Training fictional new testers to write bug reports",
+    "outline": [
+      "Writing clear bug reports",
+      "Three parts: steps, expected, actual",
+      "Part one: steps to reproduce",
+      "Number every step, one action each",
+      "Example: a vague report rewritten",
+      "Steps, expected, actual: every time",
+      "If they can repeat it, they can fix it"
+    ]
+  }
+}
