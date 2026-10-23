@@ -7,7 +7,13 @@ type Result<T> = std::result::Result<T, String>;
 
 const ROLE_CSS: &str = include_str!("../framework/presets/slide.css");
 const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.css");
-const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
+/// Built-in themes beside default; each sets every token.
+const THEMES: &[(&str, &str)] = &[
+    ("night", include_str!("../framework/presets/themes/night.css")),
+    ("classic", include_str!("../framework/presets/themes/classic.css")),
+    ("graphite", include_str!("../framework/presets/themes/graphite.css")),
+    ("signal", include_str!("../framework/presets/themes/signal.css")),
+];
 const MAX_THEME_BYTES: usize = 8 * 1024;
 const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
@@ -318,10 +324,21 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
 /// Preset CSS: default tokens, then the chosen theme (built-in name or token file), then role styles.
 pub fn preset_css(theme: Option<&str>) -> Result<String> {
     let overrides = match theme {
-        None | Some("default") => String::new(),
-        Some("night") => tokens(NIGHT_THEME, "night")?,
+        // paper is the default look; the name stays as an alias.
+        None | Some("default") | Some("paper") => String::new(),
+        Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
+            tokens(THEMES.iter().find(|(n, _)| *n == name).unwrap().1, name)?
+        }
         Some(path) => {
-            let source = std::fs::read(path).map_err(|e| format!("cannot read theme {path}: {e}"))?;
+            let source = std::fs::read(path).map_err(|e| {
+                // A bare word is almost always a mistyped built-in name, not a file.
+                if !path.contains('/') && !path.ends_with(".css") {
+                    let names: Vec<_> = THEMES.iter().map(|(n, _)| *n).collect();
+                    format!("unknown theme {path}: use paper, {} or a token file path", names.join(", "))
+                } else {
+                    format!("cannot read theme {path}: {e}")
+                }
+            })?;
             if source.len() > MAX_THEME_BYTES {
                 return Err(format!("theme {path} exceeds 8 KiB"));
             }
@@ -334,6 +351,13 @@ pub fn preset_css(theme: Option<&str>) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_theme_name_lists_built_ins() {
+        let err = preset_css(Some("papr")).unwrap_err();
+        assert!(err.contains("unknown theme papr") && err.contains("graphite"), "{err}");
+        assert!(preset_css(Some("./nope.css")).unwrap_err().contains("cannot read theme"));
+    }
 
     fn spec(m: &str) -> serde_json::Value {
         serde_json::from_str(&compile(m).unwrap()).unwrap()
@@ -509,12 +533,16 @@ mod tests {
     #[test]
     fn preset_defaults_and_theme_override() {
         let css = preset_css(None).unwrap();
-        assert!(css.contains("--wb-title-size: 32px;") && css.contains("--wb-font: Pretendard"));
+        assert!(css.contains("--wb-title-size: 40px;") && css.contains("--wb-font: Pretendard"));
         assert!(css.contains(".ms-slide-title") && css.contains("var(--wb-title-size)"));
         let night = preset_css(Some("night")).unwrap();
         // Overrides come after defaults inside :root, so the later value wins.
-        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 32px;").unwrap());
-        assert!(tokens(NIGHT_THEME, "night").unwrap().lines().count() == token_names().len());
+        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 40px;").unwrap());
+        for (name, source) in THEMES {
+            assert_eq!(tokens(source, name).unwrap().lines().count(), token_names().len(), "{name}");
+        }
+        assert_eq!(preset_css(Some("paper")).unwrap(), css);
+        assert!(preset_css(Some("classic")).unwrap().contains("--wb-title-size: 32px;"));
         assert!(tokens("--wb-vertical: start;", "t").is_ok());
         for (bad, msg) in [
             ("--wb-bg: url(http://x);", "must be plain"),
