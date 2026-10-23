@@ -16,7 +16,7 @@ const MAX_BYTES: usize = 64 * 1024;
 
 /// Slide layout variants: spec name -> framework layout. A new variant is one row
 /// here plus one CSS block in `framework/presets/slide.css`.
-const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section")];
+const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote")];
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
 
@@ -320,6 +320,9 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
             }
             // A variant may have no blocks: absent or [] means none.
             let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
+            if layout == Some("slide-quote") && !no_blocks {
+                return Err(error(&format!("{p}.blocks"), "not allowed with layout quote"));
+            }
             let mut body_html = if layout.is_some() && no_blocks {
                 String::new()
             } else {
@@ -334,9 +337,15 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
                 let heading = heading.ok_or_else(|| {
                     error(&format!("{p}.heading"), &format!("required for layout {}", s["layout"].as_str().unwrap()))
                 })?;
-                let sub = subtitle.map_or(String::new(), |t| format!("<p class=\"wb-head-subtitle\">{}</p>", escape(&t)));
+                let sub = subtitle.as_ref().map_or(String::new(), |t| format!("<p class=\"wb-head-subtitle\">{}</p>", escape(&t)));
                 let num = number.map_or(String::new(), |n| format!("<span class=\"wb-head-number\">{}</span>", escape(&n)));
-                let head = format!("<header class=\"wb-head\">{num}<h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading));
+                let head = if layout == "slide-quote" {
+                    // Quote: heading is the quoted text, subtitle its attribution (outside the blockquote).
+                    let by = subtitle.map_or(String::new(), |t| format!("<figcaption class=\"wb-quote-by\">{}</figcaption>", escape(&t)));
+                    format!("<figure class=\"wb-quote\"><blockquote><p>{}</p></blockquote>{by}</figure>", escape(&heading))
+                } else {
+                    format!("<header class=\"wb-head\">{num}<h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading))
+                };
                 return Ok(Slide {
                     frontmatter: vec![("layout".into(), layout.into())],
                     body_html: head + &body_html,
@@ -587,10 +596,30 @@ mod tests {
     }
 
     #[test]
+    fn quote_is_a_figure_with_attribution() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "quote", "heading": "<좋은> 말", "subtitle": "A & B, CEO"});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-quote".to_string())]);
+        assert_eq!(slides[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>&lt;좋은&gt; 말</p></blockquote><figcaption class=\"wb-quote-by\">A &amp; B, CEO</figcaption></figure>");
+        v["slides"][0] = json!({"layout": "quote", "heading": "말"});
+        assert_eq!(parse(v.to_string().as_bytes()).unwrap().1[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>말</p></blockquote></figure>");
+        for (slide, msg) in [
+            (json!({"layout": "quote"}), "$.slides[0].heading: required for layout quote"),
+            (json!({"layout": "quote", "heading": "말", "subtitle": " "}), "$.slides[0].subtitle: expected 1–2000 characters, not blank"),
+            (json!({"layout": "quote", "heading": "말", "number": "01"}), "$.slides[0].number: requires layout section"),
+            (json!({"layout": "quote", "heading": "말", "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].blocks: not allowed with layout quote"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), msg);
+        }
+    }
+
+    #[test]
     fn layout_errors() {
         let mut v = base();
-        v["slides"][0]["layout"] = json!("quote");
-        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
+        v["slides"][0]["layout"] = json!("pull-quote");
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote");
         v["slides"][0] = json!({"layout": "cover", "blocks": [{"type":"text","text":"x"}]});
         assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].heading: required for layout cover");
         // Without a layout, blocks stay required (1–64).

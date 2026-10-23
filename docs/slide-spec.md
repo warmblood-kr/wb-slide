@@ -48,13 +48,14 @@ Optional slide `layout` picks a layout variant from a closed set:
 |---|---|---|
 | `cover` | `slide-cover` (no chrome) | title group bottom-left, accent bar above the title |
 | `section` | `slide-section` | divider title left, from mid-height, accent bar; blocks at body size |
+| `quote` | `slide-quote` | pull quote: `heading` is the quoted text, `subtitle` the attribution; no blocks |
 
 A slide with `layout` requires `heading`, allows `subtitle`, and may have no
 blocks (`blocks` absent or `[]`, at most 64). The body starts with an escaped
 heading group, `<header class="wb-head"><h1 class="wb-head-title">…</h1><p
 class="wb-head-subtitle">…</p></header>` (subtitle only when present), then the
 blocks and notes. Unknown values fail with
-`$.slides[i].layout: expected cover or section`; a missing heading with
+`$.slides[i].layout: expected cover or section or quote`; a missing heading with
 `$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
 unchanged.
 
@@ -63,6 +64,14 @@ with `layout: "section"` (`$.slides[i].number: requires layout section`). It is
 emitted escaped first in the head group, `<span class="wb-head-number">01</span>`,
 and shown large in the accent at the top-left. A section slide with no blocks
 renders inverse (`--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`).
+
+`layout: "quote"` takes no blocks (`$.slides[i].blocks: not allowed with layout
+quote`). Its body is `<figure class="wb-quote"><blockquote><p>heading</p></blockquote>
+<figcaption class="wb-quote-by">subtitle</figcaption></figure>` (escaped; the
+figcaption only with a subtitle), with no heading group. The preset sets the text at
+32–40px (from `--wb-title-size`) within `--wb-measure`, hangs an accent `“` in the
+left margin, sets the attribution in `--wb-label-size` muted caps, and centres the
+figure vertically, slightly high.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|

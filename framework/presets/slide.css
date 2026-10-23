@@ -70,6 +70,14 @@
 /* Section number ("01"): large accent numeral at the top-left of the safe area; it replaces the accent bar. */
 .wb-head-number { position: absolute; top: var(--wb-safe-y); left: var(--wb-safe-x); font-size: var(--wb-stat-size); font-weight: var(--wb-title-weight); line-height: 1; letter-spacing: var(--wb-title-tracking); color: var(--wb-accent); font-variant-numeric: tabular-nums; }
 .wb-head:has(> .wb-head-number)::before { display: none; }
+/* quote: one statement at 60% measure, vertically centred (nudged above centre), on the left axis.
+   The accent mark hangs in the left margin so the text keeps the axis; attribution in small muted caps. */
+.ms-quote-layout { padding: var(--wb-safe-y) var(--wb-safe-x) calc(var(--wb-safe-y) * 2); gap: 0; place-items: center start; }
+.wb-quote { margin: 0; max-width: min(var(--wb-measure), 60%); }
+.wb-quote blockquote { position: relative; margin: 0; font-size: clamp(32px, calc(var(--wb-title-size) * 0.9), 40px); }
+.wb-quote blockquote::before { content: "\201C"; position: absolute; right: 100%; top: 0; padding-right: 0.1em; font-size: 1.75em; line-height: 0.85; font-weight: var(--wb-title-weight); color: var(--wb-accent); }
+.wb-quote p { margin: 0; font-weight: 500; line-height: 1.3; letter-spacing: var(--wb-title-tracking); color: var(--wb-title-color); text-wrap: balance; }
+.wb-quote-by { margin-top: var(--wb-gap); font-size: var(--wb-label-size); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wb-muted); }
 /* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
 .wb-kpi { margin: 0 0 var(--wb-gap); }
 .wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }
