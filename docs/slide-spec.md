@@ -49,13 +49,14 @@ Optional slide `layout` picks a layout variant from a closed set:
 | `cover` | `slide-cover` (no chrome) | title group bottom-left, accent bar above the title |
 | `section` | `slide-section` | divider title left, from mid-height, accent bar; blocks at body size |
 | `quote` | `slide-quote` | pull quote: `heading` is the quoted text, `subtitle` the attribution; no blocks |
+| `split` | `slide-split` | image/text split: slide `image` bleeds to `side`, head and blocks in the other half |
 
 A slide with `layout` requires `heading`, allows `subtitle`, and may have no
 blocks (`blocks` absent or `[]`, at most 64). The body starts with an escaped
 heading group, `<header class="wb-head"><h1 class="wb-head-title">…</h1><p
 class="wb-head-subtitle">…</p></header>` (subtitle only when present), then the
 blocks and notes. Unknown values fail with
-`$.slides[i].layout: expected cover or section or quote`; a missing heading with
+`$.slides[i].layout: expected cover or section or quote or split`; a missing heading with
 `$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
 unchanged.
 
@@ -72,6 +73,16 @@ figcaption only with a subtitle), with no heading group. The preset sets the tex
 32–40px (from `--wb-title-size`) within `--wb-measure`, hangs an accent `“` in the
 left margin, sets the attribution in `--wb-label-size` muted caps, and centres the
 figure vertically, slightly high.
+
+`layout: "split"` requires a slide-level `image: {"src": "…", "alt": "…"}` (no other
+keys; same validation, embedding and 8-per-deck count as an `image` block, errors at
+`$.slides[i].image.src`) and allows `side`: `"left"` (default) or `"right"`
+(`$.slides[i].side: expected left or right`). `image` or `side` on another layout fail
+with `…: requires layout split`; a split without `image` with `$.slides[i].image:
+required for layout split`. The body is `<img class="wb-split-image wb-split-left|right"
+src="data:…" alt="…">` then the usual head group, blocks and notes. The preset sizes
+the image 45% × 100% at the edge (`object-fit: cover`, no radius), starts the text
+column at 52%, and moves footer/page number to the text side.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|
