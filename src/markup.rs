@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -226,6 +226,11 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
 
 fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     let mut slide = json!({});
+    // Layout variant: the value is checked by the spec, which owns the closed set.
+    let layout = el.attrs.iter().find(|(k, _)| k == "layout").map(|(_, v)| v.trim().to_string());
+    if let Some(layout) = &layout {
+        slide["layout"] = json!(layout);
+    }
     // Speaker notes: at most one <wb-notes>, anywhere directly in the slide.
     let (notes, kids) = el.kids.into_iter().partition::<Vec<_>, _>(|k| matches!(k, Node::El(e) if e.name == "wb-notes"));
     // Rejoin text the notes split, as with comments.
@@ -271,7 +276,10 @@ fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
         }
     }
     let blocks = body(&el.kids[at..])?;
-    if blocks.is_empty() {
+    if layout.is_some() && slide.get("heading").is_none() {
+        return Err(format!("wb-slide[{index}]: <wb-title> is required with layout at byte {}", el.pos));
+    }
+    if blocks.is_empty() && layout.is_none() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
     slide["blocks"] = json!(blocks);
@@ -344,7 +352,22 @@ fn tokens(source: &str, origin: &str) -> Result<String> {
 
 /// Preset CSS: default tokens, then the chosen theme (built-in name or token file), then role styles.
 pub fn preset_css(theme: Option<&str>) -> Result<String> {
-    let overrides = match theme {
+    Ok(format!(":root {{\n{}{}}}\n{ROLE_CSS}", tokens(DEFAULT_THEME, "default")?, overrides(theme)?))
+}
+
+/// Resolved token values (default, then the chosen theme; later wins), for renderers outside CSS.
+pub fn token_values(theme: Option<&str>) -> Result<Vec<(String, String)>> {
+    let css = tokens(DEFAULT_THEME, "default")? + &overrides(theme)?;
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (name, value) in css.lines().filter_map(|l| l.trim().strip_suffix(';')?.split_once(':')) {
+        out.retain(|(n, _)| n != name.trim());
+        out.push((name.trim().to_string(), value.trim().to_string()));
+    }
+    Ok(out)
+}
+
+fn overrides(theme: Option<&str>) -> Result<String> {
+    Ok(match theme {
         // paper is the default look; the name stays as an alias.
         None | Some("default") | Some("paper") => String::new(),
         Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
@@ -365,8 +388,7 @@ pub fn preset_css(theme: Option<&str>) -> Result<String> {
             }
             tokens(&String::from_utf8(source).map_err(|_| format!("theme {path}: not UTF-8"))?, path)?
         }
-    };
-    Ok(format!(":root {{\n{}{overrides}}}\n{ROLE_CSS}", tokens(DEFAULT_THEME, "default")?))
+    })
 }
 
 #[cfg(test)]
@@ -401,6 +423,21 @@ mod tests {
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
+    }
+
+    #[test]
+    fn slide_layout_passes_through_and_allows_an_empty_body() {
+        let json = compile("<wb-slide layout=\" cover \"><wb-title>표지</wb-title><wb-subtitle>부제</wb-subtitle></wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["slides"][0], json!({"layout": "cover", "heading": "표지", "subtitle": "부제", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-cover");
+        assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
+        // The spec owns the value set.
+        let json = compile("<wb-slide layout=quote><wb-title>T</wb-title></wb-slide>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
+        assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
+        assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
     }
 
     #[test]

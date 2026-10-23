@@ -20,6 +20,10 @@ All notable changes to wb-slide.
   manifest; `--check` prints them as JSON and exits 3 when any exist. See `docs/rendering.md`.
 - Markup `<wb-notes>` and spec slide `notes`: speaker notes, hidden in the slide HTML
   and reported per slide as `notes` in the render manifest.
+- Slide layout variants: spec slide `layout` (`cover`, `section`) and markup
+  `<wb-slide layout="…">`. A variant needs a heading, may have no blocks, and gets a
+  `.wb-head` group plus preset CSS. A new variant is one `LAYOUTS` row in `src/spec.rs`
+  and one CSS block. See `docs/slide-spec.md`.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
 - Preset token `--wb-vertical` (`start`|`safe center`|`space-evenly`, default `safe center`) places the body under a title; `safe` keeps tall bodies from clipping at the top.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec

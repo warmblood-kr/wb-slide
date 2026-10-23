@@ -13,6 +13,10 @@ struct Ctx<'a> {
 }
 
 const MAX_BYTES: usize = 64 * 1024;
+
+/// Slide layout variants: spec name -> framework layout. A new variant is one row
+/// here plus one CSS block in `framework/presets/slide.css`.
+const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section")];
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
 
@@ -293,13 +297,40 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>) -> Result<(Vec<(String, Strin
         .enumerate()
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
-            let s = object(v, &p, &["heading", "subtitle", "blocks", "notes"])?;
+            let s = object(v, &p, &["layout", "heading", "subtitle", "blocks", "notes"])?;
+            let layout = optional(s, "layout", &p)?
+                .map(|name| {
+                    LAYOUTS.iter().find(|(n, _)| *n == name).map(|(_, l)| *l).ok_or_else(|| {
+                        let names: Vec<_> = LAYOUTS.iter().map(|(n, _)| *n).collect();
+                        error(&format!("{p}.layout"), &format!("expected {}", names.join(" or ")))
+                    })
+                })
+                .transpose()?;
             let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
-            let mut body_html = html(&blocks(s, &p, true, &mut 0, &mut ctx)?);
+            // A variant may have no blocks: absent or [] means none.
+            let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
+            let mut body_html = if layout.is_some() && no_blocks {
+                String::new()
+            } else {
+                html(&blocks(s, &p, true, &mut 0, &mut ctx)?)
+            };
             // Speaker notes ride along in the slide, hidden: no layout, no paint, no innerText.
             if let Some(notes) = optional(s, "notes", &p)? {
                 body_html.push_str(&format!("<aside class=\"wb-notes\" hidden>{}</aside>", escape(&notes)));
+            }
+            // A variant's template renders only content, so the heading group goes in the body.
+            if let Some(layout) = layout {
+                let heading = heading.ok_or_else(|| {
+                    error(&format!("{p}.heading"), &format!("required for layout {}", s["layout"].as_str().unwrap()))
+                })?;
+                let sub = subtitle.map_or(String::new(), |t| format!("<p class=\"wb-head-subtitle\">{}</p>", escape(&t)));
+                let head = format!("<header class=\"wb-head\"><h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading));
+                return Ok(Slide {
+                    frontmatter: vec![("layout".into(), layout.into())],
+                    body_html: head + &body_html,
+                    slots: Vec::new(),
+                });
             }
             // No heading: content alone, centered (slide-section).
             let mut fm = match heading {
@@ -504,6 +535,42 @@ mod tests {
         assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-section".to_string())]);
         v["slides"][0]["subtitle"] = json!("부제");
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].subtitle: requires heading"));
+    }
+
+    #[test]
+    fn layout_variants_map_and_emit_an_escaped_head() {
+        let mut v = base();
+        v["slides"][0]["layout"] = json!("cover");
+        v["slides"][0]["heading"] = json!("<가상> & 표지");
+        v["slides"][0]["subtitle"] = json!("부제 & 설명");
+        v["slides"][0]["notes"] = json!("메모");
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-cover".to_string())]);
+        assert_eq!(
+            slides[0].body_html,
+            "<header class=\"wb-head\"><h1 class=\"wb-head-title\">&lt;가상&gt; &amp; 표지</h1><p class=\"wb-head-subtitle\">부제 &amp; 설명</p></header><p>자료</p><aside class=\"wb-notes\" hidden>메모</aside>"
+        );
+        // Section, no subtitle, no blocks (absent or empty).
+        v["slides"][0] = json!({"layout": "section", "heading": "장", "blocks": []});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-section".to_string())]);
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">장</h1></header>");
+        v["slides"][0].as_object_mut().unwrap().remove("blocks");
+        assert!(parse(v.to_string().as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn layout_errors() {
+        let mut v = base();
+        v["slides"][0]["layout"] = json!("quote");
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section");
+        v["slides"][0] = json!({"layout": "cover", "blocks": [{"type":"text","text":"x"}]});
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].heading: required for layout cover");
+        // Without a layout, blocks stay required (1–64).
+        v["slides"][0] = json!({"heading": "h", "blocks": []});
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].blocks: expected 1–64"));
+        v["slides"][0] = json!({"heading": "h"});
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].blocks: missing"));
     }
 
     #[test]
