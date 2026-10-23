@@ -43,3 +43,13 @@
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }
+/* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
+.wb-kpi { margin: 0 0 var(--wb-gap); }
+.wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }
+.wb-kpi .stat-label { font-size: var(--wb-body-size); color: var(--wb-muted); margin-top: calc(var(--wb-gap) / 4); }
+.ms-slot-area .wb-kpi .source, .ms-section-layout .wb-kpi .source { font-size: calc(var(--wb-body-size) * 0.7); color: var(--wb-muted); margin: calc(var(--wb-gap) / 2) 0 0; }
+/* <wb-callout>: tinted box keyed to the theme accent (warning keeps the red edge). */
+.info-box, .warn-box { border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
+.info-box > p:last-child, .warn-box > p:last-child { margin-bottom: 0; }
+/* On a bare centred slide the big statement rule must not enlarge callout text. */
+.ms-section-layout :is(.info-box, .warn-box) p { font-size: var(--wb-body-size); font-weight: 400; color: var(--wb-text); line-height: 1.6; }
