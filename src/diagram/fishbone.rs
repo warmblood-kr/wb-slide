@@ -99,7 +99,7 @@ mod tests {
     fn renders_deterministically_in_both_themes() {
         let a = render(&sample(), None).unwrap();
         assert_eq!(a, render(&sample(), None).unwrap());
-        assert!(a.contains("프로세스") && a.contains("#2563EB"));
+        assert!(a.contains("프로세스") && a.contains("#C2410C"));
         assert!(render(&sample(), Some("night")).unwrap().contains("#F59E0B"));
     }
 

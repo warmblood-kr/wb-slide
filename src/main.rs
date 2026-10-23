@@ -73,7 +73,7 @@ enum Commands {
         /// Export semantic slide markup (<wb-slide>, <wb-title>) with the slide preset
         #[arg(long, conflicts_with_all = ["dir", "spec", "refresh_themes", "embed"])]
         markup: Option<PathBuf>,
-        /// Preset theme for --markup: a built-in name (default, night) or a token file
+        /// Preset theme for --markup: a built-in name (default, night, paper, graphite, signal) or a token file
         #[arg(long, requires = "markup")]
         theme: Option<String>,
         #[arg(short, long, default_value = "export.html")]
@@ -126,6 +126,25 @@ enum NarrativeAction {
     List,
     /// Print one strategy as JSON
     Show { id: String },
+    /// Print a skeleton deck in wb-slide markup, one slide per role
+    Outline {
+        #[arg(long)]
+        strategy: String,
+        #[arg(long)]
+        topic: String,
+    },
+    /// Rank strategies for an audience, goal and duration, with reasons
+    Recommend {
+        /// executive, team, technical, customer, investor, general, academic
+        #[arg(long)]
+        audience: Option<String>,
+        /// decide, persuade, inform, inspire, sell, report, teach, fund
+        #[arg(long)]
+        goal: Option<String>,
+        /// Talk length in minutes
+        #[arg(long)]
+        minutes: Option<u64>,
+    },
 }
 
 struct Slide {
@@ -1111,6 +1130,10 @@ async fn main() {
             let out = match action {
                 NarrativeAction::List => narrative::list(),
                 NarrativeAction::Show { id } => narrative::show(&id),
+                NarrativeAction::Outline { strategy, topic } => narrative::outline(&strategy, &topic),
+                NarrativeAction::Recommend { audience, goal, minutes } => {
+                    narrative::recommend(audience.as_deref(), goal.as_deref(), minutes)
+                }
             };
             match out {
                 Ok(text) => println!("{}", text.trim_end()),

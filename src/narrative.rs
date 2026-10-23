@@ -126,6 +126,89 @@ pub fn show(id: &str) -> Result<String, String> {
     serde_json::to_string_pretty(&find(id)?).map_err(|e| e.to_string())
 }
 
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+/// Skeleton deck in wb-slide markup: one slide per role, placeholders in [brackets].
+pub fn outline(id: &str, topic: &str) -> Result<String, String> {
+    let s = find(id)?;
+    let roles = roles()?;
+    let topic = topic.split_whitespace().collect::<Vec<_>>().join(" ");
+    if topic.is_empty() {
+        return Err("--topic must not be blank".into());
+    }
+    if topic.chars().count() > 200 {
+        return Err("--topic must be at most 200 characters".into());
+    }
+    let topic = esc(&topic);
+    let comment = |t: &str| {
+        let mut c = t.to_string();
+        while c.contains("--") { c = c.replace("--", "- -"); }
+        c
+    };
+    let mut out = format!("<!-- {} outline for: {} -->\n<!-- Titles: {} -->\n", comment(&esc(s["name"].as_str().unwrap())), comment(&topic), comment(&esc(s["title_style"].as_str().unwrap())));
+    for (i, step) in s["sequence"].as_array().unwrap().iter().enumerate() {
+        let role = &roles["roles"][step["role"].as_str().unwrap()];
+        let name = esc(role["name"].as_str().unwrap());
+        let purpose = esc(step["purpose"].as_str().unwrap());
+        let layout = step.get("layout").unwrap_or(&role["layout"]).as_str().unwrap();
+        let mut note = format!("{name}: {}", esc(role["purpose"].as_str().unwrap()));
+        if step["repeat"] == true { note += " Repeat this slide as needed."; }
+        if step["optional"] == true { note += " Optional."; }
+        let body = match layout {
+            "statement" => format!("  [{name}: {purpose}]\n"),
+            "title-list" => format!("  <wb-list>\n{}  </wb-list>\n", (1..=3).map(|n| format!("    <wb-item>[Point {n}]</wb-item>\n")).collect::<String>()),
+            "title-cards" => (1..=2).map(|n| format!("  <wb-card label=\"[Label {n}]\">[Detail {n}]</wb-card>\n")).collect(),
+            "two-columns" | "three-columns" => {
+                let n = if layout == "two-columns" { 2 } else { 3 };
+                format!("  <wb-columns>\n{}  </wb-columns>\n", (1..=n).map(|c| format!("    <wb-column>[Column {c}]</wb-column>\n")).collect::<String>())
+            }
+            "title-image" => format!("  [{name}: {purpose}] [Image: replace this line with a wb-image]\n"),
+            _ => format!("  [{purpose}]\n"),
+        };
+        out += "<wb-slide>\n";
+        if layout != "statement" {
+            let title = if i == 0 { topic.clone() } else { format!("[{name} title]") };
+            out += &format!("  <wb-title>{title}</wb-title>\n");
+            if i == 0 { out += &format!("  <wb-subtitle>{}</wb-subtitle>\n", esc(s["name"].as_str().unwrap())); }
+            if !matches!(layout, "title-body" | "title-image") { out += &format!("  [{purpose}]\n\n"); }
+        }
+        out += &body;
+        out += &format!("  <wb-notes>{note}</wb-notes>\n</wb-slide>\n");
+    }
+    Ok(out)
+}
+
+/// Rank strategies by fit: goal 3, audience 2, duration 1. Each line says why.
+pub fn recommend(audience: Option<&str>, goal: Option<&str>, minutes: Option<u64>) -> Result<String, String> {
+    for (v, allowed, name) in [(audience, AUDIENCES, "audience"), (goal, GOALS, "goal")] {
+        if let Some(v) = v.filter(|v| !allowed.contains(v)) {
+            return Err(format!("unknown {name} {v}; expected one of {}", allowed.join(", ")));
+        }
+    }
+    let has = |w: &Value, key: &str, v: Option<&str>| v.is_some_and(|v| w[key].as_array().unwrap().iter().any(|x| x == v));
+    let mut ranked = Vec::new();
+    for s in strategies()? {
+        let w = &s["when_to_use"];
+        let (lo, hi) = (w["minutes"][0].as_u64().unwrap(), w["minutes"][1].as_u64().unwrap());
+        let (mut score, mut why) = (0, Vec::new());
+        if has(w, "goals", goal) { score += 3; why.push(format!("goal {}", goal.unwrap())); }
+        if has(w, "audiences", audience) { score += 2; why.push(format!("{} audience", audience.unwrap())); }
+        if let Some(m) = minutes {
+            if (lo..=hi).contains(&m) { score += 1; why.push(format!("{m} min fits {lo}-{hi}")); }
+        }
+        if score > 0 {
+            ranked.push((score, s["id"].as_str().unwrap().to_string(), format!("{}; {}", why.join(", "), s["summary"].as_str().unwrap())));
+        }
+    }
+    ranked.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    if ranked.is_empty() {
+        return Err("no strategy matches; pass --audience, --goal or --minutes".into());
+    }
+    Ok(ranked.iter().take(5).map(|(sc, id, why)| format!("{id:<28} score {sc}  {why}\n")).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +240,34 @@ mod tests {
             bad["sequence"][0][key] = val;
             assert!(validate(&bad, "narratives/scqa.json", &roles).is_err(), "{key}");
         }
+    }
+
+    #[test]
+    fn topic_limit_counts_raw_characters_not_escaped() {
+        assert!(outline("scqa", &"&".repeat(200)).is_ok());
+        assert!(outline("scqa", &"a".repeat(201)).is_err());
+    }
+
+    #[test]
+    fn every_outline_compiles_to_a_valid_spec() {
+        for s in strategies().unwrap() {
+            let id = s["id"].as_str().unwrap();
+            let m = outline(id, "Fictional <pilot> & \"review\" ----").unwrap();
+            let spec = crate::markup::compile(&m).unwrap_or_else(|e| panic!("{id}: {e}\n{m}"));
+            crate::spec::parse(spec.as_bytes()).unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert_eq!(m.matches("<wb-slide>").count(), s["sequence"].as_array().unwrap().len());
+        }
+        assert!(outline("scqa", "  ").is_err());
+        assert!(outline("scqa", &"x".repeat(201)).is_err());
+    }
+
+    #[test]
+    fn recommend_ranks_by_fit_and_explains() {
+        let out = recommend(Some("executive"), Some("decide"), Some(10)).unwrap();
+        assert!(out.contains("score 6"), "{out}");
+        assert!(out.lines().next().unwrap().contains("goal decide"));
+        assert!(recommend(Some("aliens"), None, None).unwrap_err().contains("unknown audience"));
+        assert!(recommend(None, None, None).is_err());
     }
 
     #[test]

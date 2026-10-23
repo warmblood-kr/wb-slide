@@ -32,7 +32,7 @@ output paths resolve from the working directory, not the spec directory.
 Root requires integer `schema_version: 1`, `title` and `slides`. Optional
 `footer` is literal text, at most 200 characters, shown bottom-left on every
 slide. Each slide
-requires `blocks`; `heading` and `subtitle` are optional. A slide with a
+requires `blocks` (unless it has `layout`, below); `heading` and `subtitle` are optional. A slide with a
 heading uses the built-in `slide-feature` layout. A slide without one shows its
 blocks centered (`slide-section`); `subtitle` then is an error. Optional
 `notes` holds speaker notes (literal text, 1–2000 characters). They are never
@@ -41,6 +41,22 @@ painted: the HTML carries them inside the slide as escaped
 slide's `notes` in `manifest.json` (`""` when absent). Notes are not private:
 anyone with the HTML file can read them. Unknown fields
 are errors at every level.
+
+Optional slide `layout` picks a layout variant from a closed set:
+
+| `layout` | Framework layout | Look (preset) |
+|---|---|---|
+| `cover` | `slide-cover` (no chrome) | title group bottom-left, accent bar above the title |
+| `section` | `slide-section` | divider title left, from mid-height, accent bar; blocks at body size |
+
+A slide with `layout` requires `heading`, allows `subtitle`, and may have no
+blocks (`blocks` absent or `[]`, at most 64). The body starts with an escaped
+heading group, `<header class="wb-head"><h1 class="wb-head-title">…</h1><p
+class="wb-head-subtitle">…</p></header>` (subtitle only when present), then the
+blocks and notes. Unknown values fail with
+`$.slides[i].layout: expected cover or section`; a missing heading with
+`$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
+unchanged.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|
