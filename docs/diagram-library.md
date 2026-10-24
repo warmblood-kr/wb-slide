@@ -52,6 +52,9 @@ own item counts.
 - No `title` field. The slide owns the heading.
 - Canvas is a 640×360 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
 - Limits below are hard. Out of range is an error, never a silent cut.
+- Full width only: labels are sized for the whole slide body (about 0.83x at
+  300px tall). Inside columns or a split slide it is an error in both markup
+  (`<wb-diagram> inside <wb-columns>`) and spec JSON.
 
 ## Shared primitives
 
