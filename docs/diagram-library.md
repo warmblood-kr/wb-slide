@@ -18,12 +18,15 @@ The look follows the slide preset: `--wb-*` tokens
 ([theme-contract.md](theme-contract.md)), Pretendard, a strict 8px grid, one
 accent colour, plenty of whitespace. No gradients, shadows, 3D or clip-art.
 
-Planned (agreed with the markup owner): a `<wb-diagram type="..." alt="...">`
-tag whose body is the JSON model ([markup-dsl.md](markup-dsl.md)), lowered to
-a spec `diagram` block ([slide-spec.md](slide-spec.md)). Export writes the SVG
+In a deck, use the spec `diagram` block ([slide-spec.md](slide-spec.md)):
+`{"type":"diagram","diagram":"quadrant","alt":"…","data":{…}}`. Planned
+(agreed with the markup owner): a `<wb-diagram type="..." alt="...">` tag whose
+body is the JSON model ([markup-dsl.md](markup-dsl.md)), lowered to that
+block. Export writes the SVG
 inline (`<svg class="wb-diagram" role="img" aria-label>`), so the render font,
-font-coverage check and `render.py --check` see diagram text. At most 16
-diagrams per deck; each type caps its own item counts.
+font-coverage check and `render.py --check` see diagram text, sized by the
+`--wb-diagram-height` token. At most 16 diagrams per deck; each type caps its
+own item counts.
 
 ## Prior art
 
