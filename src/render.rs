@@ -235,6 +235,12 @@ pub fn render_slide(
         .map(|(_, v)| v.as_str())
         .unwrap_or("");
 
+    let folio = attrs
+        .iter()
+        .find(|(k, _)| k == "folio")
+        .map(|(_, v)| v.as_str())
+        .unwrap_or("");
+
     let show_chrome = layout.map(|l| l.chrome).unwrap_or(true);
     let chrome_html = if show_chrome {
         let mut s = String::new();
@@ -243,6 +249,9 @@ pub fn render_slide(
         }
         if !footer.is_empty() {
             s.push_str(&format!(r#"<div class="ms-footer-logo">{}</div>"#, footer));
+        }
+        if !folio.is_empty() {
+            s.push_str(&format!(r#"<div class="ms-folio">{}</div>"#, folio));
         }
         s.push_str(&format!(r#"<div class="ms-page-number">{}</div>"#, index));
         s

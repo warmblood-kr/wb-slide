@@ -6,7 +6,36 @@ All notable changes to wb-slide.
 
 ### Added
 
-- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme default|night|tokens.css]`
+- **`<wb-folio>label</wb-folio>`**: a deck-level running label (spec root `folio`, 1–60 characters, not
+  blank, escaped). Rendered as `.ms-folio` chrome in the top margin band (centred at `--wb-safe-y`/2, left at
+  `--wb-safe-x`), `--wb-label-size`, weight 600, caps, +0.08em, `--wb-muted`. Shown on every slide except the
+  cover (no chrome) and section openers (`<wb-section>` and `layout="section"`); on `<wb-split>` it moves to
+  the text column. At most once, top level. No new token.
+- **`<wb-agenda><wb-title>목차</wb-title><wb-item>…</wb-item>…</wb-agenda>`**: an agenda slide (spec
+  `layout: agenda` → new built-in `slide-agenda`; one `list` block of 3–6 items, checked by the spec).
+  Title in the left third, items in the right two-thirds at `--wb-subtitle-size`, numbered `01`–`06` by a CSS
+  counter in the accent (tabular), 1px `--wb-border` hairline between items, no bullets. Title required;
+  agenda titles are skipped for the deck title. No new token.
+- **`<wb-split image="img/x.jpg" alt="…" side="left|right">…</wb-split>`**: an image/text split slide
+  (spec `layout: split` → new built-in `slide-split`, new slide fields `image` {`src`,`alt`} and `side`,
+  split only, default `left`). Takes `<wb-slide>` content (title required). The image bleeds to the chosen
+  edge at 45% width × full height (`object-fit: cover`, no radius), text column from 52%; footer and page
+  number move to the text side. The image uses the existing image validation and counts toward 8 per deck.
+  No new token.
+- **`<wb-quote by="Name, role">text</wb-quote>`**: a pull-quote slide (spec `layout: quote` →
+  `slide-quote`; `heading` = quoted text, `subtitle` = attribution, no blocks). Rendered as
+  `<figure><blockquote>` + `<figcaption>`: 32–40px text at `--wb-measure`, accent `“` hung in the left
+  margin, attribution in `--wb-label-size` muted caps, vertically centred. Quotes never become the deck title
+  unless nothing else can. No new token.
+- **`<wb-section number="01">Title</wb-section>`**: a section divider slide (spec `layout: section`,
+  new optional slide field `number`, 1–8 characters, section only). A pure divider renders inverse
+  (`--wb-inverse-bg`/`--wb-inverse-text`, no longer reserved) with the number large at the top-left in the
+  new token `--wb-inverse-accent`; a section slide with body keeps the deck colours.
+- **The default markup theme is now the design study's warm "paper" look** (alias `paper`); the earlier
+  white default is `--theme classic`. New built-in themes `graphite` and `signal`, new tokens
+  `--wb-title-tracking`, `--wb-title-leading`, `--wb-measure`, `--wb-stat-size`, `--wb-label-size`,
+  `--wb-inverse-bg` and `--wb-inverse-text`, and Korean `word-break: keep-all` in the preset.
+- **Slide markup front-end** (issue #23). `wb-slide export --markup deck.html [--theme NAME|tokens.css]`
   compiles `<wb-slide>`/`<wb-title>`/body text deterministically to the typed spec
   and applies a themeable slide preset (Pretendard, 32px title, safe areas). See
   `docs/markup-dsl.md`.
@@ -16,11 +45,16 @@ All notable changes to wb-slide.
   manifest; `--check` prints them as JSON and exits 3 when any exist. See `docs/rendering.md`.
 - Markup `<wb-notes>` and spec slide `notes`: speaker notes, hidden in the slide HTML
   and reported per slide as `notes` in the render manifest.
+- Slide layout variants: spec slide `layout` (`cover`, `section`) and markup
+  `<wb-slide layout="…">`. A variant needs a heading, may have no blocks, and gets a
+  `.wb-head` group plus preset CSS. A new variant is one `LAYOUTS` row in `src/spec.rs`
+  and one CSS block. See `docs/slide-spec.md`.
 - Markup `<wb-footer>` and spec root `footer` (escaped text on every slide).
 - Preset token `--wb-vertical` (`start`|`safe center`|`space-evenly`, default `safe center`) places the body under a title; `safe` keeps tall bodies from clipping at the top.
 - Markup `<wb-image src alt>` and spec `image` block (local files under the spec
   directory only, embedded as data URIs; #22). Markup `<wb-columns>`/`<wb-column>`, `<wb-card label>` (lowers to `panel`), `<wb-subtitle>` and `<wb-list>`/`<wb-item>`; typed spec gains an additive
   `list` block (`items`, 1–16 strings).
+- Markup `<wb-stat value note?>caption</wb-stat>` (lowers to spec `kpi`, caption → `label`) and `<wb-callout tone="info|warning">` (lowers to `callout`); preset styles both from `--wb-*` tokens. No spec change.
 
 ## v0.9.0 — 2026-06-12
 

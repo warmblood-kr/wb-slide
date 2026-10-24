@@ -73,7 +73,7 @@ enum Commands {
         /// Export semantic slide markup (<wb-slide>, <wb-title>) with the slide preset
         #[arg(long, conflicts_with_all = ["dir", "spec", "refresh_themes", "embed"])]
         markup: Option<PathBuf>,
-        /// Preset theme for --markup: a built-in name (default, night) or a token file
+        /// Preset theme for --markup: a built-in name (default, night, paper, graphite, signal) or a token file
         #[arg(long, requires = "markup")]
         theme: Option<String>,
         #[arg(short, long, default_value = "export.html")]
@@ -126,6 +126,25 @@ enum NarrativeAction {
     List,
     /// Print one strategy as JSON
     Show { id: String },
+    /// Print a skeleton deck in wb-slide markup, one slide per role
+    Outline {
+        #[arg(long)]
+        strategy: String,
+        #[arg(long)]
+        topic: String,
+    },
+    /// Rank strategies for an audience, goal and duration, with reasons
+    Recommend {
+        /// executive, team, technical, customer, investor, general, academic
+        #[arg(long)]
+        audience: Option<String>,
+        /// decide, persuade, inform, inspire, sell, report, teach, fund
+        #[arg(long)]
+        goal: Option<String>,
+        /// Talk length in minutes
+        #[arg(long)]
+        minutes: Option<u64>,
+    },
 }
 
 struct Slide {
@@ -296,6 +315,7 @@ fn render_all_slides(
 ) -> Result<render::RenderedSlides, String> {
     let global_watermark = global_meta.iter().find(|(k, _)| k == "watermark").map(|(_, v)| v.as_str()).unwrap_or("");
     let global_footer = global_meta.iter().find(|(k, _)| k == "footer").map(|(_, v)| v.as_str()).unwrap_or("");
+    let global_folio = global_meta.iter().find(|(k, _)| k == "folio").map(|(_, v)| v.as_str()).unwrap_or("");
 
     let total = slides.len();
     let mut out = render::RenderedSlides::default();
@@ -314,6 +334,9 @@ fn render_all_slides(
         }
         if !global_footer.is_empty() && get_fm(slide, "footer").is_none() {
             attrs.push(("footer".to_string(), global_footer.to_string()));
+        }
+        if !global_folio.is_empty() && get_fm(slide, "folio").is_none() {
+            attrs.push(("folio".to_string(), global_folio.to_string()));
         }
 
         let (html, maybe_js) = render::render_slide(
@@ -1111,6 +1134,10 @@ async fn main() {
             let out = match action {
                 NarrativeAction::List => narrative::list(),
                 NarrativeAction::Show { id } => narrative::show(&id),
+                NarrativeAction::Outline { strategy, topic } => narrative::outline(&strategy, &topic),
+                NarrativeAction::Recommend { audience, goal, minutes } => {
+                    narrative::recommend(audience.as_deref(), goal.as_deref(), minutes)
+                }
             };
             match out {
                 Ok(text) => println!("{}", text.trim_end()),
@@ -1627,6 +1654,18 @@ mod tests {
         assert!(slides[1].slots[0].1.contains("Left content"));
         assert_eq!(slides[1].slots[1].0, "right");
         assert!(slides[1].slots[1].1.contains("Right content"));
+    }
+
+    #[test]
+    fn spec_folio_is_chrome_except_on_cover() {
+        let src = r#"{"schema_version":1,"title":"t","folio":"A & B","slides":[{"layout":"cover","heading":"c","blocks":[]},{"heading":"h","blocks":[{"type":"text","text":"b"}]}]}"#;
+        let mut layouts = render::LayoutSet::default();
+        layouts.load_builtin();
+        let (meta, slides) = spec::parse(src.as_bytes()).unwrap();
+        let html = render_all_slides(&slides, &meta, &layouts).unwrap().html;
+        assert_eq!(html.matches(r#"<div class="ms-folio">A &amp; B</div>"#).count(), 1);
+        let (meta, slides) = spec::parse(src.replace(r#""folio":"A & B","#, "").as_bytes()).unwrap();
+        assert!(!render_all_slides(&slides, &meta, &layouts).unwrap().html.contains("ms-folio"));
     }
 
     #[test]

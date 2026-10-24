@@ -1,0 +1,73 @@
+{
+  "id": "status-update",
+  "name": "Status Update",
+  "family": "report",
+  "summary": "A short, repeatable report: overall status, progress since last time, metrics, risks and blockers, next steps and asks.",
+  "references": [
+    "Common project management practice; see PMI, PMBOK Guide (1996 onward)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "team",
+      "executive"
+    ],
+    "goals": [
+      "report",
+      "inform"
+    ],
+    "minutes": [
+      3,
+      15
+    ]
+  },
+  "title_style": "Status-first titles, under 10 words, e.g. 'On track: ...' or 'At risk: ...'.",
+  "density": {
+    "max_bullets": 5,
+    "max_words": 40,
+    "one_idea_per_slide": false
+  },
+  "sequence": [
+    {
+      "role": "bluf",
+      "purpose": "Overall status in one line."
+    },
+    {
+      "role": "result",
+      "purpose": "What was done since last update."
+    },
+    {
+      "role": "data-point",
+      "purpose": "One key metric and trend.",
+      "optional": true
+    },
+    {
+      "role": "risk",
+      "purpose": "Risks and blockers."
+    },
+    {
+      "role": "plan",
+      "purpose": "Next steps and owners."
+    },
+    {
+      "role": "ask",
+      "purpose": "What you need from the audience.",
+      "optional": true
+    }
+  ],
+  "pitfalls": [
+    "Hiding bad news below good news.",
+    "Activity lists with no status or outcome.",
+    "Blockers mentioned without a specific ask."
+  ],
+  "example": {
+    "topic": "A fictional web team's weekly checkout redesign update",
+    "outline": [
+      "On track: checkout redesign ships in two weeks",
+      "Done: payment form and address step",
+      "Test pass rate up from 80% to 96%",
+      "At risk: tax rules for two regions still pending",
+      "Next: tax rules, final review, staged release",
+      "Need: legal sign-off on tax wording by Thursday"
+    ]
+  }
+}
