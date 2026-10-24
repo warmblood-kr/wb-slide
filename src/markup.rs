@@ -171,7 +171,7 @@ fn has_diagram(blocks: &serde_json::Value) -> bool {
 }
 
 fn too_narrow(tag: &str, pos: usize) -> String {
-    format!("<wb-diagram> inside <{tag}> at byte {pos}: too narrow to read; put it directly in a <wb-slide>")
+    format!("<{tag}> at byte {pos} holds a <wb-diagram>: too narrow to read; put the diagram directly in a <wb-slide>")
 }
 
 /// Body content -> spec blocks, in order.
@@ -728,9 +728,9 @@ mod tests {
             ("<wb-slide><wb-diagram type=hub alt=\"a\"/></wb-slide>", "self-closing"),
             // Labels shrink below a readable size in a narrow column.
             ("<wb-slide><wb-columns><wb-column><wb-diagram type=hub alt=h>{}</wb-diagram></wb-column><wb-column>b</wb-column></wb-columns></wb-slide>",
-             "<wb-diagram> inside <wb-columns> at byte 10: too narrow to read; put it directly in a <wb-slide>"),
+             "<wb-columns> at byte 10 holds a <wb-diagram>: too narrow to read; put the diagram directly in a <wb-slide>"),
             ("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-diagram type=hub alt=h>{}</wb-diagram></wb-split>",
-             "<wb-diagram> inside <wb-split> at byte 0: too narrow to read; put it directly in a <wb-slide>"),
+             "<wb-split> at byte 0 holds a <wb-diagram>: too narrow to read; put the diagram directly in a <wb-slide>"),
         ] {
             assert!(compile(m).unwrap_err().contains(e), "{m}: {}", compile(m).unwrap_err());
         }

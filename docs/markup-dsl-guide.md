@@ -95,7 +95,7 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-stat> at byte N needs value="…"` / `<wb-callout> at byte N needs tone="…"` | Add the attribute. |
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
 | `<wb-diagram> at byte N needs type="…"` / `needs alt="…"` | Add the attribute. |
-| `<wb-diagram> inside <wb-columns>` (or `<wb-split>`) `at byte N: too narrow to read; …` | Move the diagram to its own `<wb-slide>`; keep the text in the columns or split. |
+| `<wb-columns> at byte N holds a <wb-diagram>: too narrow to read; …` (or `<wb-split>`) | Move the diagram to its own `<wb-slide>`; keep the text in the columns or split. |
 | `empty <wb-diagram> at byte N` | Put the JSON data inside. |
 | `<wb-diagram> at byte N: invalid JSON: …` | Fix the JSON (quotes on keys and strings, commas, braces); a raw `<` becomes `\u003c`. |
 | `cannot read markup: …` | Fix the input path. |
