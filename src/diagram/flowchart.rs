@@ -147,17 +147,26 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     // Capacity: say which count is over, by how much, and what to change.
     let (dir, other) = if tb { ("TB", "LR") } else { ("LR", "TB") };
     let ((max_nr, max_k), (alt_nr, alt_k)) = (caps(tb), caps(!tb));
+    let fits_other = nr <= alt_nr && layers.iter().all(|l| l.len() <= alt_k);
+    // Fixes as a list: "a, b, or c".
+    let advise = |mut fix: Vec<String>| {
+        if fits_other { fix.push(format!("use direction {other}")); }
+        let last = fix.pop().unwrap();
+        if fix.is_empty() { last } else { format!("{}, or {last}", fix.join(", ")) }
+    };
     if nr > max_nr {
-        let alt = if nr <= alt_nr { format!(" or use direction {other}") } else { String::new() };
-        return Err(format!("$.edges: the longest chain has {nr} ranks, {dir} fits at most {max_nr}; shorten the longest chain{alt}"));
+        return Err(format!("$.edges: the longest chain has {nr} ranks, {dir} fits at most {max_nr}; {}", advise(vec!["shorten the longest chain".into()])));
     }
     if let Some((r, l)) = layers.iter().enumerate().find(|(_, l)| l.len() > max_k) {
         let real: Vec<&str> = l.iter().filter(|&&i| i < nodes.len()).map(|&i| nodes[i].id.as_str()).collect();
         let d = l.len() - real.len();
-        let held = if d == 0 { format!("{} nodes", real.len()) } else { format!("{} nodes + {d} edges passing through", real.len()) };
-        let skip = if d > 0 { ", drop edges that pass through this rank" } else { "" };
-        let alt = if l.len() <= alt_k { format!(", or use direction {other}") } else { String::new() };
-        return Err(format!("$.nodes: rank {} holds {held}, {dir} fits at most {max_k}; chain some of {} instead of placing them side by side{skip}{alt}", r + 1, real.join(", ")));
+        let nodes = if real.len() == 1 { "1 node".to_string() } else { format!("{} nodes", real.len()) };
+        let held = if d == 0 { nodes } else { format!("{nodes} + {d} edges passing through") };
+        let mut fix = Vec::new();
+        // A longest-path rank always holds a node, so real is not empty; the list keeps the text sane anyway.
+        if !real.is_empty() { fix.push(format!("chain some of {} instead of placing them side by side", real.join(", "))); }
+        if d > 0 { fix.push("drop edges that pass through this rank".into()); }
+        return Err(format!("$.nodes: rank {} holds {held}, {dir} fits at most {max_k}; {}", r + 1, advise(fix)));
     }
     let (mut up, mut down) = (vec![Vec::new(); item_rank.len()], vec![Vec::new(); item_rank.len()]);
     for w in chains.iter().flat_map(|c| c.windows(2)) {
@@ -437,6 +446,17 @@ mod tests {
         let err = render(&json!({"nodes": nodes(9, "분기"), "edges": e})).unwrap_err();
         assert!(err.starts_with("$.nodes: rank 2 holds 6 nodes + 2 edges passing through, LR fits at most 7;"), "{err}");
         assert!(err.contains("n1, n2"), "{err}");
+        // The other direction is suggested only when every cap there fits.
+        assert!(render(&json!({"direction": "TB", "nodes": nodes(9, "단계"), "edges": chain(9)})).unwrap_err().ends_with("or use direction LR"));
+        assert!(render(&json!({"nodes": nodes(9, "분기"), "edges": fan(9)})).unwrap_err().ends_with("or use direction TB"));
+        // 9 ranks, rank 2 = n1 + 7 edges passing through: LR is too wide, TB too deep, so neither suggests the other.
+        let mut e = chain(9);
+        e.extend((2..9).map(|j| json!({"from": "n0", "to": format!("n{j}")})));
+        let d = json!({"nodes": nodes(9, "단계"), "edges": e});
+        assert_eq!(render(&d).unwrap_err(), "$.nodes: rank 2 holds 1 node + 7 edges passing through, LR fits at most 7; chain some of n1 instead of placing them side by side, or drop edges that pass through this rank");
+        let mut d = d;
+        d["direction"] = json!("TB");
+        assert_eq!(render(&d).unwrap_err(), "$.edges: the longest chain has 9 ranks, TB fits at most 8; shorten the longest chain");
     }
 
     #[test]
@@ -450,9 +470,11 @@ mod tests {
             let mut edges = Vec::new();
             for j in 1..n {
                 for i in 0..j {
-                    if edges.len() < 24 && rnd(4) == 0 { edges.push(json!({"from": format!("n{i}"), "to": format!("n{j}"), "label": "예"})); }
+                    if edges.len() < 24 && rnd(4) == 0 { edges.push(json!({"from": format!("n{i}"), "to": format!("n{j}")})); }
                 }
             }
+            // Label every edge in half the flows, none in the rest.
+            if rnd(2) == 0 { edges.iter_mut().for_each(|e| e["label"] = json!("예")); }
             let dir = if rnd(2) == 0 { "LR" } else { "TB" };
             match render(&json!({"direction": dir, "nodes": nodes(n, "단계"), "edges": edges})) {
                 Ok(_) => ok += 1,
