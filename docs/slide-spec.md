@@ -141,8 +141,9 @@ markup, default for `--spec`) and writes it inline as
 render font and checks see its text. No file is read. It is sized by
 `--wb-diagram-height` (300px), keeping the aspect ratio; `image` blocks are
 capped by `--wb-image-height` (300px). Plain `--spec` uses those defaults;
-`export --markup` takes them from its theme. At most 16 diagrams
-per deck. An unknown type lists the valid ones; data errors carry the block
+`export --markup` takes them from its theme. A diagram goes directly in a
+slide's `blocks`, full width: inside `columns` or on a `split` slide it is an
+error (too narrow to read). At most 16 diagrams per deck. An unknown type lists the valid ones; data errors carry the block
 path, e.g. `$.slides[0].blocks[0].data.quadrants[0].title: …`.
 
 The complete request is validated before any output is published. Invalid

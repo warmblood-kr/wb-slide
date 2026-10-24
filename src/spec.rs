@@ -14,6 +14,8 @@ struct Ctx<'a> {
     theme: Option<&'a str>,
     images: usize,
     diagrams: usize,
+    /// The slide is layout split: its body is a ~400px column.
+    split: bool,
 }
 
 const MAX_BYTES: usize = 64 * 1024;
@@ -191,6 +193,13 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx:
                 "kpi" => &["type", "value", "label", "note"],
                 "list" => &["type", "items"],
                 "image" => &["type", "src", "alt"],
+                // Labels are sized for the full slide body; a narrow column shrinks them below legible.
+                "diagram" if !columns_allowed => {
+                    return Err(error(&format!("{p}.type"), "diagram is too narrow to read inside columns; put it directly in the slide's blocks"))
+                }
+                "diagram" if ctx.split => {
+                    return Err(error(&format!("{p}.type"), "diagram is too narrow to read on a \"layout\": \"split\" slide; move it to a slide without layout"))
+                }
                 "diagram" => &["type", "diagram", "alt", "data"],
                 "columns" if columns_allowed => &["type", "columns"],
                 "columns" => return Err(error(&format!("{p}.type"), "columns cannot nest")),
@@ -310,7 +319,7 @@ pub fn parse(bytes: &[u8]) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
 /// Parse with local images resolved under `base` (the spec or markup directory)
 /// and diagrams drawn with preset `theme` (None = default).
 pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Result<(Vec<(String, String)>, Vec<Slide>)> {
-    let mut ctx = Ctx { base, theme, images: 0, diagrams: 0 };
+    let mut ctx = Ctx { base, theme, images: 0, diagrams: 0, split: false };
     if bytes.len() > MAX_BYTES {
         return Err(error("$", "spec exceeds 64 KiB"));
     }
@@ -385,6 +394,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Resul
             let mut body_html = if layout.is_some() && no_blocks {
                 String::new()
             } else {
+                ctx.split = layout == Some("slide-split");
                 html(&blocks(s, &p, true, &mut 0, &mut ctx)?)
             };
             // Speaker notes ride along in the slide, hidden: no layout, no paint, no innerText.
@@ -622,6 +632,26 @@ mod tests {
         assert!(parse(v.to_string().as_bytes()).is_ok());
         v["slides"][1]["blocks"] = json!(vec![one; 9]);
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[1].blocks[8]: at most 16 diagrams"));
+    }
+
+    #[test]
+    fn diagrams_only_at_full_width() {
+        let q = json!({"quadrants":[{"title":"가"},{"title":"나"},{"title":"다"},{"title":"라"}]});
+        let d = json!({"type":"diagram","diagram":"quadrant","alt":"a","data":q});
+        let t = json!({"type":"text","text":"본문"});
+        let mut v = base();
+        v["slides"][0]["blocks"] = json!([{"type":"columns","columns":[{"blocks":[d.clone()]},{"blocks":[t]}]}]);
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(),
+            "$.slides[0].blocks[0].columns[0].blocks[0].type: diagram is too narrow to read inside columns; put it directly in the slide's blocks");
+        let dir = std::env::temp_dir().join(format!("wb-spec-split-diagram-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+        v["slides"][0] = json!({"layout":"split","heading":"T","image":{"src":"a.svg","alt":"a"},"blocks":[d.clone()]});
+        assert_eq!(parse_in(v.to_string().as_bytes(), Some(&dir), None).err().unwrap(),
+            "$.slides[0].blocks[0].type: diagram is too narrow to read on a \"layout\": \"split\" slide; move it to a slide without layout");
+        // Full width is fine, including after a split slide.
+        v["slides"] = json!([{"layout":"split","heading":"T","image":{"src":"a.svg","alt":"a"}}, {"blocks":[d]}]);
+        assert!(parse_in(v.to_string().as_bytes(), Some(&dir), None).is_ok());
     }
 
     #[test]

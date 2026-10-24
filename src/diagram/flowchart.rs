@@ -16,6 +16,7 @@ enum Shape {
 }
 
 struct Node {
+    id: String,
     label: String,
     shape: Shape,
 }
@@ -51,7 +52,7 @@ fn parse(data: &Value) -> Result<(bool, Vec<Node>, Vec<Link>)> {
             Some(Some("terminal")) => Shape::Terminal,
             _ => return Err(format!("{p}.shape: expected process, decision or terminal")),
         };
-        nodes.push(Node { label: req_str(o, "label", &p, 80)?, shape });
+        nodes.push(Node { id: id.clone(), label: req_str(o, "label", &p, 80)?, shape });
         ids.push(id);
     }
     let mut links: Vec<Link> = Vec::new();
@@ -104,6 +105,27 @@ fn fit_box(s: &str, w: f64, h: f64, size: f64) -> Result<Label> {
         .ok_or(format!("label \"{s}\" does not fit in {}x{}px; shorten it", w.floor(), h.floor()))
 }
 
+/// (main_len, cross_len, m_max, c_max, m_min, c_min): canvas room and slot size bounds per direction.
+fn geom(tb: bool) -> (f64, f64, f64, f64, f64, f64) {
+    if tb { (H - 2.0 * PAD, W - 2.0 * PAD, 56.0, 176.0, 24.0, 48.0) } else { (W - 2.0 * PAD, H - 2.0 * PAD, 160.0, 96.0, 48.0, 24.0) }
+}
+
+/// Slot length along the main axis for `nr` ranks, and across it for `k` slots per rank.
+fn slot_m(tb: bool, nr: usize, gap: f64) -> f64 {
+    let (main_len, _, m_max, ..) = geom(tb);
+    snap(((main_len - (nr - 1) as f64 * gap) / nr as f64).min(m_max))
+}
+fn slot_c(tb: bool, k: usize) -> f64 {
+    let (_, cross_len, _, c_max, ..) = geom(tb);
+    snap(((cross_len - (k - 1) as f64 * GAP) / k as f64).min(c_max))
+}
+
+/// Most ranks, and most slots in one rank, that still leave slots of the minimum size (LR 9 x 7, TB 8 x 8).
+fn caps(tb: bool) -> (usize, usize) {
+    let (.., m_min, c_min) = geom(tb);
+    ((1..).take_while(|&r| slot_m(tb, r, MIN_GAP) >= m_min).last().unwrap(), (1..).take_while(|&k| slot_c(tb, k) >= c_min).last().unwrap())
+}
+
 pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     let (tb, nodes, links) = parse(data)?;
     let rank = ranks(nodes.len(), &links)?;
@@ -122,6 +144,30 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     let nr = rank.iter().max().unwrap() + 1;
     let mut layers: Vec<Vec<usize>> = vec![Vec::new(); nr];
     item_rank.iter().enumerate().for_each(|(i, &r)| layers[r].push(i));
+    // Capacity: say which count is over, by how much, and what to change.
+    let (dir, other) = if tb { ("TB", "LR") } else { ("LR", "TB") };
+    let ((max_nr, max_k), (alt_nr, alt_k)) = (caps(tb), caps(!tb));
+    let fits_other = nr <= alt_nr && layers.iter().all(|l| l.len() <= alt_k);
+    // Fixes as a list: "a, b, or c".
+    let advise = |mut fix: Vec<String>| {
+        if fits_other { fix.push(format!("use direction {other}")); }
+        let last = fix.pop().unwrap();
+        if fix.is_empty() { last } else { format!("{}, or {last}", fix.join(", ")) }
+    };
+    if nr > max_nr {
+        return Err(format!("$.edges: the longest chain has {nr} ranks, {dir} fits at most {max_nr}; {}", advise(vec!["shorten the longest chain".into()])));
+    }
+    if let Some((r, l)) = layers.iter().enumerate().find(|(_, l)| l.len() > max_k) {
+        let real: Vec<&str> = l.iter().filter(|&&i| i < nodes.len()).map(|&i| nodes[i].id.as_str()).collect();
+        let d = l.len() - real.len();
+        let nodes = if real.len() == 1 { "1 node".to_string() } else { format!("{} nodes", real.len()) };
+        let held = if d == 0 { nodes } else { format!("{nodes} + {d} edges passing through") };
+        let mut fix = Vec::new();
+        // A longest-path rank always holds a node, so real is not empty; the list keeps the text sane anyway.
+        if !real.is_empty() { fix.push(format!("chain some of {} instead of placing them side by side", real.join(", "))); }
+        if d > 0 { fix.push("drop edges that pass through this rank".into()); }
+        return Err(format!("$.nodes: rank {} holds {held}, {dir} fits at most {max_k}; {}", r + 1, advise(fix)));
+    }
     let (mut up, mut down) = (vec![Vec::new(); item_rank.len()], vec![Vec::new(); item_rank.len()]);
     for w in chains.iter().flat_map(|c| c.windows(2)) {
         down[w[0]].push(w[1]);
@@ -146,17 +192,11 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     }
 
     // Uniform slot size: m along the main axis, c across it.
-    let (main_len, cross_len) = if tb { (H - 2.0 * PAD, W - 2.0 * PAD) } else { (W - 2.0 * PAD, H - 2.0 * PAD) };
-    let (m_max, c_max, m_min, c_min) = if tb { (56.0, 176.0, 24.0, 48.0) } else { (160.0, 96.0, 48.0, 24.0) };
+    let (main_len, cross_len, _, _, m_min, _) = geom(tb);
     let k = layers.iter().map(|l| l.len()).max().unwrap();
-    // Prefer room between ranks for arrows and edge labels; squeeze to MIN_GAP only if needed.
-    let slot = |gap: f64| snap(((main_len - (nr - 1) as f64 * gap) / nr as f64).min(m_max));
-    let m = [if tb { 32.0 } else { 40.0 }, MIN_GAP].map(slot).into_iter().find(|&m| m >= m_min)
-        .ok_or("too many steps in a row: the flow does not fit; split it")?;
-    let c = snap(((cross_len - (k - 1) as f64 * GAP) / k as f64).min(c_max));
-    if c < c_min {
-        return Err("too many nodes in one rank: the flow does not fit; split it".into());
-    }
+    // Prefer room between ranks for arrows and edge labels; squeeze to MIN_GAP only if needed (caps() vouches it fits).
+    let m = [if tb { 32.0 } else { 40.0 }, MIN_GAP].map(|g| slot_m(tb, nr, g)).into_iter().find(|&m| m >= m_min).unwrap();
+    let c = slot_c(tb, k);
     let g = if nr > 1 { snap(((main_len - nr as f64 * m) / (nr - 1) as f64).min(MAX_GAP)) } else { 0.0 };
     let main0 = snap(PAD + (main_len - nr as f64 * m - (nr - 1) as f64 * g) / 2.0);
     // Slot origin (main, cross) per item.
@@ -317,10 +357,10 @@ mod tests {
         serde_json::from_str(include_str!("../../samples/diagrams/flowchart.json")).unwrap()
     }
 
-    /// Ok, or a "does not fit" error; never a layout-check failure.
+    /// Ok, or a "does not fit" / capacity error; never a layout-check failure.
     fn fits_or_says_so(d: &Value) {
         if let Err(e) = render(d) {
-            assert!(e.contains("does not fit"), "{e}");
+            assert!(e.contains("does not fit") || e.contains("fits at most"), "{e}");
         }
     }
 
@@ -379,6 +419,72 @@ mod tests {
                 .map(|(i, j)| json!({"from": format!("n{i}"), "to": format!("n{j}")})).collect();
             render(&json!({"direction": dir, "nodes": nodes(12, "검토"), "edges": grid})).unwrap();
         }
+    }
+
+    fn chain(n: usize) -> Vec<Value> {
+        (1..n).map(|i| json!({"from": format!("n{}", i - 1), "to": format!("n{i}")})).collect()
+    }
+
+    fn fan(n: usize) -> Vec<Value> {
+        (1..n).map(|i| json!({"from": "n0", "to": format!("n{i}")})).collect()
+    }
+
+    #[test]
+    fn capacity_limits_are_explicit_errors() {
+        // Repro: a 10-step LR chain failed only with a generic "does not fit".
+        for (dir, deep, wide) in [("LR", 9, 7), ("TB", 8, 8)] {
+            render(&json!({"direction": dir, "nodes": nodes(deep, "단계"), "edges": chain(deep)})).unwrap();
+            render(&json!({"direction": dir, "nodes": nodes(wide + 1, "분기"), "edges": fan(wide + 1)})).unwrap();
+            let e = render(&json!({"direction": dir, "nodes": nodes(deep + 1, "단계"), "edges": chain(deep + 1)})).unwrap_err();
+            assert!(e.starts_with(&format!("$.edges: the longest chain has {} ranks, {dir} fits at most {deep};", deep + 1)), "{e}");
+            let e = render(&json!({"direction": dir, "nodes": nodes(wide + 2, "분기"), "edges": fan(wide + 2)})).unwrap_err();
+            assert!(e.starts_with(&format!("$.nodes: rank 2 holds {} nodes, {dir} fits at most {wide};", wide + 1)), "{e}");
+        }
+        // Edges passing through a rank take slots too.
+        let mut e = fan(7);
+        e.extend([json!({"from": "n1", "to": "n7"}), json!({"from": "n0", "to": "n7"}), json!({"from": "n7", "to": "n8"}), json!({"from": "n0", "to": "n8"})]);
+        let err = render(&json!({"nodes": nodes(9, "분기"), "edges": e})).unwrap_err();
+        assert!(err.starts_with("$.nodes: rank 2 holds 6 nodes + 2 edges passing through, LR fits at most 7;"), "{err}");
+        assert!(err.contains("n1, n2"), "{err}");
+        // The other direction is suggested only when every cap there fits.
+        assert!(render(&json!({"direction": "TB", "nodes": nodes(9, "단계"), "edges": chain(9)})).unwrap_err().ends_with("or use direction LR"));
+        assert!(render(&json!({"nodes": nodes(9, "분기"), "edges": fan(9)})).unwrap_err().ends_with("or use direction TB"));
+        // 9 ranks, rank 2 = n1 + 7 edges passing through: LR is too wide, TB too deep, so neither suggests the other.
+        let mut e = chain(9);
+        e.extend((2..9).map(|j| json!({"from": "n0", "to": format!("n{j}")})));
+        let d = json!({"nodes": nodes(9, "단계"), "edges": e});
+        assert_eq!(render(&d).unwrap_err(), "$.nodes: rank 2 holds 1 node + 7 edges passing through, LR fits at most 7; chain some of n1 instead of placing them side by side, or drop edges that pass through this rank");
+        let mut d = d;
+        d["direction"] = json!("TB");
+        assert_eq!(render(&d).unwrap_err(), "$.edges: the longest chain has 9 ranks, TB fits at most 8; shorten the longest chain");
+    }
+
+    #[test]
+    fn inputs_within_the_limits_never_fail_for_capacity() {
+        // Sweep: whatever passes the rank and slot checks lays out; only label and crossing limits remain.
+        let mut seed = 11u64;
+        let mut rnd = |k: u64| { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (seed >> 33) % k };
+        let (mut ok, mut cap, mut spot) = (0, 0, 0);
+        for _ in 0..1000 {
+            let n = 2 + rnd(11) as usize;
+            let mut edges = Vec::new();
+            for j in 1..n {
+                for i in 0..j {
+                    if edges.len() < 24 && rnd(4) == 0 { edges.push(json!({"from": format!("n{i}"), "to": format!("n{j}")})); }
+                }
+            }
+            // Label every edge in half the flows, none in the rest.
+            if rnd(2) == 0 { edges.iter_mut().for_each(|e| e["label"] = json!("예")); }
+            let dir = if rnd(2) == 0 { "LR" } else { "TB" };
+            match render(&json!({"direction": dir, "nodes": nodes(n, "단계"), "edges": edges})) {
+                Ok(_) => ok += 1,
+                Err(e) if e.contains("fits at most") => cap += 1,
+                Err(e) if e.contains("no clear spot") => spot += 1,
+                Err(e) => panic!("{e}"),
+            }
+        }
+        eprintln!("capacity sweep: ok {ok}, capacity {cap}, label spot {spot}");
+        assert!(ok >= 500, "only {ok}/1000 rendered");
     }
 
     #[test]

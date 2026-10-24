@@ -52,6 +52,9 @@ own item counts.
 - No `title` field. The slide owns the heading.
 - Canvas is a 640×360 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
 - Limits below are hard. Out of range is an error, never a silent cut.
+- Full width only: labels are sized for the whole slide body (about 0.83x at
+  300px tall). Inside columns or a split slide it is an error in both markup
+  (`<wb-diagram> inside <wb-columns>`) and spec JSON.
 
 ## Shared primitives
 
@@ -102,7 +105,7 @@ optional field.
 | venn `planned` | compare | `{"sets":[str], "overlaps":[{"sets":[i,j], "label"}]}` | 2–3 sets; `overlaps[].sets` are 0-based indexes into `sets` | Shared versus distinct traits. Not for more than 3 groups. |
 | comparison `planned` | compare | `{"columns":[str], "rows":[{"label","cells":[str]}]}` | 2–4 columns, ≤6 rows | Options side by side on the same criteria. Not for long prose cells. |
 | before_after `planned` | compare | `{"before":[str], "after":[str]}` | 1–5 items each | A change of state. Not when there are more than two states. |
-| flowchart `v1` | process | `{"direction"?:"LR\|TB", "nodes":[{"id","label","shape"?:"process\|decision\|terminal"}], "edges":[{"from","to","label"?}]}` | 2–12 nodes; DAG only, a cycle is an error | Steps with branches. Layered layout with dummy nodes. Not for loops (use cycle or causal_loop). |
+| flowchart `v1` | process | `{"direction"?:"LR\|TB", "nodes":[{"id","label","shape"?:"process\|decision\|terminal"}], "edges":[{"from","to","label"?}]}` | 2–12 nodes, ≤24 edges; DAG only, a cycle is an error. Ranks = longest chain: LR fits 9, TB 8. One rank holds at most 7 slots in LR, 8 in TB, where an edge passing through the rank takes a slot. Over a cap is a `$.edges`/`$.nodes` error naming the count, the cap and a fix. Labels on many edges can still fail with "no clear spot"; label only the branches that need it | Steps with branches. Layered layout with dummy nodes. Not for loops (use cycle or causal_loop). |
 | chevrons `planned` | process | `{"steps":[{"label","note"?}], "highlight"?:index}` | 3–6 steps | A short linear sequence. Not when steps branch. |
 | stairs `planned` | process | `{"steps":[{"label","note"?}]}` bottom step first | 3–5 steps | Progressive maturity or build-up. Not when steps are equal in weight. |
 | swimlane `planned` | process | `{"lanes":[str], "steps":[{"id","lane","label"}], "edges":[{"from","to"}]}` | 2–5 lanes, ≤12 steps | Who does what in a handoff process. Not with one actor. |
