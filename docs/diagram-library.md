@@ -19,10 +19,9 @@ The look follows the slide preset: `--wb-*` tokens
 accent colour, plenty of whitespace. No gradients, shadows, 3D or clip-art.
 
 In a deck, use the spec `diagram` block ([slide-spec.md](slide-spec.md)):
-`{"type":"diagram","diagram":"quadrant","alt":"…","data":{…}}`. Planned
-(agreed with the markup owner): a `<wb-diagram type="..." alt="...">` tag whose
-body is the JSON model ([markup-dsl.md](markup-dsl.md)), lowered to that
-block. Export writes the SVG
+`{"type":"diagram","diagram":"quadrant","alt":"…","data":{…}}`. In markup,
+`<wb-diagram type="..." alt="...">` with the JSON model as its body
+([markup-dsl.md](markup-dsl.md)) lowers to that block. Export writes the SVG
 inline (`<svg class="wb-diagram" role="img" aria-label>`), so the render font,
 font-coverage check and `render.py --check` see diagram text, sized by the
 `--wb-diagram-height` token. At most 16 diagrams per deck; each type caps its
@@ -45,16 +44,20 @@ own item counts.
 ## Common rules
 
 - Input is one JSON object. Unknown fields are errors at every level.
-- Strings are nonblank. Labels are at most 80 characters. Short fields are
-  at most 40: `id`, `category`, `date`, quadrant `title`, column, lane, role
-  and set names, and axis labels (`label`, `low`, `high`). Korean is fine.
-- `highlight` is a 0-based index into the type's main array.
+- Strings are nonblank, one line, no control characters. Labels, notes and
+  items are at most 80 characters. Short fields are at most 40: `id`,
+  flowchart `from`/`to` and edge `label`, funnel `value`, `category`, `date`,
+  quadrant `title`, column, lane, role and set names, and axis labels
+  (`label`, `low`, `high`). Korean is fine.
+- `highlight` is a 0-based index into the type's main array. Only types that
+  list it take it (quadrant, timeline; planned chevrons); elsewhere it is an
+  unknown field.
 - No `title` field. The slide owns the heading.
 - Canvas is a 640×360 viewBox. Every coordinate and size is a multiple of 8px. Text sizes are exempt.
 - Limits below are hard. Out of range is an error, never a silent cut.
 - Full width only: labels are sized for the whole slide body (about 0.83x at
   300px tall). Inside columns or a split slide it is an error in both markup
-  (`<wb-diagram> inside <wb-columns>`) and spec JSON.
+  (`<wb-diagram>` inside `<wb-columns>` or `<wb-split>`) and spec JSON.
 
 ## Shared primitives
 
@@ -70,8 +73,9 @@ new drawing code.
 | grid cell | rectangle in a row/column grid, aligned to 8px | comparison, raci, heatmap, quadrant |
 
 **Text width estimate.** Conservative, with no font metrics at layout time:
-CJK and full-width characters count 1.0em, Latin letters, digits and
-punctuation 0.62em, spaces 0.32em. Lines break at spaces; a word wider than the
+CJK, Hangul, full-width, emoji and symbols count 1.0em, as do `M W m w @ %`;
+other capitals 0.75em, other letters, digits and punctuation 0.62em, spaces
+0.32em. Lines break at spaces; a word wider than the
 box breaks between characters. A label that needs more than its max lines
 shrinks 2px at a time down to 12px; if it still does not fit, the render fails
 with the label text. Text is never clipped or ellipsized.
@@ -101,11 +105,11 @@ optional field.
 
 | Type | Intent | Data model | Limits | Use when / don't use when |
 |---|---|---|---|---|
-| quadrant `v1` | compare | `{"x"?:{"label"?,"low"?,"high"?}, "y"?:{"label"?,"low"?,"high"?}, "quadrants":[TL,TR,BL,BR] each {"title","items"?:[str]}, "highlight"?:0-3}` | 4 quadrants, ≤4 items each | Two axes split options into four groups; SWOT is a quadrant with titles S/W/O/T. Not for precise values. |
+| quadrant `v1` | compare | `{"x"?:{"label"?,"low"?,"high"?}, "y"?:{"label"?,"low"?,"high"?}, "quadrants":[TL,TR,BL,BR] each {"title","items"?:[str]}, "highlight"?:0-3}` | 4 quadrants; `items` 1–4 when present (`[]` is an error) | Two axes split options into four groups; SWOT is a quadrant with titles S/W/O/T. Not for precise values. |
 | venn `planned` | compare | `{"sets":[str], "overlaps":[{"sets":[i,j], "label"}]}` | 2–3 sets; `overlaps[].sets` are 0-based indexes into `sets` | Shared versus distinct traits. Not for more than 3 groups. |
 | comparison `planned` | compare | `{"columns":[str], "rows":[{"label","cells":[str]}]}` | 2–4 columns, ≤6 rows | Options side by side on the same criteria. Not for long prose cells. |
 | before_after `planned` | compare | `{"before":[str], "after":[str]}` | 1–5 items each | A change of state. Not when there are more than two states. |
-| flowchart `v1` | process | `{"direction"?:"LR\|TB", "nodes":[{"id","label","shape"?:"process\|decision\|terminal"}], "edges":[{"from","to","label"?}]}` | 2–12 nodes, ≤24 edges; DAG only, a cycle is an error. Ranks = longest chain: LR fits 9, TB 8. One rank holds at most 7 slots in LR, 8 in TB, where an edge passing through the rank takes a slot. Over a cap is a `$.edges`/`$.nodes` error naming the count, the cap and a fix. Labels on many edges can still fail with "no clear spot"; label only the branches that need it | Steps with branches. Layered layout with dummy nodes. Not for loops (use cycle or causal_loop). |
+| flowchart `v1` | process | `{"direction"?:"LR\|TB", "nodes":[{"id","label","shape"?:"process\|decision\|terminal"}], "edges":[{"from","to","label"?}]}` | 2–12 nodes, unique ids; `edges` required, 0–24 (`[]` is fine). DAG only: a cycle, self-loop, duplicate edge or unknown id is an error. Ranks = longest chain: LR fits 9, TB 8. One rank holds at most 7 slots in LR, 8 in TB, where an edge passing through the rank takes a slot. Over a cap is a `$.edges`/`$.nodes` error naming the count, the cap and a fix. Labels on many edges can still fail with "no clear spot"; label only the branches that need it | Steps with branches. Layered layout with dummy nodes. Not for loops (use cycle or causal_loop). |
 | chevrons `planned` | process | `{"steps":[{"label","note"?}], "highlight"?:index}` | 3–6 steps | A short linear sequence. Not when steps branch. |
 | stairs `planned` | process | `{"steps":[{"label","note"?}]}` bottom step first | 3–5 steps | Progressive maturity or build-up. Not when steps are equal in weight. |
 | swimlane `planned` | process | `{"lanes":[str], "steps":[{"id","lane","label"}], "edges":[{"from","to"}]}` | 2–5 lanes, ≤12 steps | Who does what in a handoff process. Not with one actor. |
@@ -117,11 +121,11 @@ optional field.
 | tree `planned` | hierarchy | `{"root":{"label","children"?:[node]}}` recursive | ≤4 levels including root, ≤20 nodes | Org charts and breakdowns. Not for many-to-many links. |
 | mindmap `planned` | hierarchy | `{"center", "branches":[{"label","items"?:[str]}]}` | 2–6 branches, ≤4 items each | Topics around one idea. Not when order matters. |
 | hub `v1` | relationship | `{"hub", "spokes":[str], "arrows"?:"none\|out\|in"}` | 3–8 spokes | One centre related to many parts (hub-and-spoke). Not when spokes relate to each other. |
-| fishbone `v1` | relationship | `{"effect", "causes":[{"category","items":[str]}]}` | 2–6 categories, ≤4 items each | Root causes of one effect (Ishikawa). Not for feedback loops. |
+| fishbone `v1` | relationship | `{"effect", "causes":[{"category","items"?:[str]}]}` | 2–6 categories, 0–4 items each | Root causes of one effect (Ishikawa). Not for feedback loops. |
 | raci `planned` | relationship | `{"roles":[str], "tasks":[{"label","r","a","c"?:[str],"i"?:[str]}]}` | 2–6 roles, ≤8 tasks; `r` and `a` are one role name each, `c` and `i` lists of role names | Responsibility by task and role. Not for a plain org chart. |
 | layers `planned` | structure | `{"layers":[{"label","items"?:[str]}]}` top first | 2–6 layers, ≤5 items each | A stack such as a tech architecture. Not when layers are ranked by size (use pyramid). |
 | concentric `planned` | structure | `{"rings":[{"label","note"?}]}` centre first | 2–5 rings | Core to periphery (target, onion). Not for independent groups. |
-| timeline `v1` | time | `{"events":[{"date","label","note"?}], "highlight"?:index}` | 2–8 events | Dated milestones in order. Not for durations (use gantt). |
+| timeline `v1` | time | `{"events":[{"date","label","note"?}], "highlight"?:index}` | 2–8 events; `highlight` 0 to events−1 | Dated milestones in order. Not for durations (use gantt). |
 | gantt `planned` | time | `{"start","end", "tasks":[{"label","from","to","group"?}]}` ISO dates | ≤12 tasks | Task durations and overlap. Not for a few point events. |
 | roadmap `planned` | time | `{"lanes":[str], "periods":[str], "items":[{"lane","label","from","to"}]}` period indexes | 2–5 lanes, 2–8 periods | Themes over coarse periods (quarters). Not for day-level plans. |
 | journey `planned` | time | `{"stages":[{"label","score":-2..2,"note"?}]}` | 3–7 stages; `score` is an integer −2..2 | Experience highs and lows across stages. Not for metrics with units. |
