@@ -160,7 +160,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
     if let Some((r, l)) = layers.iter().enumerate().find(|(_, l)| l.len() > max_k) {
         let real: Vec<&str> = l.iter().filter(|&&i| i < nodes.len()).map(|&i| nodes[i].id.as_str()).collect();
         let d = l.len() - real.len();
-        let held = if d == 0 { format!("{} nodes", real.len()) } else { format!("{} nodes + {d} edges passing through", real.len()) };
+        let nodes = if real.len() == 1 { "1 node".to_string() } else { format!("{} nodes", real.len()) };
+        let held = if d == 0 { nodes } else { format!("{nodes} + {d} edges passing through") };
         let mut fix = Vec::new();
         // A longest-path rank always holds a node, so real is not empty; the list keeps the text sane anyway.
         if !real.is_empty() { fix.push(format!("chain some of {} instead of placing them side by side", real.join(", "))); }
@@ -452,7 +453,7 @@ mod tests {
         let mut e = chain(9);
         e.extend((2..9).map(|j| json!({"from": "n0", "to": format!("n{j}")})));
         let d = json!({"nodes": nodes(9, "단계"), "edges": e});
-        assert_eq!(render(&d).unwrap_err(), "$.nodes: rank 2 holds 1 nodes + 7 edges passing through, LR fits at most 7; chain some of n1 instead of placing them side by side, or drop edges that pass through this rank");
+        assert_eq!(render(&d).unwrap_err(), "$.nodes: rank 2 holds 1 node + 7 edges passing through, LR fits at most 7; chain some of n1 instead of placing them side by side, or drop edges that pass through this rank");
         let mut d = d;
         d["direction"] = json!("TB");
         assert_eq!(render(&d).unwrap_err(), "$.edges: the longest chain has 9 ranks, TB fits at most 8; shorten the longest chain");
