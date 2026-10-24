@@ -198,7 +198,7 @@ fn blocks(o: &Object, path: &str, columns_allowed: bool, count: &mut usize, ctx:
                     return Err(error(&format!("{p}.type"), "diagram is too narrow to read inside columns; put it directly in the slide's blocks"))
                 }
                 "diagram" if ctx.split => {
-                    return Err(error(&format!("{p}.type"), "diagram is too narrow to read in layout split; use a slide without layout"))
+                    return Err(error(&format!("{p}.type"), "diagram is too narrow to read on a \"layout\": \"split\" slide; move it to a slide without layout"))
                 }
                 "diagram" => &["type", "diagram", "alt", "data"],
                 "columns" if columns_allowed => &["type", "columns"],
@@ -648,7 +648,7 @@ mod tests {
         std::fs::write(dir.join("a.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
         v["slides"][0] = json!({"layout":"split","heading":"T","image":{"src":"a.svg","alt":"a"},"blocks":[d.clone()]});
         assert_eq!(parse_in(v.to_string().as_bytes(), Some(&dir), None).err().unwrap(),
-            "$.slides[0].blocks[0].type: diagram is too narrow to read in layout split; use a slide without layout");
+            "$.slides[0].blocks[0].type: diagram is too narrow to read on a \"layout\": \"split\" slide; move it to a slide without layout");
         // Full width is fine, including after a split slide.
         v["slides"] = json!([{"layout":"split","heading":"T","image":{"src":"a.svg","alt":"a"}}, {"blocks":[d]}]);
         assert!(parse_in(v.to_string().as_bytes(), Some(&dir), None).is_ok());
