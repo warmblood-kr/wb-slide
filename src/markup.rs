@@ -165,6 +165,15 @@ fn attr(e: &El, k: &str) -> Result<String> {
         .ok_or(format!("<{}> at byte {} needs {k}=\"…\"", e.name, e.pos))
 }
 
+/// Diagram labels are sized for the full content width; a column or split text side shrinks them unreadably.
+fn has_diagram(blocks: &serde_json::Value) -> bool {
+    blocks.as_array().is_some_and(|b| b.iter().any(|b| b["type"] == "diagram"))
+}
+
+fn too_narrow(tag: &str, pos: usize) -> String {
+    format!("<wb-diagram> inside <{tag}> at byte {pos}: too narrow to read; put it directly in a <wb-slide>")
+}
+
 /// Body content -> spec blocks, in order.
 fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
     let mut blocks = Vec::new();
@@ -193,6 +202,9 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                         b => Ok(json!({"blocks": b})),
                     })
                     .collect::<Result<Vec<_>>>()?;
+                if columns.iter().any(|c| has_diagram(&c["blocks"])) {
+                    return Err(too_narrow("wb-columns", e.pos));
+                }
                 // The spec enforces 2–3 columns and no nesting, with a field path.
                 blocks.push(json!({"type": "columns", "columns": columns}));
             }
@@ -338,9 +350,12 @@ pub fn compile(markup: &str) -> Result<String> {
             // Image/text split: a <wb-slide> body plus one image; the spec checks the path and side.
             Node::El(mut e) if e.name == "wb-split" => {
                 let image = json!({"src": attr(&e, "image")?, "alt": collapse(&attr(&e, "alt")?)});
-                let side = attr(&e, "side").ok();
+                let (side, pos) = (attr(&e, "side").ok(), e.pos);
                 e.attrs.push(("layout".into(), "split".into()));
                 let mut s = slide(e, slides.len())?;
+                if has_diagram(&s["blocks"]) {
+                    return Err(too_narrow("wb-split", pos));
+                }
                 s["image"] = image;
                 if let Some(side) = side {
                     s["side"] = json!(side.trim());
@@ -704,8 +719,6 @@ mod tests {
     fn diagram_lowers_json_body_to_spec_block() {
         let s = spec("<wb-slide><wb-title>T</wb-title><wb-diagram type=\" quadrant \" alt=\" 우선  순위 \">\n {\"x\": 1, \"s\": \"a  &amp; b\"} </wb-diagram></wb-slide>");
         assert_eq!(s["slides"][0]["blocks"], json!([{"type":"diagram","diagram":"quadrant","alt":"우선 순위","data":{"x":1,"s":"a  & b"}}]));
-        let s = spec("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-columns><wb-column><wb-diagram type=hub alt=h>{}</wb-diagram></wb-column><wb-column>b</wb-column></wb-columns></wb-split>");
-        assert_eq!(s["slides"][0]["blocks"][0]["columns"][0]["blocks"][0], json!({"type":"diagram","diagram":"hub","alt":"h","data":{}}));
         for (m, e) in [
             ("<wb-slide><wb-diagram alt=a>{}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10 needs type="),
             ("<wb-slide><wb-diagram type=hub>{}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10 needs alt="),
@@ -713,6 +726,11 @@ mod tests {
             ("<wb-slide><wb-diagram type=hub alt=a>{x}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10: invalid JSON:"),
             ("<wb-slide><wb-diagram type=hub alt=a>{<wb-item>x</wb-item>}</wb-diagram></wb-slide>", "unexpected <wb-item>"),
             ("<wb-slide><wb-diagram type=hub alt=\"a\"/></wb-slide>", "self-closing"),
+            // Labels shrink below a readable size in a narrow column.
+            ("<wb-slide><wb-columns><wb-column><wb-diagram type=hub alt=h>{}</wb-diagram></wb-column><wb-column>b</wb-column></wb-columns></wb-slide>",
+             "<wb-diagram> inside <wb-columns> at byte 10: too narrow to read; put it directly in a <wb-slide>"),
+            ("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-diagram type=hub alt=h>{}</wb-diagram></wb-split>",
+             "<wb-diagram> inside <wb-split> at byte 0: too narrow to read; put it directly in a <wb-slide>"),
         ] {
             assert!(compile(m).unwrap_err().contains(e), "{m}: {}", compile(m).unwrap_err());
         }
