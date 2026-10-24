@@ -199,9 +199,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
                     n(r.x), n(cy), n(r.x + d), n(r.y), n(r.x + r.w - d), n(r.y), n(r.x + r.w), n(cy),
                     n(r.x + r.w - d), n(r.y + r.h), n(r.x + d), n(r.y + r.h), t.card, t.border
                 );
-                let b = Rect { x: r.x + d, y: r.y + 4.0, w: r.w - 2.0 * d, h: r.h - 8.0 };
-                svg.nodes.push(b);
-                b
+                svg.nodes.push(r); // the whole slot, so the check sees an edge across a point
+                Rect { x: r.x + d, y: r.y + 4.0, w: r.w - 2.0 * d, h: r.h - 8.0 }
             }
             Shape::Decision => {
                 svg.body += &format!(
@@ -214,8 +213,7 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
                     fit(&nd.label, sz, r.w * (1.0 - h / r.h) - 4.0, k).ok().filter(|_| h < r.h)
                 });
                 let l = l.ok_or(format!("$.nodes[{i}].label: label \"{}\" does not fit in the decision; shorten it", nd.label))?;
-                let (iw, ih) = (r.w * (1.0 - (l.height() + 4.0) / r.h), l.height() + 4.0);
-                svg.nodes.push(Rect { x: cx - iw / 2.0, y: cy - ih / 2.0, w: iw, h: ih });
+                svg.nodes.push(r); // bounding box: conservative, but no edge clips a corner unseen
                 svg.text(&l, Anchor::Middle, cx, cy - l.height() / 2.0, 500, &t.text);
                 continue;
             }
@@ -342,6 +340,24 @@ mod tests {
     }
 
     #[test]
+    fn check_catches_edge_through_decision_corner() {
+        // Repro: a decision registered only its inner text box, so an edge across its point went unnoticed.
+        let t = super::Theme::load(None).unwrap();
+        for dir in ["LR", "TB"] {
+            let mut d = sample();
+            d["direction"] = json!(dir);
+            let mut s = super::Svg::new(&t);
+            super::draw(&d, &mut s).unwrap();
+            s.check().unwrap();
+            let pts = s.body.split("<polygon points=\"").nth(1).unwrap().split('"').next().unwrap();
+            let (vx, vy) = pts.split(' ').map(|p| { let (x, y) = p.split_once(',').unwrap(); (x.parse::<f64>().unwrap(), y.parse::<f64>().unwrap()) })
+                .min_by(|a, b| a.0.total_cmp(&b.0)).unwrap();
+            s.edge(&[(vx + 2.0, vy), (vx + 10.0, vy)], [usize::MAX, usize::MAX], "#000");
+            assert!(s.check().unwrap_err().contains("through node"), "{dir}");
+        }
+    }
+
+    #[test]
     fn min_and_max_counts() {
         render(&json!({"nodes": nodes(2, "시작"), "edges": []})).unwrap();
         for dir in ["LR", "TB"] {
@@ -355,6 +371,13 @@ mod tests {
                 .chain([(0, 6), (1, 7), (2, 8), (3, 9), (4, 10)]).take(24)
                 .map(|(i, j)| json!({"from": format!("n{i}"), "to": format!("n{j}"), "label": "예"})).collect();
             fits_or_says_so(&json!({"direction": dir, "nodes": nodes(12, "검토"), "edges": dense}));
+            // Known-good near the limits must render, so an all-error regression cannot pass as "says so".
+            render(&json!({"direction": dir, "nodes": nodes(8, "단계"), "edges": &chain[..7]})).unwrap();
+            render(&json!({"direction": dir, "nodes": nodes(8, "분기"), "edges": &fan[..7]})).unwrap();
+            // Max counts: 12 nodes, 24 edges (4 ranks of 3, consecutive ranks linked).
+            let grid: Vec<Value> = (0..3).flat_map(|r| (0..3).flat_map(move |a| (0..3).map(move |b| (r * 3 + a, r * 3 + 3 + b)))).take(24)
+                .map(|(i, j)| json!({"from": format!("n{i}"), "to": format!("n{j}")})).collect();
+            render(&json!({"direction": dir, "nodes": nodes(12, "검토"), "edges": grid})).unwrap();
         }
     }
 
@@ -416,5 +439,16 @@ mod tests {
         assert!(err(d).starts_with("$.nodes[0].shape"));
         assert!(err(json!({"nodes": nodes(13, "x"), "edges": []})).contains("2-12"));
         assert!(err(json!({"nodes": nodes(2, &"가".repeat(81)), "edges": []})).contains("80"));
+        let mut d = sample();
+        d["nodes"][1]["id"] = json!("start");
+        assert_eq!(err(d), "$.nodes[1].id: duplicate id \"start\"");
+        let mut d = sample();
+        d["edges"][0]["to"] = json!("start");
+        assert_eq!(err(d), "$.edges[0]: self-loop on \"start\"");
+        let mut d = sample();
+        d["edges"].as_array_mut().unwrap().push(json!({"from": "pack", "to": "done", "label": "다시"}));
+        assert_eq!(err(d), "$.edges[5]: duplicate edge pack -> done");
+        let many: Vec<Value> = (0..25).map(|_| json!({"from": "n0", "to": "n1"})).collect();
+        assert_eq!(err(json!({"nodes": nodes(2, "x"), "edges": many})), "$.edges: expected an array of 0-24 entries");
     }
 }

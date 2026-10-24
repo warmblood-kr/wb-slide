@@ -78,6 +78,11 @@ with the label text. Text is never clipped or ellipsized.
 4. Edge labels sit on a `--wb-bg` background plate and do not overlap nodes
    or other text. No edge passes through a label.
 
+Edges also never pass through a node other than their own ends (a decision
+counts as its full bounding box), and two edges with no node in common never
+share a collinear run. Flowchart edges into or out of the same node may merge
+on the segment at that node on purpose: it reads as one joining arrow.
+
 The same layout check covers all four. Tests run it by computing the bboxes from the layout output for each
 type, across fixture data at the min and max of every limit, including long
 Korean labels. A layout that breaks a guarantee is a bug, not a warning.
