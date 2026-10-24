@@ -175,7 +175,7 @@ Pick the type by the "Use when" column. Anything else (comparison table, org cha
 | `duplicate id "x"` / `unknown id "x"` / `self-loop on "x"` / `duplicate edge a -> b` | Unique ids; `from`/`to` must name a node; drop the edge. |
 | `cycles are not supported; use the cycle type` | Remove the back edge, or use `cycle`. |
 | `label "…" does not fit in …; shorten it` | Shorten the quoted label. |
-| other `… do not fit …` (e.g. `steps do not fit around the cycle`, `items do not fit in the quadrant`) | Shorten texts or remove entries. |
+| other `… not fit …` (e.g. `steps do not fit around the cycle`, `items do not fit in the quadrant`, `label does not fit in the band`) | Shorten texts or remove entries. |
 | `too many steps in a row` / `… nodes in one rank` / `… crossing edges` | Split the flow over two slides. |
 | `no clear spot along the edge; …` | Drop the edge label (edges that skip a rank have little room). |
 
