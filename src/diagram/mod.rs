@@ -5,7 +5,9 @@ use serde_json::{Map, Value};
 
 mod cycle;
 mod fishbone;
+mod funnel;
 mod hub;
+mod pyramid;
 mod quadrant;
 mod timeline;
 
@@ -16,7 +18,7 @@ pub const H: f64 = 360.0;
 pub const PAD: f64 = 24.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant", "hub", "cycle", "timeline", "fishbone"];
+pub const TYPES: &[&str] = &["quadrant", "hub", "cycle", "timeline", "fishbone", "funnel", "pyramid"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
@@ -28,6 +30,8 @@ pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
         "cycle" => cycle::draw(data, &mut svg)?,
         "timeline" => timeline::draw(data, &mut svg)?,
         "fishbone" => fishbone::draw(data, &mut svg)?,
+        "funnel" => funnel::draw(data, &mut svg)?,
+        "pyramid" => pyramid::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
@@ -199,6 +203,14 @@ impl<'a> Svg<'a> {
         let stroke = stroke.map(|(c, w)| format!(r#" stroke="{c}" stroke-width="{}""#, n(w))).unwrap_or_default();
         self.body += &format!(r#"<rect x="{}" y="{}" width="{}" height="{}" rx="{}" fill="{fill}"{stroke}/>"#, n(r.x), n(r.y), n(r.w), n(r.h), n(radius));
         self.nodes.push(r);
+    }
+
+    /// A filled polygon (funnel/pyramid bands); `inner` is its text-safe box, recorded as the node.
+    pub fn polygon(&mut self, pts: &[(f64, f64)], fill: &str, stroke: Option<&str>, inner: Option<Rect>) {
+        let pts: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        let stroke = stroke.map(|c| format!(r#" stroke="{c}" stroke-width="1""#)).unwrap_or_default();
+        self.body += &format!(r#"<polygon points="{}" fill="{fill}"{stroke}/>"#, pts.join(" "));
+        self.nodes.extend(inner);
     }
 
     /// A small decorative circle (bullets, timeline ticks); not a node.
