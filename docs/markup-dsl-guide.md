@@ -176,7 +176,8 @@ Pick the type by the "Use when" column. Anything else (comparison table, org cha
 | `cycles are not supported; use the cycle type` | Remove the back edge, or use `cycle`. |
 | `label "…" does not fit in …; shorten it` | Shorten the quoted label. |
 | other `… not fit …` (e.g. `steps do not fit around the cycle`, `items do not fit in the quadrant`, `label does not fit in the band`) | Shorten texts or remove entries. |
-| `too many steps in a row` / `… nodes in one rank` / `… crossing edges` | Split the flow over two slides. |
+| `$.edges: the longest chain has N ranks, LR fits at most M; …` / `$.nodes: rank R holds K nodes, TB fits at most M; …` | Do what the message suggests (shorten the chain, chain side-by-side nodes, or switch `direction`); else split the flow over two slides. |
+| `too many crossing edges: …` | Split the flow over two slides. |
 | `no clear spot along the edge; …` | Drop the edge label (edges that skip a rank have little room). |
 
 Not data errors: `$.slides[I].blocks[J].diagram: expected one of quadrant, hub, cycle, timeline, fishbone, funnel, pyramid, flowchart` (fix `type`) and `$.slides[I].blocks[J]: at most 16 diagrams per deck` (use fewer).

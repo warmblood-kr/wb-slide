@@ -752,6 +752,43 @@ mod tests {
     }
 
     #[test]
+    fn guide_diagram_errors_match_the_code() {
+        // Each phrase must appear in the guide's §6 error table and in the real error for that data.
+        let guide = include_str!("../docs/markup-dsl-guide.md");
+        let node = |i: usize| format!(r#"{{"id":"n{i}","label":"단계 {i}"}}"#);
+        let flow = |nodes: Vec<String>, edges: Vec<(usize, usize)>| {
+            let edges: Vec<_> = edges.iter().map(|(a, b)| format!(r#"{{"from":"n{a}","to":"n{b}"}}"#)).collect();
+            format!(r#"{{"nodes":[{}],"edges":[{}]}}"#, nodes.join(","), edges.join(","))
+        };
+        let quad = r#"{"quadrants":[{"title":"가"},{"title":"나"},{"title":"다"},{"title":"라"}]"#;
+        let cases = [
+            ("quadrant", format!(r#"{quad},"title":"x"}}"#), "unknown field"),
+            ("hub", r#"{"hub":"h","spokes":["a","b"]}"#.into(), "expected an array of "),
+            ("hub", r#"{"hub":" ","spokes":["a","b","c"]}"#.into(), "expected nonblank text of at most "),
+            ("hub", r#"{"hub":"a\nb","spokes":["a","b","c"]}"#.into(), "control characters are not allowed"),
+            ("quadrant", format!(r#"{quad},"highlight":4}}"#), "expected 0-"),
+            ("hub", r#"{"hub":"h","spokes":["a","b","c"],"arrows":"up"}"#.into(), r#"expected "none", "out" or "in""#),
+            ("flowchart", r#"{"direction":"RL","nodes":[{"id":"a","label":"a"},{"id":"b","label":"b"}],"edges":[]}"#.into(), "expected LR or TB"),
+            ("flowchart", r#"{"nodes":[{"id":"a","label":"a","shape":"x"},{"id":"b","label":"b"}],"edges":[]}"#.into(), "expected process, decision or terminal"),
+            ("flowchart", flow(vec![node(0), node(0)], vec![]), "duplicate id "),
+            ("flowchart", flow(vec![node(0), node(1)], vec![(0, 2)]), "unknown id "),
+            ("flowchart", flow(vec![node(0), node(1)], vec![(0, 0)]), "self-loop on "),
+            ("flowchart", flow(vec![node(0), node(1)], vec![(0, 1), (0, 1)]), "duplicate edge "),
+            ("flowchart", flow(vec![node(0), node(1)], vec![(0, 1), (1, 0)]), "cycles are not supported; use the cycle type"),
+            ("flowchart", flow((0..12).map(node).collect(), (0..11).map(|i| (i, i + 1)).collect()), "the longest chain has "),
+            ("flowchart", flow((0..12).map(node).collect(), (1..12).map(|i| (0, i)).collect()), " fits at most "),
+            ("cycle", format!(r#"{{"steps":[{}]}}"#, vec![r#"{"label":"아주 긴 단계 이름을 여러 단어로 길게 늘여 쓴 설명 문장 하나 그리고 또 하나"}"#; 8].join(",")), "does not fit in "),
+            ("pie", "{}".into(), "expected one of quadrant, hub, cycle, timeline, fishbone, funnel, pyramid, flowchart"),
+        ];
+        for (kind, data, phrase) in cases {
+            assert!(guide.contains(phrase), "guide lacks {phrase:?}");
+            let json = compile(&format!("<wb-slide><wb-title>T</wb-title><wb-diagram type={kind} alt=a>{data}</wb-diagram></wb-slide>")).unwrap();
+            let err = crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).err().unwrap_or_default();
+            assert!(err.contains(phrase), "{kind} {data}: {err:?} lacks {phrase:?}");
+        }
+    }
+
+    #[test]
     fn image_takes_src_and_alt() {
         let s = spec("<wb-slide><wb-image src=\"img/a.svg\" alt=\" 구성  도 \" /><wb-image src=\"b.png\" alt=\"b\"></wb-image></wb-slide>");
         assert_eq!(s["slides"][0]["blocks"], json!([
