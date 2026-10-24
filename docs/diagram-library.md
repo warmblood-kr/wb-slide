@@ -102,7 +102,7 @@ optional field.
 | stairs `planned` | process | `{"steps":[{"label","note"?}]}` bottom step first | 3–5 steps | Progressive maturity or build-up. Not when steps are equal in weight. |
 | swimlane `planned` | process | `{"lanes":[str], "steps":[{"id","lane","label"}], "edges":[{"from","to"}]}` | 2–5 lanes, ≤12 steps | Who does what in a handoff process. Not with one actor. |
 | value_chain `planned` | process | `{"primary":[str], "support":[str]}` | 3–6 primary, 0–4 support | Porter-style primary and support activities. Not for a generic process. |
-| funnel `v1` | process | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string; widths are fixed steps, not to scale. Not for growth. |
+| funnel `v1` | process | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string: one bold line, ≤40 chars, up to 24pt shrinking to fit; the last band is narrowest, so keep values short (`310명`). Widths are fixed steps, not to scale. Not for growth. |
 | cycle `v1` | cycle | `{"steps":[{"label","note"?}]}` clockwise from 12 o'clock | 3–8 steps | A repeating loop with no end. Not when there is a clear start and finish. |
 | causal_loop `planned` | cycle | `{"nodes":[{"id","label"}], "edges":[{"from","to","sign":"+\|-"}]}` | 3–8 nodes | Reinforcing and balancing feedback. Not for one-way causes (use fishbone). |
 | pyramid `v1` | hierarchy | `{"levels":[{"label","note"?}]}` top level first | 2–6 levels | Ranked layers where the base supports the top. Not for unranked groups. |

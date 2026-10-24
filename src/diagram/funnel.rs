@@ -18,6 +18,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         let path = format!("$.stages[{i}]");
         let s = obj(s, &path, &["label", "value"])?;
         let label = req_str(s, "label", &path, 80)?;
+        // Intentional: value is a one-line headline (<= 40 chars, bold, up to 24pt, shrinking to fit);
+        // the last band is narrowest (192px of text), so long values there are an error.
         let value = opt_str(s, "value", &path, 40)?;
         let (top_w, bot_w) = (TOP_W - step * i as f64, TOP_W - step * (i + 1) as f64);
         let y = y0 + i as f64 * (h + GAP);
@@ -94,6 +96,9 @@ mod tests {
             let st: Vec<_> = (0..k).map(|i| json!({"label": format!("단계 {i}")})).collect();
             render(&json!({ "stages": st }), None).unwrap();
         }
+        // Known-good maximal case: six stages with medium labels and values must render.
+        let st: Vec<_> = (0..6).map(|i| json!({"label": format!("체험 시작 {i}단계"), "value": "12,400명"})).collect();
+        render(&json!({ "stages": st }), None).unwrap();
     }
 
     #[test]
