@@ -740,6 +740,18 @@ mod tests {
     }
 
     #[test]
+    fn guide_diagram_examples_are_valid() {
+        // The authoring guide's §6 examples must keep passing the spec and diagram checks.
+        let guide = include_str!("../docs/markup-dsl-guide.md");
+        let examples: Vec<_> = guide.lines().filter(|l| l.starts_with("<wb-diagram type=")).collect();
+        assert_eq!(examples.len(), 8);
+        for ex in examples {
+            let json = compile(&format!("<wb-slide><wb-title>T</wb-title>{ex}</wb-slide>")).unwrap();
+            crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).unwrap_or_else(|e| panic!("{ex}: {e}"));
+        }
+    }
+
+    #[test]
     fn image_takes_src_and_alt() {
         let s = spec("<wb-slide><wb-image src=\"img/a.svg\" alt=\" 구성  도 \" /><wb-image src=\"b.png\" alt=\"b\"></wb-image></wb-slide>");
         assert_eq!(s["slides"][0]["blocks"], json!([
