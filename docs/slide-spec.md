@@ -138,9 +138,10 @@ A `diagram` block draws one deterministic diagram from strict JSON
 Export renders the SVG in-process with the deck's preset theme (`--theme` for
 markup, default for `--spec`) and writes it inline as
 `<svg class="wb-diagram" role="img" aria-label="…">` (escaped `alt`), so the
-render font and checks see its text. No file is read. The slide preset
-(`export --markup`) sizes it with `--wb-diagram-height` (300px), keeping the
-aspect ratio. At most 16 diagrams
+render font and checks see its text. No file is read. It is sized by
+`--wb-diagram-height` (300px), keeping the aspect ratio; `image` blocks are
+capped by `--wb-image-height` (300px). Plain `--spec` uses those defaults;
+`export --markup` takes them from its theme. At most 16 diagrams
 per deck. An unknown type lists the valid ones; data errors carry the block
 path, e.g. `$.slides[0].blocks[0].data.quadrants[0].title: …`.
 
