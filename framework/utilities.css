@@ -156,3 +156,8 @@
 .cover-stack { position: absolute; inset: 0; display: grid; }
 .cover-stack > * { grid-area: 1 / 1; }
 .cover-content { display: grid; place-items: center; text-align: center; padding: 40px; box-sizing: border-box; }
+
+/* Spec diagram/image blocks: sized even without the slide preset (plain --spec export).
+   The preset (slide.css) restates these with its theme tokens. */
+.wb-diagram { display: block; width: 100%; height: var(--wb-diagram-height, 300px); }
+.wb-image { display: block; max-width: 100%; max-height: var(--wb-image-height, 300px); object-fit: contain; }

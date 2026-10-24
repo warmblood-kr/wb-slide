@@ -1669,6 +1669,20 @@ mod tests {
     }
 
     #[test]
+    fn spec_export_sizes_diagrams_and_images_without_a_preset() {
+        let dir = std::env::temp_dir().join(format!("wbslide_spec_size_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (input, output) = (dir.join("deck.json"), dir.join("deck.html"));
+        std::fs::write(&input, r#"{"schema_version":1,"title":"가상 덱","slides":[{"heading":"사분면","blocks":[{"type":"diagram","diagram":"quadrant","alt":"가상 사분면","data":{"quadrants":[{"title":"가"},{"title":"나"},{"title":"다"},{"title":"라"}]}}]}]}"#).unwrap();
+        export_spec(&input, &output).unwrap();
+        let html = std::fs::read_to_string(&output).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(html.contains("<svg class=\"wb-diagram\""));
+        assert!(html.contains("height: var(--wb-diagram-height, 300px)"), "diagram height rule missing");
+        assert!(html.contains("max-height: var(--wb-image-height, 300px)"), "image height rule missing");
+    }
+
+    #[test]
     fn test_first_slide_context_reaches_template() {
         let raw = "---\ntitle: Deck tab\ntheme: test-theme\nlayout: slide-feature\nheading: 첫 장 제목\nsubtitle: 설명\nlabel: Custom\nfooter: Team\n---\n\nBody\n\n---\nlayout: slide-feature\nheading: Next\n---\n\nSecond body";
         let (meta, slides) = parse_slides(raw);
