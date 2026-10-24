@@ -7,12 +7,17 @@
   --color-background: var(--wb-bg);
   --color-border: var(--wb-border);
 }
+/* Korean wraps between words, never inside one; very long tokens may still break. */
+.ms-slide-container { word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; }
+/* Short titles: even line lengths instead of a lone last word. */
+.ms-slide-container :is(h1, h2) { text-wrap: balance; }
 .ms-feature-layout { padding: var(--wb-safe-y) var(--wb-safe-x); gap: var(--wb-gap); }
 .ms-slide-title {
   font-size: var(--wb-title-size);
   font-weight: var(--wb-title-weight);
   color: var(--wb-title-color);
-  line-height: 1.25;
+  line-height: var(--wb-title-leading);
+  letter-spacing: var(--wb-title-tracking);
 }
 .ms-slide-subtitle { font-size: var(--wb-subtitle-size); color: var(--wb-muted); margin: 0; }
 /* --wb-vertical: start | safe center | space-evenly places the body under the title. */
@@ -20,7 +25,7 @@
 .ms-slot-area p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
 /* Bare <wb-slide>: one centered statement. */
 .ms-section-layout { padding: var(--wb-safe-y) var(--wb-safe-x); }
-.ms-section-layout p {
+.ms-section-layout:not(:has(> .wb-head)) p {
   font-size: var(--wb-center-size);
   font-weight: var(--wb-title-weight);
   color: var(--wb-title-color);
@@ -31,8 +36,78 @@
 .wb-list li::marker { color: var(--wb-accent); }
 .panel { background: var(--wb-card-bg); border-color: var(--wb-border); border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
 .panel > p:last-child { margin-bottom: 0; }
-.panel-label { color: var(--wb-accent); }
+.panel-label { color: var(--wb-accent); font-size: var(--wb-label-size); }
+/* Body copy directly under the title stops at the theme's reading measure. */
+.ms-slot-area > p, .ms-slot-area > .wb-list { max-width: var(--wb-measure); }
 /* Columns fill the content width with equal shares (see #22). */
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }
+/* Deck folio: a small caps running label centred in the top margin band, above where content starts.
+   Spans the safe width so a long label wraps inside the band instead of running off the slide. */
+.ms-folio { position: absolute; top: calc(var(--wb-safe-y) / 2); left: var(--wb-safe-x); right: var(--wb-safe-x); transform: translateY(-50%); z-index: 10; font-size: var(--wb-label-size); font-weight: 600; line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wb-muted); }
+/* Chapter openers drop the running head (cover has no chrome at all): it would crowd the section numeral. */
+.slide-section:has(> .ms-section-layout > .wb-head) .ms-folio { display: none; }
+/* Layout variants (spec `layout`): a heading group (.wb-head) then optional blocks.
+   One block per variant below; a new variant adds one row to LAYOUTS in spec.rs. */
+.wb-head::before { content: ""; display: block; width: 48px; height: 4px; background: var(--wb-accent); margin-bottom: var(--wb-gap); }
+.wb-head { margin: 0 0 calc(var(--wb-gap) * 1.5); }
+.wb-head-title { margin: 0; font-weight: var(--wb-title-weight); color: var(--wb-title-color); line-height: 1.1; }
+.wb-head-subtitle { margin: calc(var(--wb-gap) * 0.75) 0 0; font-size: var(--wb-subtitle-size); color: var(--wb-muted); line-height: 1.4; }
+.wb-head ~ p { font-size: var(--wb-body-size); line-height: 1.6; margin: 0 0 var(--wb-gap); }
+/* cover: left-aligned group anchored to the bottom-left of the safe area; no chrome. */
+.ms-cover-layout:has(> .wb-head) { place-items: end start; align-content: end; text-align: left; padding: var(--wb-safe-y) var(--wb-safe-x); }
+.ms-cover-layout .wb-head-title { font-size: var(--wb-center-size); line-height: 1.1; }
+/* section: divider title, left-aligned, starting just under mid-height (canvas is 540px). */
+.ms-section-layout:has(> .wb-head) { place-items: start; align-content: start; text-align: left; padding-top: calc(540px * 0.45); }
+.ms-section-layout .wb-head-title { font-size: var(--wb-center-size); }
+/* Pure divider (a section head and nothing else, e.g. <wb-section>): inverse slide.
+   Tokens are re-pointed on the slide so title, chrome and accent follow; a section with body stays light. */
+.ms-slide-container:has(> .ms-section-layout > .wb-head):not(:has(> .ms-section-layout > :not(.wb-head, .wb-notes))) {
+  background: var(--wb-inverse-bg);
+  --wb-title-color: var(--wb-inverse-text);
+  --wb-muted: color-mix(in srgb, var(--wb-inverse-text) 72%, var(--wb-inverse-bg));
+  --wb-accent: var(--wb-inverse-accent);
+  --color-text: var(--wb-inverse-text);
+  --color-text-muted: var(--wb-muted);
+  color: var(--wb-inverse-text);
+}
+/* Section number ("01"): large accent numeral at the top-left of the safe area; it replaces the accent bar. */
+.wb-head-number { position: absolute; top: var(--wb-safe-y); left: var(--wb-safe-x); font-size: var(--wb-stat-size); font-weight: var(--wb-title-weight); line-height: 1; letter-spacing: var(--wb-title-tracking); color: var(--wb-accent); font-variant-numeric: tabular-nums; }
+.wb-head:has(> .wb-head-number)::before { display: none; }
+/* quote: one statement at 60% measure, vertically centred (nudged above centre), on the left axis.
+   The accent mark hangs in the left margin so the text keeps the axis; attribution in small muted caps. */
+.ms-quote-layout { padding: var(--wb-safe-y) var(--wb-safe-x) calc(var(--wb-safe-y) * 2); gap: 0; place-items: center start; }
+.wb-quote { margin: 0; max-width: min(var(--wb-measure), 60%); }
+.wb-quote blockquote { position: relative; margin: 0; font-size: clamp(32px, calc(var(--wb-title-size) * 0.9), 40px); }
+.wb-quote blockquote::before { content: "\201C"; position: absolute; right: 100%; top: 0; padding-right: 0.1em; font-size: 1.75em; line-height: 0.85; font-weight: var(--wb-title-weight); color: var(--wb-accent); }
+.wb-quote p { margin: 0; font-weight: 500; line-height: 1.3; letter-spacing: var(--wb-title-tracking); color: var(--wb-title-color); text-wrap: balance; }
+.wb-quote-by { margin-top: var(--wb-gap); font-size: var(--wb-label-size); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wb-muted); }
+/* split: the image bleeds to one edge, 45% wide and full height, cover-cropped, square edges; head and body
+   sit top-aligned in a column from 52% (mirrored for side right). Chrome moves off the image onto the text side. */
+.ms-split-layout { display: grid; align-content: start; place-items: start stretch; height: 100%; padding: var(--wb-safe-y) var(--wb-safe-x) var(--wb-safe-y) 52%; }
+.ms-split-layout:has(> .wb-split-right) { padding: var(--wb-safe-y) 52% var(--wb-safe-y) var(--wb-safe-x); }
+.ms-split-layout .wb-head-title { font-size: var(--wb-title-size); line-height: var(--wb-title-leading); letter-spacing: var(--wb-title-tracking); }
+.wb-split-image { position: absolute; top: 0; left: 0; width: 45%; height: 100%; object-fit: cover; }
+.wb-split-right { left: auto; right: 0; }
+.slide-split:has(.wb-split-left) :is(.ms-footer-logo, .ms-folio) { left: 52%; }
+.slide-split:has(.wb-split-right) .ms-folio { right: 52%; }
+.slide-split:has(.wb-split-right) .ms-page-number { right: 52%; }
+/* agenda: title in the left third, list in the right two-thirds; hairlines between items, no bullets.
+   Numerals are CSS counters (01–06), tabular, in accent at 4/3 of the item size (32px over 24px). */
+.ms-agenda-layout { display: grid; grid-template-columns: 1fr 2fr; column-gap: calc(var(--wb-gap) * 2); align-items: start; height: 100%; padding: var(--wb-safe-y) var(--wb-safe-x); }
+.ms-agenda-layout .wb-head-title { font-size: var(--wb-title-size); line-height: var(--wb-title-leading); letter-spacing: var(--wb-title-tracking); }
+.ms-agenda-layout .wb-list { margin: 0; padding: 0; list-style: none; counter-reset: wb-agenda; margin-top: calc(4px + var(--wb-gap) - 12px); max-width: none; font-size: var(--wb-subtitle-size); line-height: 1.3; color: var(--wb-title-color); }
+.ms-agenda-layout .wb-list li { counter-increment: wb-agenda; display: flex; align-items: baseline; gap: var(--wb-gap); padding: 12px 0; }
+.ms-agenda-layout .wb-list li + li { border-top: 1px solid var(--wb-border); }
+.ms-agenda-layout .wb-list li::before { content: counter(wb-agenda, decimal-leading-zero); flex: none; font-size: calc(var(--wb-subtitle-size) * 4 / 3); font-weight: var(--wb-title-weight); line-height: 1; letter-spacing: var(--wb-title-tracking); color: var(--wb-accent); font-variant-numeric: tabular-nums; }
+/* <wb-stat> (spec kpi, rendered as div.wb-kpi): figure sized from the title token, caption and note under it. */
+.wb-kpi { margin: 0 0 var(--wb-gap); }
+.wb-kpi .stat { font-size: calc(var(--wb-title-size) * 1.5); font-weight: var(--wb-title-weight); color: var(--wb-accent); }
+.wb-kpi .stat-label { font-size: var(--wb-body-size); color: var(--wb-muted); margin-top: calc(var(--wb-gap) / 4); }
+.ms-slot-area .wb-kpi .source, .ms-section-layout .wb-kpi .source { font-size: calc(var(--wb-body-size) * 0.7); color: var(--wb-muted); margin: calc(var(--wb-gap) / 2) 0 0; }
+/* <wb-callout>: tinted box keyed to the theme accent (warning keeps the red edge). */
+.info-box, .warn-box { border-radius: var(--wb-radius); padding: var(--wb-gap) calc(var(--wb-gap) * 1.25); margin: 0 0 var(--wb-gap); }
+.info-box > p:last-child, .warn-box > p:last-child { margin-bottom: 0; }
+/* On a bare centred slide the big statement rule must not enlarge callout text. */
+.ms-section-layout :is(.info-box, .warn-box) p { font-size: var(--wb-body-size); font-weight: 400; color: var(--wb-text); line-height: 1.6; }

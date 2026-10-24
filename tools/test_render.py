@@ -16,6 +16,11 @@ from render import render
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# --wb-inverse-bg per theme: a pure section divider paints it edge to edge.
+INVERSE = {"classic": (0x11, 0x18, 0x27), "default": (0x1C, 0x1B, 0x19), "night": (0xF9, 0xFA, 0xFB),
+           "graphite": (0xF7, 0xF8, 0xF8), "signal": (0xD7, 0xFF, 0x3A)}
+
+
 class RenderTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -146,42 +151,112 @@ class RenderTest(unittest.TestCase):
 
     def test_markup_preset_themes_apply(self):
         corners = {}
-        for theme in ["default", "night"]:
+        for theme in ["classic", "default", "night", "graphite", "signal"]:
             output = self.root / f"{theme}.html"
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 5)
-            self.assertIn("안녕하세요", manifest["slides"][0]["text"])
-            self.assertIn("가상 시범 운영 검토", manifest["slides"][1]["text"])
+            self.assertEqual(manifest["slide_count"], 11)
+            self.assertIn("가상 레이아웃 소개", manifest["slides"][0]["text"])
+            self.assertIn("안녕하세요", manifest["slides"][1]["text"])
+            self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
             self.assertTrue(all("합성 자료" in s["text"] for s in manifest["slides"]))
-            self.assertIn("기능 확인용 합성 자료", manifest["slides"][1]["text"])
-            self.assertEqual(manifest["slides"][1]["notes"], "청중에게 합성 자료임을 먼저 알립니다.")
-            self.assertNotIn("청중에게", manifest["slides"][1]["text"])
-            self.assertEqual(manifest["slides"][0]["notes"], "")
-            self.assertIn("카드와 단 나누기", manifest["slides"][2]["text"])
-            self.assertIn("라벨이 붙은 패널", manifest["slides"][2]["text"])
-            self.assertIn("준비 6주", manifest["slides"][3]["text"])
+            self.assertIn("기능 확인용 합성 자료", manifest["slides"][2]["text"])
+            # <wb-folio>: running label in caps on every slide except the cover and section openers.
+            self.assertEqual([i for i, s in enumerate(manifest["slides"]) if "WB-SLIDE · 합성 덱" not in s["text"]], [0, 5, 6])
+            self.assertEqual(manifest["slides"][2]["notes"], "청중에게 합성 자료임을 먼저 알립니다.")
+            self.assertNotIn("청중에게", manifest["slides"][2]["text"])
+            self.assertEqual(manifest["slides"][1]["notes"], "")
+            self.assertIn("카드와 단 나누기", manifest["slides"][3]["text"])
+            self.assertIn("라벨이 붙은 패널", manifest["slides"][3]["text"])
+            self.assertIn("준비 6주", manifest["slides"][4]["text"])
+            self.assertIn("+38%", manifest["slides"][4]["text"])
+            self.assertIn("원격 주소는 오류", manifest["slides"][7]["text"])
+            self.assertIn("변환 과정", manifest["slides"][6]["text"])
             # The local SVG is embedded and painted: its solid #2563EB box shows up.
-            flow = Image.open(self.root / theme / manifest["slides"][4]["file"]).convert("RGB")
+            flow = Image.open(self.root / theme / manifest["slides"][7]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
-            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 5)
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 11)
+            # layout="cover": the head group sits bottom-left, with no chrome.
+            cover = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
+            ink = ImageChops.difference(cover, Image.new("RGB", cover.size, cover.getpixel((4, 4)))).getbbox()
+            self.assertLess(ink[0], 400)
+            self.assertGreater(ink[1], 540)
+            self.assertLess(ink[2], 1700)  # no page number at the right edge
+            self.assertLess(ink[3], 1000)  # no footer in the bottom band
+            # layout="section": left-aligned head whose top (accent bar) starts near mid-height.
+            section = Image.open(self.root / theme / manifest["slides"][6]["file"]).convert("RGB")
+            ink = ImageChops.difference(section, Image.new("RGB", section.size, section.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
+            self.assertLess(ink[0], 400)
+            self.assertLess(abs(ink[1] / 1080 - 0.5), 0.06)
+            # <wb-section>: inverse slide, accent numeral top-left, title just under mid-height.
+            self.assertIn("02", manifest["slides"][5]["text"])
+            self.assertIn("마크업에서 슬라이드까지", manifest["slides"][5]["text"])
+            divider = Image.open(self.root / theme / manifest["slides"][5]["file"]).convert("RGB")
+            self.assertEqual(divider.getpixel((4, 4)), INVERSE[theme])
+            ink = ImageChops.difference(divider, Image.new("RGB", divider.size, INVERSE[theme])).crop((0, 0, 1900, 960)).getbbox()
+            self.assertLess(ink[0], 160)
+            self.assertLess(ink[1], 200)  # the numeral starts in the top band, well above the title
+            # <wb-quote>: text and attribution; the accent mark hangs left of the text axis (= footer axis), block near mid-height.
+            self.assertIn("한 가지만 말하고", manifest["slides"][8]["text"])
+            self.assertIn("김가상, 합성 팀장", manifest["slides"][8]["text"])
+            quote = Image.open(self.root / theme / manifest["slides"][8]["file"]).convert("RGB")
+            blank = Image.new("RGB", quote.size, quote.getpixel((4, 4)))
+            ink = ImageChops.difference(quote, blank).crop((0, 96, 1920, 960)).getbbox()
+            axis = ImageChops.difference(quote, blank).crop((0, 960, 1920, 1080)).getbbox()[0]
+            self.assertLess(ink[0], axis - 20)
+            self.assertGreater(ink[0], 16)  # the hung mark stays on the slide, not clipped at the edge
+            self.assertLess(abs((ink[1] + ink[3]) / 2 + 96 - 540), 80)
+            # <wb-split side="left">: the image covers x 0–45% at full height (bleed, no radius);
+            # title, body and footer all start in the text column at 52%.
+            self.assertIn("현장에서 본 것", manifest["slides"][9]["text"])
+            self.assertIn("본문은 52%에서 시작", manifest["slides"][9]["text"])
+            split = Image.open(self.root / theme / manifest["slides"][9]["file"]).convert("RGB")
+            diff = ImageChops.difference(split, Image.new("RGB", split.size, split.getpixel((1916, 4))))
+            self.assertEqual(diff.crop((0, 0, 960, 1080)).getbbox(), (0, 0, 864, 1080))
+            self.assertTrue(all(diff.getpixel(xy) != (0, 0, 0) for xy in [(0, 0), (0, 1079), (863, 0), (863, 1079)]))
+            self.assertGreaterEqual(diff.crop((864, 0, 1920, 1080)).getbbox()[0] + 864, 994)
+            # <wb-agenda>: title in the left third; the list starts right of 1/3 width with
+            # numerals (CSS counters) in the head's accent colour, ahead of the item text.
+            self.assertIn("목차", manifest["slides"][10]["text"])
+            self.assertIn("다음 분기 계획", manifest["slides"][10]["text"])
+            agenda = Image.open(self.root / theme / manifest["slides"][10]["file"]).convert("RGB")
+            diff = ImageChops.difference(agenda, Image.new("RGB", agenda.size, agenda.getpixel((4, 4))))
+            head = diff.crop((0, 96, 640, 960)).getbbox()
+            accent = agenda.getpixel((head[0] + 2, head[1] + 96 + 2))  # the head's accent bar
+            items = diff.crop((640, 0, 1920, 960)).getbbox()
+            self.assertGreater(items[0] + 640, 640 + 40)
+            numerals = agenda.crop((items[0] + 640, items[1], items[0] + 640 + 60, items[3]))
+            self.assertIn(accent, [c for _, c in numerals.getcolors(1 << 22)])
             # Bare <wb-slide>: ink is centered on the canvas.
-            bare = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
-            ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 0, 1900, 960)).getbbox()
+            bare = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
+            ink = ImageChops.difference(bare, Image.new("RGB", bare.size, bare.getpixel((4, 4)))).crop((0, 96, 1900, 960)).getbbox()
             self.assertLess(abs((ink[0] + ink[2]) / 2 - 960), 40)
-            self.assertLess(abs((ink[1] + ink[3]) / 2 - 540), 40)
+            self.assertLess(abs((ink[1] + ink[3]) / 2 + 96 - 540), 40)
             # Preset --wb-center-size (40px+) applies: glyphs are far taller than unstyled 16px text.
             self.assertGreater(ink[3] - ink[1], 60)
-            png = Image.open(self.root / theme / manifest["slides"][1]["file"]).convert("RGB")
+            png = Image.open(self.root / theme / manifest["slides"][2]["file"]).convert("RGB")
+            # Folio ink lives in the top margin band (above --wb-safe-y, 96px+ at 2x), left on the content axis.
+            diff = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4))))
+            folio, content = diff.crop((0, 0, 1920, 90)).getbbox(), diff.crop((0, 90, 1920, 960)).getbbox()
+            self.assertGreater(folio[1], 16)
+            self.assertLess(abs(folio[0] - content[0]), 8)
+            self.assertLess(folio[3] - folio[1], 40)  # one 11–12px line
             # --wb-vertical: center puts the body mid-way under the title, not top-heavy.
             body = ImageChops.difference(png, Image.new("RGB", png.size, png.getpixel((4, 4)))).crop((0, 360, 1920, 1000)).getbbox()
             self.assertIsNotNone(body)
-            self.assertGreater(body[1], 120)
+            # The study themes hang the body from the top axis (--wb-vertical: start).
+            if theme in ("classic", "night"):
+                self.assertGreater(body[1], 120)
+            else:
+                self.assertLess(body[1], 60)
             corners[theme] = png.getpixel((4, 4))
-        self.assertEqual(corners["default"], (255, 255, 255))
+        self.assertEqual(corners["classic"], (255, 255, 255))
+        self.assertEqual(corners["default"], (0xF5, 0xF2, 0xEA))
         self.assertEqual(corners["night"], (0x11, 0x18, 0x27))
+        self.assertEqual(corners["graphite"], (0x0B, 0x0C, 0x0E))
+        self.assertEqual(corners["signal"], (0x3B, 0x2B, 0xDB))
 
     def check(self, source):
         result = subprocess.run([sys.executable, ROOT / "tools/render.py", source, "--output", self.root / "checked",

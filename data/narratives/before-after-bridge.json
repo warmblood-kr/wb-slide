@@ -1,0 +1,72 @@
+{
+  "id": "before-after-bridge",
+  "name": "Before, After, Bridge",
+  "family": "persuasion",
+  "summary": "Show the painful before, the desirable after, then present the solution as the bridge between them.",
+  "references": [
+    "Copywriting formula popularized in direct-response marketing; see Joanna Wiebe, Copyhackers (2010s)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "customer",
+      "general"
+    ],
+    "goals": [
+      "sell",
+      "persuade"
+    ],
+    "minutes": [
+      3,
+      10
+    ]
+  },
+  "title_style": "Short contrast titles, under 10 words.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "current-state",
+      "purpose": "Before: the world with the problem."
+    },
+    {
+      "role": "future-state",
+      "purpose": "After: the world without it."
+    },
+    {
+      "role": "contrast",
+      "purpose": "Put before and after side by side.",
+      "optional": true
+    },
+    {
+      "role": "solution",
+      "purpose": "Bridge: what gets you from before to after."
+    },
+    {
+      "role": "how-it-works",
+      "purpose": "Show the bridge is easy to cross."
+    },
+    {
+      "role": "ask",
+      "purpose": "Invite them across."
+    }
+  ],
+  "pitfalls": [
+    "A before the audience does not recognize as theirs.",
+    "An after that is vague or unbelievable.",
+    "A bridge that looks harder than the problem."
+  ],
+  "example": {
+    "topic": "A fictional invoicing tool for small agencies",
+    "outline": [
+      "Before: invoices chased by phone every Friday",
+      "After: invoices paid before you think of them",
+      "Friday calls vs. automatic reminders",
+      "The bridge: reminders that send themselves",
+      "Connect your ledger, pick a schedule, done",
+      "Start a free month this week"
+    ]
+  }
+}

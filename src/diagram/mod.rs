@@ -3,8 +3,14 @@
 //! no edge through a foreign node or label. A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
+mod cycle;
+mod fishbone;
 mod flowchart;
+mod funnel;
+mod hub;
+mod pyramid;
 mod quadrant;
+mod timeline;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -13,15 +19,21 @@ pub const H: f64 = 360.0;
 pub const PAD: f64 = 24.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["flowchart", "quadrant"];
+pub const TYPES: &[&str] = &["quadrant", "hub", "cycle", "timeline", "fishbone", "funnel", "pyramid", "flowchart"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
     let t = Theme::load(theme)?;
     let mut svg = Svg::new(&t);
     match kind {
-        "flowchart" => flowchart::draw(data, &mut svg)?,
         "quadrant" => quadrant::draw(data, &mut svg)?,
+        "hub" => hub::draw(data, &mut svg)?,
+        "cycle" => cycle::draw(data, &mut svg)?,
+        "timeline" => timeline::draw(data, &mut svg)?,
+        "fishbone" => fishbone::draw(data, &mut svg)?,
+        "funnel" => funnel::draw(data, &mut svg)?,
+        "pyramid" => pyramid::draw(data, &mut svg)?,
+        "flowchart" => flowchart::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
@@ -204,6 +216,14 @@ pub struct Svg<'a> {
     pub edges: Vec<Edge>,
 }
 
+/// Where the ray from `a`'s centre toward `b`'s centre leaves `a`, pushed `gap` further out.
+fn exit(a: &Rect, b: &Rect, gap: f64) -> (f64, f64) {
+    let (ax, ay) = (a.x + a.w / 2.0, a.y + a.h / 2.0);
+    let (dx, dy) = (b.x + b.w / 2.0 - ax, b.y + b.h / 2.0 - ay);
+    let k = (a.w / 2.0 / dx.abs()).min(a.h / 2.0 / dy.abs()) + gap / dx.hypot(dy);
+    (ax + dx * k, ay + dy * k)
+}
+
 /// Round to 0.5px so output is byte-stable across platforms.
 fn n(v: f64) -> String {
     let r = (v * 2.0).round() / 2.0;
@@ -220,6 +240,14 @@ impl<'a> Svg<'a> {
         let stroke = stroke.map(|(c, w)| format!(r#" stroke="{c}" stroke-width="{}""#, n(w))).unwrap_or_default();
         self.body += &format!(r#"<rect x="{}" y="{}" width="{}" height="{}" rx="{}" fill="{fill}"{stroke}/>"#, n(r.x), n(r.y), n(r.w), n(r.h), n(radius));
         self.nodes.push(r);
+    }
+
+    /// A filled polygon (funnel/pyramid bands); `inner` is its text-safe box, recorded as the node.
+    pub fn polygon(&mut self, pts: &[(f64, f64)], fill: &str, stroke: Option<&str>, inner: Option<Rect>) {
+        let pts: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        let stroke = stroke.map(|c| format!(r#" stroke="{c}" stroke-width="1""#)).unwrap_or_default();
+        self.body += &format!(r#"<polygon points="{}" fill="{fill}"{stroke}/>"#, pts.join(" "));
+        self.nodes.extend(inner);
     }
 
     /// A small decorative circle (bullets, timeline ticks); not a node.
@@ -239,6 +267,13 @@ impl<'a> Svg<'a> {
         self.body += &format!(r#"<polyline points="{}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#{})"/>"#, p.join(" "), arrow_id(&self.t.muted));
         self.edges.push(Edge { pts: pts.to_vec(), ends, label: None });
         self.edges.len() - 1
+    }
+
+    /// A straight connector between two node boxes, clipped at both borders with a small gap.
+    pub fn link(&mut self, a: Rect, b: Rect, color: &str, arrow: bool) {
+        let (x1, y1) = exit(&a, &b, 6.0);
+        let (x2, y2) = exit(&b, &a, 6.0);
+        self.line(x1, y1, x2, y2, color, arrow);
     }
 
     /// Draw a fitted label with its top at `y`; returns the label height.
@@ -313,6 +348,23 @@ impl<'a> Svg<'a> {
             w = W, h = H, font = t.font, muted = t.muted, arrow = arrow_id(&t.muted), bg = t.bg, body = self.body
         )
     }
+}
+
+/// Round up to the 8px grid.
+pub fn up8(v: f64) -> f64 {
+    (v / 8.0).ceil() * 8.0
+}
+
+/// Uniform boxes of `w` x `h` centred on an ellipse filling the canvas, clockwise from 12 o'clock.
+pub fn ring(n: usize, w: f64, h: f64) -> Vec<Rect> {
+    let (rx, ry) = (W / 2.0 - PAD - w / 2.0, H / 2.0 - PAD - h / 2.0);
+    (0..n)
+        .map(|i| {
+            let a = std::f64::consts::TAU * i as f64 / n as f64;
+            let (x, y) = (W / 2.0 + rx * a.sin(), H / 2.0 - ry * a.cos());
+            Rect { x: ((x - w / 2.0) / 8.0).round() * 8.0, y: ((y - h / 2.0) / 8.0).round() * 8.0, w, h }
+        })
+        .collect()
 }
 
 /// Strict input helpers: unknown fields are errors, every error names a `$.path`.
@@ -436,7 +488,7 @@ mod tests {
     fn theme_values_load_and_night_differs() {
         let d = Theme::load(None).unwrap();
         let n = Theme::load(Some("night")).unwrap();
-        assert_eq!(d.accent, "#2563EB");
+        assert_eq!(d.accent, "#C2410C");
         assert_ne!(d.bg, n.bg);
         assert!(d.font.starts_with("Pretendard"));
     }
