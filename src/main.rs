@@ -1678,7 +1678,7 @@ mod tests {
         let html = std::fs::read_to_string(&output).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert!(html.contains("<svg class=\"wb-diagram\""));
-        assert!(html.contains("height: var(--wb-diagram-height, 300px)"), "diagram height rule missing");
+        assert!(html.contains("max-width: calc(var(--wb-diagram-height, 300px) * 16 / 9)"), "diagram height rule missing");
         assert!(html.contains("max-height: var(--wb-image-height, 300px)"), "image height rule missing");
     }
 

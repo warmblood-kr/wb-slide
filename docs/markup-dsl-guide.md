@@ -32,11 +32,12 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | `<wb-stat value="…">caption</wb-stat>` | `value` (required, non-blank), `note` (optional; if present, non-blank) | body; text only, one collapsed line (the caption); needs `</wb-stat>` | `kpi` block (`value`, caption → `label`, `note`) |
 | `<wb-columns>` / `<wb-column>` | none | slide body; columns hold only 2–3 `<wb-column>` | `columns` block |
 | `<wb-image src="…" alt="…" />` | `src`, `alt` (both required, non-blank) | body; no content; must end `/>` or have `</wb-image>` | `image` block |
+| `<wb-diagram type="…" alt="…">{JSON}</wb-diagram>` | `type` (required: `quadrant`, `hub`, `cycle`, `timeline`, `fishbone`, `funnel`, `pyramid`, `flowchart`), `alt` (required, non-blank) | slide body only (not in `<wb-columns>` or `<wb-split>`); content is the diagram data as one JSON object (models: `docs/diagram-library.md`); no tags | `diagram` block (`diagram` = type, `alt`, `data`), drawn as inline SVG |
 | `<wb-footer>` | none | top level, outside slides | deck `footer` on every slide |
 | `<wb-folio>` | none | top level, outside slides | deck `folio`: small caps label top-left |
 | `<wb-notes>` | none | directly in a slide; text only | slide `notes` (hidden) |
 
-Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-columns>`, `<wb-image>`. Put 2–3 `<wb-stat>` in separate `<wb-column>`s to show figures side by side. A `<wb-column>` takes the same body content except `<wb-columns>`.
+Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-columns>`, `<wb-image>`, `<wb-diagram>`. Put 2–3 `<wb-stat>` in separate `<wb-column>`s to show figures side by side. A `<wb-column>` takes the same body content except `<wb-columns>` and `<wb-diagram>`.
 
 ## 3. Nesting and ordering rules
 
@@ -47,7 +48,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `layout="cover"`: title slide, no footer or page number; title and subtitle at bottom-left. `layout="section"`: section divider; title and subtitle at left from mid-height, optional short body under them. Both require `<wb-title>` first; `<wb-subtitle>` and body are optional. Use only these two values.
 - `<wb-section>`: a pure divider: inverse colours (`--wb-inverse-*`), the `number` large in `--wb-inverse-accent` at the top-left, the title at left from mid-height, footer and page number kept. Text only: no child tags (no `<wb-notes>`). A `layout="section"` slide with only a title (and subtitle) gets the same inverse look; one with body keeps the deck colours.
 - `<wb-quote>`: one quotation, ≤25 words, vertically centred on the left axis with an accent mark hung in the margin; `by` shows under it in small muted caps. Text only: no child tags, no quote marks of your own (the slide draws them). Use `<wb-quote>`, not `<wb-slide layout="quote">`.
-- `<wb-split>`: the image fills 45% of the width at full height on `side` (edge to edge, cropped to fill, square corners); title and body sit top-aligned in the other half (from 52%). Footer and page number move to the text side. Requires `<wb-title>` first; `<wb-subtitle>`, body and `<wb-notes>` as in `<wb-slide>`. The text column is ~400px wide: keep it to a title of ≤12 words and ≤3 short paragraphs or a ≤5-item list; avoid `<wb-columns>` (too narrow). The image counts toward the 8-image limit and follows the image `src` rules below. Use a photo or full-frame picture; a wide diagram gets cropped (use `<wb-image>` for diagrams).
+- `<wb-split>`: the image fills 45% of the width at full height on `side` (edge to edge, cropped to fill, square corners); title and body sit top-aligned in the other half (from 52%). Footer and page number move to the text side. Requires `<wb-title>` first; `<wb-subtitle>`, body and `<wb-notes>` as in `<wb-slide>`. The text column is ~400px wide: keep it to a title of ≤12 words and ≤3 short paragraphs or a ≤5-item list; avoid `<wb-columns>` (too narrow). The image counts toward the 8-image limit and follows the image `src` rules below. Use a photo or full-frame picture; a wide picture gets cropped. `<wb-diagram>` is not allowed here (too narrow to read): give the diagram its own `<wb-slide>`.
 - `<wb-agenda>`: title in the left third, the items in the right two-thirds, numbered `01`–`06` in the accent (the slide draws the numbers: do not write them), a hairline between items. 3–6 `<wb-item>`s, each one line of ≤8 words (a long item wraps to two lines). Put the items directly in `<wb-agenda>`, not in a `<wb-list>`. Requires `<wb-title>` first (e.g. `목차`, `Agenda`).
 - `<wb-columns>`: 2–3 `<wb-column>` children, each non-empty. Columns cannot nest.
 - `<wb-footer>`: at most once, at deck level.
@@ -55,6 +56,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - `<wb-notes>`: at most once per slide, directly inside `<wb-slide>`, any position. Not inside cards, callouts, stats or columns.
 - `<wb-callout>` `tone` is `info` (accent-tinted box) or `warning` (red edge). Any other value fails at the spec step (see §5).
 - `<wb-stat>`: `value` is the figure (e.g. `+38%`), the content is its caption (keep it ≤10 words), `note` is an optional small source line.
+- `<wb-diagram>`: the content is JSON, kept as written (whitespace is not collapsed; entities still decode). Never write a raw `<` in it: the tokenizer reads it as a tag. Write `\u003c` (or `&lt;`). The drawing is 16:9, `--wb-diagram-height` (300px) tall, left-aligned. Only directly in a `<wb-slide>` body: inside `<wb-columns>` or `<wb-split>` its labels would shrink below a readable size, so that is an error. Prefer it over `<wb-image>` for these 8 shapes: it follows the theme colours.
 - Text collapses whitespace; a single newline joins lines into one paragraph. A blank (whitespace-only) line separates paragraphs (one `text` block each), in the body and inside `<wb-card>` and `<wb-callout>`. Text before and after a list, card, callout, stat, columns or image becomes separate blocks.
 - `<wb-section>`, `<wb-quote>`, `<wb-title>`, `<wb-subtitle>`, `<wb-item>`, `<wb-stat>`, `<wb-footer>`, `<wb-folio>` and `<wb-notes>` take one collapsed line of text.
 - Entities decode (`&amp;` → `&`, `&nbsp;` stays a non-breaking space). All text is literal; nothing is HTML.
@@ -73,6 +75,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - Footer: at most 200 characters.
 - Folio: 1–60 characters, not blank (keep it ≤6 words: it is one line at 12px).
 - Images: at most 8 per deck, each at most 2 MiB.
+- Diagrams: at most 16 per deck (separate from the image limit). Per-type data caps: `docs/diagram-library.md`.
 - Theme file: 8 KiB.
 
 ## 5. Errors
@@ -91,6 +94,10 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-image> at byte N needs src="…"` / `needs alt="…"` | Add the attribute. |
 | `<wb-stat> at byte N needs value="…"` / `<wb-callout> at byte N needs tone="…"` | Add the attribute. |
 | `<wb-image> at byte N takes no content; use alt="…"` | Move the text into `alt`. |
+| `<wb-diagram> at byte N needs type="…"` / `needs alt="…"` | Add the attribute. |
+| `<wb-columns> at byte N holds a <wb-diagram>: too narrow to read; …` (or `<wb-split>`) | Move the diagram to its own `<wb-slide>`; keep the text in the columns or split. |
+| `empty <wb-diagram> at byte N` | Put the JSON data inside. |
+| `<wb-diagram> at byte N: invalid JSON: …` | Fix the JSON (quotes on keys and strings, commas, braces); a raw `<` becomes `\u003c`. |
 | `cannot read markup: …` | Fix the input path. |
 | `wb-slide[I]: body text is required` | Add body to slide I (0-based; `<wb-section>`, `<wb-quote>`, `<wb-split>` and `<wb-agenda>` slides count). |
 | `wb-slide[I]: <wb-title> is required with layout at byte N` / `wb-split[I]: …` / `wb-agenda[I]: …` | Put a `<wb-title>` first in that slide, or drop `layout`. |
@@ -98,7 +105,7 @@ Markup errors (byte offsets count from the start of the file):
 | `<wb-agenda> at byte N takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>` | Move other text or tags out; one `<wb-item>` per agenda line. |
 | `no <wb-slide> found` | Add a slide. |
 | `nesting deeper than 8 at byte N` / `markup exceeds 64 KiB` | Flatten or shorten. |
-| `markup error at byte N: …` | Malformed syntax at N. Write a literal `<` as `&lt;`, `&` as `&amp;`. |
+| `markup error at byte N: …` | Malformed syntax at N. Write a literal `<` as `&lt;`, `&` as `&amp;`. Inside `<wb-diagram>` JSON any raw `<` (even `a < b`) causes this (e.g. `invalid-first-character-of-tag-name`): write `\u003c`. |
 | `markup is not UTF-8` | Save the file as UTF-8. |
 
 Spec errors after compiling name a field path: `$.slides[I].blocks[J]…: reason`,
@@ -109,6 +116,7 @@ e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns ca
 `$.slides[I].layout: expected cover or section or quote or split or agenda` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`, splits `<wb-split>`, agendas `<wb-agenda>`), `$.slides[I].blocks[0].items: expected 3–6 items with layout agenda` (give `<wb-agenda>` 3–6 `<wb-item>`s), `$.slides[I].side: expected left or right` (fix `<wb-split side>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
 `$.slides[I].subtitle: expected 1–2000 characters, not blank` (an empty `<wb-quote by="">`: fill or drop `by`),
 `$.slides[I].number: expected 1–8 characters, not blank` (shorten or fill `<wb-section number>`).
+Diagram errors name the data path, e.g. `$.slides[I].blocks[J].data.quadrants: …` (fix that field against `docs/diagram-library.md`); an unknown `type` and the 16-per-deck cap also fail here.
 Image errors on `…src` (`$.slides[I].image.src` for `<wb-split image>`): `expected a relative local path without .. or a scheme`, `cannot read image: …`,
 `expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
 `image resolves outside the spec directory`, `at most 8 images per deck`.
@@ -135,7 +143,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 `--wb-accent`, `--wb-bg`, `--wb-card-bg`, `--wb-border`, `--wb-radius`, `--wb-safe-x`,
 `--wb-safe-y`, `--wb-gap`, `--wb-image-height`, `--wb-vertical`, `--wb-title-tracking`,
 `--wb-title-leading`, `--wb-measure` (max width of body text under a title),
-`--wb-label-size` (also the folio size), `--wb-stat-size` (also the section number size), `--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`
+`--wb-label-size` (also the folio size), `--wb-stat-size` (also the section number size), `--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`, `--wb-diagram-height`
 (background, text and accent of a pure section divider; keep the accent readable on the inverse background).
 
 `--wb-vertical` accepts only `start`, `safe center` or `space-evenly`.

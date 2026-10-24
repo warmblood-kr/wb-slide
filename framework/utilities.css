@@ -159,5 +159,5 @@
 
 /* Spec diagram/image blocks: sized even without the slide preset (plain --spec export).
    The preset (slide.css) restates these with its theme tokens. */
-.wb-diagram { display: block; width: 100%; height: var(--wb-diagram-height, 300px); }
+.wb-diagram { display: block; justify-self: start; width: 100%; max-width: calc(var(--wb-diagram-height, 300px) * 16 / 9); height: auto; aspect-ratio: 16 / 9; }
 .wb-image { display: block; max-width: 100%; max-height: var(--wb-image-height, 300px); object-fit: contain; }

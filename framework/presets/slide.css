@@ -42,7 +42,9 @@
 /* Columns fill the content width with equal shares (see #22). */
 .cols { width: 100%; gap: calc(var(--wb-gap) * 1.5); margin: 0 0 var(--wb-gap); }
 .wb-image { display: block; justify-self: start; object-position: left top; max-width: 100%; max-height: var(--wb-image-height); object-fit: contain; margin: 0 0 var(--wb-gap); }
-.wb-diagram { display: block; width: 100%; height: var(--wb-diagram-height); margin: 0 0 var(--wb-gap); }
+/* 16:9 box (the 640x360 viewBox) on the left axis like .wb-image: --wb-diagram-height tall, or narrower
+   columns shrink it whole, with no letterbox gap. */
+.wb-diagram { display: block; justify-self: start; width: 100%; max-width: calc(var(--wb-diagram-height) * 16 / 9); height: auto; aspect-ratio: 16 / 9; margin: 0 0 var(--wb-gap); }
 .ms-footer-logo { left: var(--wb-safe-x); color: var(--wb-muted); font-size: 0.8rem; }
 /* Deck folio: a small caps running label centred in the top margin band, above where content starts.
    Spans the safe width so a long label wraps inside the band instead of running off the slide. */
