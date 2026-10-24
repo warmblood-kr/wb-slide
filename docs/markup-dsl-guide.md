@@ -32,7 +32,7 @@ python tools/render.py /absolute/out.html --output /absolute/new-dir \
 | `<wb-stat value="…">caption</wb-stat>` | `value` (required, non-blank), `note` (optional; if present, non-blank) | body; text only, one collapsed line (the caption); needs `</wb-stat>` | `kpi` block (`value`, caption → `label`, `note`) |
 | `<wb-columns>` / `<wb-column>` | none | slide body; columns hold only 2–3 `<wb-column>` | `columns` block |
 | `<wb-image src="…" alt="…" />` | `src`, `alt` (both required, non-blank) | body; no content; must end `/>` or have `</wb-image>` | `image` block |
-| `<wb-diagram type="…" alt="…">{JSON}</wb-diagram>` | `type` (required: `quadrant`, `hub`, `cycle`, `timeline`, `fishbone`, `funnel`, `pyramid`, `flowchart`), `alt` (required, non-blank) | slide body only (not in `<wb-columns>` or `<wb-split>`); content is the diagram data as one JSON object (models: `docs/diagram-library.md`); no tags | `diagram` block (`diagram` = type, `alt`, `data`), drawn as inline SVG |
+| `<wb-diagram type="…" alt="…">{JSON}</wb-diagram>` | `type` (required: `quadrant`, `hub`, `cycle`, `timeline`, `fishbone`, `funnel`, `pyramid`, `flowchart`), `alt` (required, non-blank) | slide body only (not in `<wb-columns>` or `<wb-split>`); content is the diagram data as one JSON object (schemas: §6); no tags | `diagram` block (`diagram` = type, `alt`, `data`), drawn as inline SVG |
 | `<wb-footer>` | none | top level, outside slides | deck `footer` on every slide |
 | `<wb-folio>` | none | top level, outside slides | deck `folio`: small caps label top-left |
 | `<wb-notes>` | none | directly in a slide; text only | slide `notes` (hidden) |
@@ -75,7 +75,7 @@ Body = plain text, `<wb-list>`, `<wb-card>`, `<wb-callout>`, `<wb-stat>`, `<wb-c
 - Footer: at most 200 characters.
 - Folio: 1–60 characters, not blank (keep it ≤6 words: it is one line at 12px).
 - Images: at most 8 per deck, each at most 2 MiB.
-- Diagrams: at most 16 per deck (separate from the image limit). Per-type data caps: `docs/diagram-library.md`.
+- Diagrams: at most 16 per deck (separate from the image limit). Per-type data caps: §6.
 - Theme file: 8 KiB.
 
 ## 5. Errors
@@ -116,7 +116,7 @@ e.g. `$.slides[0].blocks[0].columns: expected 2–3 items`, `…type: columns ca
 `$.slides[I].layout: expected cover or section or quote or split or agenda` (use `cover` or `section` on `<wb-slide>`; quotes use `<wb-quote>`, splits `<wb-split>`, agendas `<wb-agenda>`), `$.slides[I].blocks[0].items: expected 3–6 items with layout agenda` (give `<wb-agenda>` 3–6 `<wb-item>`s), `$.slides[I].side: expected left or right` (fix `<wb-split side>`), `$.slides[I].blocks: not allowed with layout quote` (a quote slide has no body),
 `$.slides[I].subtitle: expected 1–2000 characters, not blank` (an empty `<wb-quote by="">`: fill or drop `by`),
 `$.slides[I].number: expected 1–8 characters, not blank` (shorten or fill `<wb-section number>`).
-Diagram errors name the data path, e.g. `$.slides[I].blocks[J].data.quadrants: …` (fix that field against `docs/diagram-library.md`); an unknown `type` and the 16-per-deck cap also fail here.
+Diagram errors name the data path, e.g. `$.slides[I].blocks[J].data.quadrants: …` (fix that field against §6); an unknown `type` and the 16-per-deck cap also fail here.
 Image errors on `…src` (`$.slides[I].image.src` for `<wb-split image>`): `expected a relative local path without .. or a scheme`, `cannot read image: …`,
 `expected .png, .jpg, .webp or .svg`, `image exceeds 2 MiB`, `expected a regular file`,
 `image resolves outside the spec directory`, `at most 8 images per deck`.
@@ -127,7 +127,62 @@ Slide I is the I-th `<wb-slide>`, `<wb-section>`, `<wb-quote>`, `<wb-split>` or 
 2. Run `render.py`. It fails with no manifest on a missing glyph or font fallback (use characters the font has). For each manifest slide with non-empty `overflow` (a list of `TAG.class` strings), shorten that slide's text or split it into two slides. Re-export and re-render to a new directory.
 3. Look at the PNGs; bounds do not prove readability.
 
-## 6. Themes
+## 6. Diagrams
+
+Placement, raw `<` and the 16-per-deck cap: §2–§4. Data rules, all types:
+
+- One JSON object, only the fields below. Any other field fails, `title` included (the `<wb-title>` is the heading).
+- Text values are nonblank one-line JSON strings. At most **40** characters: axis `label`/`low`/`high`, quadrant `title`, timeline `date`, fishbone `category`, funnel `value`, flowchart `id` and edge `label`. At most **80**: all other text.
+- Figures are strings too: `"value":"12,400명"`, `"date":"2025.01"`, never `12400`.
+- `highlight` (quadrant, timeline only): a JSON integer, 0-based index into the main array.
+- Counts are hard limits. Text must also fit its box (shrinks to 12px, then fails): keep labels to 1–3 words.
+
+| Type | Use when | Fields (`?` optional) | Limits |
+|---|---|---|---|
+| `quadrant` | four groups on two axes (2×2, SWOT) | `quadrants` [{`title`, `items`? [text]}] in order TL, TR, BL, BR; `x`?, `y`? {`label`?, `low`?, `high`?}; `highlight`? | exactly 4 quadrants; `items` 1–4 if present |
+| `hub` | one centre related to many parts | `hub` text; `spokes` [text]; `arrows`? `none` (default), `out`, `in` | 3–8 spokes |
+| `cycle` | a loop with no end | `steps` [{`label`, `note`?}] clockwise from the top | 3–8 steps |
+| `timeline` | dated milestones in order | `events` [{`date`, `label`, `note`?}]; `highlight`? | 2–8 events |
+| `fishbone` | causes of one problem | `effect` text; `causes` [{`category`, `items`? [text]}] | 2–6 causes; 0–4 items each |
+| `funnel` | drop-off per stage | `stages` [{`label`, `value`?}] top first | 2–6 stages; not to scale |
+| `pyramid` | ranked layers | `levels` [{`label`, `note`?}] top first | 2–6 levels |
+| `flowchart` | steps with branches (no loops) | `nodes` [{`id`, `label`, `shape`? `process` (default), `decision`, `terminal`}]; `edges` [{`from`, `to`, `label`?}] (required, may be `[]`); `direction`? `LR` (default), `TB` | 2–12 nodes; 0–24 edges; unique ids; no self-loop, duplicate edge or cycle |
+
+Minimal valid examples:
+
+```html
+<wb-diagram type="quadrant" alt="노력 대비 영향">{"x":{"label":"노력","low":"낮음","high":"높음"},"y":{"label":"영향","low":"낮음","high":"높음"},"highlight":0,"quadrants":[{"title":"빠른 성과","items":["문구 정리"]},{"title":"주요 과제"},{"title":"보류"},{"title":"재검토"}]}</wb-diagram>
+<wb-diagram type="hub" alt="고객 데이터 활용 부서">{"hub":"고객 데이터","arrows":"out","spokes":["마케팅","영업","고객 지원"]}</wb-diagram>
+<wb-diagram type="cycle" alt="개선 순환">{"steps":[{"label":"계획","note":"목표 정의"},{"label":"실행"},{"label":"측정"},{"label":"개선"}]}</wb-diagram>
+<wb-diagram type="timeline" alt="출시 일정">{"highlight":1,"events":[{"date":"2025.01","label":"기획"},{"date":"2025.06","label":"베타","note":"20명 테스트"},{"date":"2026.01","label":"정식 출시"}]}</wb-diagram>
+<wb-diagram type="fishbone" alt="가입 이탈의 원인">{"effect":"가입 이탈 증가","causes":[{"category":"사람","items":["상담 인력 부족"]},{"category":"프로세스","items":["단계 과다","인증 중복"]},{"category":"기술"}]}</wb-diagram>
+<wb-diagram type="funnel" alt="전환 퍼널">{"stages":[{"label":"방문","value":"12,400명"},{"label":"가입","value":"3,100명"},{"label":"유료 전환","value":"310명"}]}</wb-diagram>
+<wb-diagram type="pyramid" alt="전략 체계">{"levels":[{"label":"비전","note":"가장 신뢰받는 브랜드"},{"label":"전략 목표"},{"label":"실행 계획"}]}</wb-diagram>
+<wb-diagram type="flowchart" alt="주문 처리 흐름">{"direction":"LR","nodes":[{"id":"in","label":"주문 접수","shape":"terminal"},{"id":"chk","label":"재고 있음?","shape":"decision"},{"id":"ship","label":"출고"},{"id":"buy","label":"공급사 발주"}],"edges":[{"from":"in","to":"chk"},{"from":"chk","to":"ship","label":"예"},{"from":"chk","to":"buy","label":"아니오"}]}</wb-diagram>
+```
+
+Pick the type by the "Use when" column. Anything else (comparison table, org chart, numeric chart): use `<wb-list>`, `<wb-columns>` of `<wb-card>`/`<wb-stat>`, or `<wb-image>`.
+
+**Errors**: `$.slides[I].blocks[J].data.PATH: reason` (or `…data: reason`). Fix that field and rerun (Repair loop, §5).
+
+| Reason | Fix |
+|---|---|
+| `unknown field` / `required` / `expected an object` | Remove or respell the field (no `title`) / add it / write `{…}`. |
+| `expected an array of N-M entries` | Fix the count (flowchart `edges` is required, even `[]`). |
+| `expected nonblank text of at most N characters` / `control characters are not allowed` | Nonblank one-line string within the cap; quote numbers. |
+| `expected 0-N` (`highlight`) | Use an integer index below the array length. |
+| `expected "none", "out" or "in"` / `expected LR or TB` / `expected process, decision or terminal` | Use one of the listed values. |
+| `duplicate id "x"` / `unknown id "x"` / `self-loop on "x"` / `duplicate edge a -> b` | Unique ids; `from`/`to` must name a node; drop the edge. |
+| `cycles are not supported; use the cycle type` | Remove the back edge, or use `cycle`. |
+| `label "…" does not fit in …; shorten it` | Shorten the quoted label. |
+| other `… not fit …` (e.g. `steps do not fit around the cycle`, `items do not fit in the quadrant`, `label does not fit in the band`) | Shorten texts or remove entries. |
+| `$.edges: the longest chain has N ranks, LR fits at most M; …` / `$.nodes: rank R holds K nodes, TB fits at most M; …` | Do what the message suggests (shorten the chain, chain side-by-side nodes, or switch `direction`); else split the flow over two slides. |
+| `too many crossing edges: …` | Split the flow over two slides. |
+| `no clear spot along the edge; …` | Drop the edge label (edges that skip a rank have little room). |
+
+Not data errors: `$.slides[I].blocks[J].diagram: expected one of quadrant, hub, cycle, timeline, fishbone, funnel, pyramid, flowchart` (fix `type`) and `$.slides[I].blocks[J]: at most 16 diagrams per deck` (use fewer).
+
+## 7. Themes
 
 `--theme default` (or omitted; warm off-white editorial, alias `paper`), a built-in `classic` (earlier white look),
 `night`, `graphite` (dark) or `signal` (bold indigo), or `--theme path/to/tokens.css` (a file named like a built-in
@@ -148,7 +203,7 @@ Tokens: `--wb-font`, `--wb-title-size`, `--wb-title-weight`, `--wb-title-color`,
 
 `--wb-vertical` accepts only `start`, `safe center` or `space-evenly`.
 
-## 7. Example
+## 8. Example
 
 ```html
 <wb-folio>Acme pilot review</wb-folio>
