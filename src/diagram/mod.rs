@@ -329,6 +329,8 @@ impl<'a> Svg<'a> {
         for (i, a) in self.edges.iter().enumerate() {
             if let Some(j) = (i + 1..self.edges.len()).find(|&j| {
                 let b = &self.edges[j];
+                // Edges sharing an endpoint may share a run on purpose: fan-in/fan-out merge into one
+                // arrow at the common node, which reads as joining flow, not as a hidden line.
                 !a.ends.iter().any(|x| b.ends.contains(x)) && runs_overlap(&a.pts, &b.pts)
             }) {
                 return Err(format!("layout: edges {i} and {j} overlap"));
