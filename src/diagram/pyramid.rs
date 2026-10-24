@@ -63,6 +63,8 @@ pub fn draw(data: &Value, svg: &mut Svg) -> Result<()> {
         rows.push((yt, fitted, out, note));
     }
     // Pass 2: centre the pyramid plus its notes (as wide as their text) on the canvas.
+    // Agrees with col_w: each row's tw <= col_w, so BASE/2 + right <= W - 2*PAD and each side
+    // margin is >= PAD. Rounding to 8 moves cx up only when the slack is >= 4, so it stays >= PAD.
     let right = rows.iter().map(|r| {
         let tw = [&r.2, &r.3].into_iter().flatten().map(|l| l.width()).fold(0.0, f64::max);
         if tw > 0.0 { wid(r.0 + h) / 2.0 + COL_GAP + tw } else { BASE / 2.0 }
@@ -138,6 +140,28 @@ mod tests {
             }
             let lv: Vec<_> = (0..k).map(|i| json!({"label": format!("단계 {i}")})).collect();
             render(&json!({ "levels": lv }), None).unwrap();
+        }
+        // Known-good maximal case: six levels with medium labels and notes must render.
+        let lv: Vec<_> = (0..6).map(|i| json!({"label": format!("핵심 과제 {i}"), "note": "분기별 로드맵과 담당 조직 지정"})).collect();
+        render(&json!({ "levels": lv }), None).unwrap();
+    }
+
+    #[test]
+    fn side_column_stays_inside_pad_after_recentring() {
+        // The longest note each band accepts fills col_w; re-centring must keep all text within PAD.
+        use super::super::{Svg, Theme, PAD, W};
+        let long: String = "가나다라마바사아자차카타파하 ".repeat(6).chars().take(80).collect();
+        let t = Theme::load(None).unwrap();
+        for k in 2..=6 {
+            let svg = (1..=80).rev().find_map(|n| {
+                let note: String = long.chars().take(n).collect();
+                let lv: Vec<_> = (0..k).map(|i| json!({"label": format!("단계 {i}"), "note": note})).collect();
+                let mut svg = Svg::new(&t);
+                super::draw(&json!({ "levels": lv }), &mut svg).ok().map(|_| svg)
+            }).unwrap();
+            for r in &svg.texts {
+                assert!(r.x >= PAD && r.x + r.w <= W - PAD, "k={k}: {r:?}");
+            }
         }
     }
 

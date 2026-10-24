@@ -552,9 +552,9 @@ mod tests {
         assert!(s["slides"][0].get("side").is_none() && s["slides"][0]["blocks"] == json!([]));
         // The spec owns side values and image paths.
         let json = compile("<wb-split image=a.png alt=a side=top><wb-title>T</wb-title></wb-split>").unwrap();
-        assert_eq!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new("."))).err().unwrap(), "$.slides[0].side: expected left or right");
+        assert_eq!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).err().unwrap(), "$.slides[0].side: expected left or right");
         let json = compile("<wb-split image=\"../x.png\" alt=a><wb-title>T</wb-title></wb-split>").unwrap();
-        assert!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new("."))).err().unwrap().starts_with("$.slides[0].image.src: expected a relative local path"));
+        assert!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).err().unwrap().starts_with("$.slides[0].image.src: expected a relative local path"));
         for (m, msg) in [
             ("<wb-split alt=a><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs image="),
             ("<wb-split image=a.png><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs alt="),

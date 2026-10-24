@@ -18,12 +18,15 @@ The look follows the slide preset: `--wb-*` tokens
 ([theme-contract.md](theme-contract.md)), Pretendard, a strict 8px grid, one
 accent colour, plenty of whitespace. No gradients, shadows, 3D or clip-art.
 
-Planned (agreed with the markup owner): a `<wb-diagram type="..." alt="...">`
-tag whose body is the JSON model ([markup-dsl.md](markup-dsl.md)), lowered to
-a spec `diagram` block ([slide-spec.md](slide-spec.md)). Export writes the SVG
+In a deck, use the spec `diagram` block ([slide-spec.md](slide-spec.md)):
+`{"type":"diagram","diagram":"quadrant","alt":"…","data":{…}}`. Planned
+(agreed with the markup owner): a `<wb-diagram type="..." alt="...">` tag whose
+body is the JSON model ([markup-dsl.md](markup-dsl.md)), lowered to that
+block. Export writes the SVG
 inline (`<svg class="wb-diagram" role="img" aria-label>`), so the render font,
-font-coverage check and `render.py --check` see diagram text. At most 16
-diagrams per deck; each type caps its own item counts.
+font-coverage check and `render.py --check` see diagram text, sized by the
+`--wb-diagram-height` token. At most 16 diagrams per deck; each type caps its
+own item counts.
 
 ## Prior art
 
@@ -104,7 +107,7 @@ optional field.
 | stairs `planned` | process | `{"steps":[{"label","note"?}]}` bottom step first | 3–5 steps | Progressive maturity or build-up. Not when steps are equal in weight. |
 | swimlane `planned` | process | `{"lanes":[str], "steps":[{"id","lane","label"}], "edges":[{"from","to"}]}` | 2–5 lanes, ≤12 steps | Who does what in a handoff process. Not with one actor. |
 | value_chain `planned` | process | `{"primary":[str], "support":[str]}` | 3–6 primary, 0–4 support | Porter-style primary and support activities. Not for a generic process. |
-| funnel `v1` | process | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string; widths are fixed steps, not to scale. Not for growth. |
+| funnel `v1` | process | `{"stages":[{"label","value"?}]}` | 2–6 stages | Narrowing stages such as conversion. `value` is a presentation string: one bold line, ≤40 chars, up to 24pt shrinking to fit; the last band is narrowest, so keep values short (`310명`). Widths are fixed steps, not to scale. Not for growth. |
 | cycle `v1` | cycle | `{"steps":[{"label","note"?}]}` clockwise from 12 o'clock | 3–8 steps | A repeating loop with no end. Not when there is a clear start and finish. |
 | causal_loop `planned` | cycle | `{"nodes":[{"id","label"}], "edges":[{"from","to","sign":"+\|-"}]}` | 3–8 nodes | Reinforcing and balancing feedback. Not for one-way causes (use fishbone). |
 | pyramid `v1` | hierarchy | `{"levels":[{"label","note"?}]}` top level first | 2–6 levels | Ranked layers where the base supports the top. Not for unranked groups. |
