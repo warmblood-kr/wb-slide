@@ -6,6 +6,9 @@ All notable changes to wb-slide.
 
 ### Added
 
+- **`<wb-diagram type="…" alt="…">{JSON}</wb-diagram>`**: a body block (slide, column, split) that lowers to
+  the spec `diagram` block (#50). Content is the data as JSON, read raw (entities decoded, whitespace kept);
+  `type`, `alt` required. `.wb-diagram` now keeps its viewBox ratio and sits on the left axis like `.wb-image`.
 - **`<wb-folio>label</wb-folio>`**: a deck-level running label (spec root `folio`, 1–60 characters, not
   blank, escaped). Rendered as `.ms-folio` chrome in the top margin band (centred at `--wb-safe-y`/2, left at
   `--wb-safe-x`), `--wb-label-size`, weight 600, caps, +0.08em, `--wb-muted`. Shown on every slide except the

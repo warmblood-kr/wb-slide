@@ -156,7 +156,7 @@ class RenderTest(unittest.TestCase):
             subprocess.run([self.binary, "export", "--markup", ROOT / "samples/markup/deck.html",
                             "--theme", theme, "-o", output], check=True)
             manifest = self.run_render(output, theme)
-            self.assertEqual(manifest["slide_count"], 11)
+            self.assertEqual(manifest["slide_count"], 12)
             self.assertIn("가상 레이아웃 소개", manifest["slides"][0]["text"])
             self.assertIn("안녕하세요", manifest["slides"][1]["text"])
             self.assertIn("가상 시범 운영 검토", manifest["slides"][2]["text"])
@@ -173,11 +173,13 @@ class RenderTest(unittest.TestCase):
             self.assertIn("+38%", manifest["slides"][4]["text"])
             self.assertIn("원격 주소는 오류", manifest["slides"][7]["text"])
             self.assertIn("변환 과정", manifest["slides"][6]["text"])
+            # <wb-diagram>: inline SVG, so its labels are page text.
+            self.assertIn("빠른 성과", manifest["slides"][11]["text"])
             # The local SVG is embedded and painted: its solid #2563EB box shows up.
             flow = Image.open(self.root / theme / manifest["slides"][7]["file"]).convert("RGB")
             self.assertTrue(any(c == (0x25, 0x63, 0xEB) for _, c in flow.getcolors(1 << 22)))
             self.assertFalse(any(s["overflow"] for s in manifest["slides"]))
-            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 11)
+            self.assertEqual([s["findings"] for s in manifest["slides"]], [[]] * 12)
             # layout="cover": the head group sits bottom-left, with no chrome.
             cover = Image.open(self.root / theme / manifest["slides"][0]["file"]).convert("RGB")
             ink = ImageChops.difference(cover, Image.new("RGB", cover.size, cover.getpixel((4, 4)))).getbbox()

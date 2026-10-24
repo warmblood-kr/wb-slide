@@ -19,7 +19,7 @@ const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-folio", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-diagram", &["type", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-folio", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -204,6 +204,23 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                     return Err(format!("<wb-image> at byte {} takes no content; use alt=\"…\"", e.pos));
                 }
                 blocks.push(json!({"type": "image", "src": attr(e, "src")?, "alt": collapse(&attr(e, "alt")?)}));
+            }
+            Node::El(e) if e.name == "wb-diagram" => {
+                // Content is JSON data; the diagram module checks the type and data shape.
+                let (kind, alt) = (attr(e, "type")?.trim().to_string(), collapse(&attr(e, "alt")?));
+                // Raw text, not text_of: collapsing whitespace would change JSON strings.
+                let mut text = String::new();
+                for kid in &e.kids {
+                    match kid {
+                        Node::Text(t) => text.push_str(t),
+                        Node::El(inner) => return Err(unexpected(inner)),
+                    }
+                }
+                if blank(&text) {
+                    return Err(format!("empty <wb-diagram> at byte {}", e.pos));
+                }
+                let data: serde_json::Value = serde_json::from_str(&text).map_err(|err| format!("<wb-diagram> at byte {}: invalid JSON: {err}", e.pos))?;
+                blocks.push(json!({"type": "diagram", "diagram": kind, "alt": alt, "data": data}));
             }
             Node::El(e) if e.name == "wb-stat" => {
                 // The caption is the spec kpi label.
@@ -681,6 +698,27 @@ mod tests {
             let json = compile(m).unwrap();
             assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains(msg), "{m}");
         }
+    }
+
+    #[test]
+    fn diagram_lowers_json_body_to_spec_block() {
+        let s = spec("<wb-slide><wb-title>T</wb-title><wb-diagram type=\" quadrant \" alt=\" 우선  순위 \">\n {\"x\": 1, \"s\": \"a  &amp; b\"} </wb-diagram></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([{"type":"diagram","diagram":"quadrant","alt":"우선 순위","data":{"x":1,"s":"a  & b"}}]));
+        let s = spec("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-columns><wb-column><wb-diagram type=hub alt=h>{}</wb-diagram></wb-column><wb-column>b</wb-column></wb-columns></wb-split>");
+        assert_eq!(s["slides"][0]["blocks"][0]["columns"][0]["blocks"][0], json!({"type":"diagram","diagram":"hub","alt":"h","data":{}}));
+        for (m, e) in [
+            ("<wb-slide><wb-diagram alt=a>{}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10 needs type="),
+            ("<wb-slide><wb-diagram type=hub>{}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10 needs alt="),
+            ("<wb-slide><wb-diagram type=hub alt=a> </wb-diagram></wb-slide>", "empty <wb-diagram> at byte 10"),
+            ("<wb-slide><wb-diagram type=hub alt=a>{x}</wb-diagram></wb-slide>", "<wb-diagram> at byte 10: invalid JSON:"),
+            ("<wb-slide><wb-diagram type=hub alt=a>{<wb-item>x</wb-item>}</wb-diagram></wb-slide>", "unexpected <wb-item>"),
+            ("<wb-slide><wb-diagram type=hub alt=\"a\"/></wb-slide>", "self-closing"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(e), "{m}: {}", compile(m).unwrap_err());
+        }
+        // The diagram module owns the type list and data checks.
+        let json = compile("<wb-slide><wb-diagram type=pie alt=a>{}</wb-diagram></wb-slide>").unwrap();
+        assert!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).is_err());
     }
 
     #[test]
