@@ -1,0 +1,84 @@
+{
+  "id": "heros-journey",
+  "name": "Hero's Journey (audience as hero)",
+  "family": "story",
+  "summary": "Cast the audience or customer as the hero who leaves the known world, meets a guide, faces trials and returns transformed.",
+  "references": [
+    "Joseph Campbell, The Hero with a Thousand Faces (1949)",
+    "Christopher Vogler, The Writer's Journey (1992)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "customer",
+      "team"
+    ],
+    "goals": [
+      "inspire",
+      "persuade"
+    ],
+    "minutes": [
+      15,
+      60
+    ]
+  },
+  "title_style": "Narrative phrase titles, under 10 words, naming the stage of the journey.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 40,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "character",
+      "purpose": "Introduce the hero in their ordinary world."
+    },
+    {
+      "role": "current-state",
+      "purpose": "The ordinary world and its limits."
+    },
+    {
+      "role": "complication",
+      "purpose": "The call to adventure."
+    },
+    {
+      "role": "solution",
+      "purpose": "The guide and the tool they offer."
+    },
+    {
+      "role": "story",
+      "purpose": "Trials along the road.",
+      "repeat": true
+    },
+    {
+      "role": "turning-point",
+      "purpose": "The ordeal and the breakthrough."
+    },
+    {
+      "role": "resolution",
+      "purpose": "Return transformed."
+    },
+    {
+      "role": "lesson",
+      "purpose": "The elixir the audience can take home."
+    }
+  ],
+  "pitfalls": [
+    "Making the company or speaker the hero instead of the audience.",
+    "Using every stage of the full journey; most talks need only a few.",
+    "Trials with no real risk, so the turning point feels flat."
+  ],
+  "example": {
+    "topic": "A fictional bookkeeping app told through one shop owner's journey",
+    "outline": [
+      "Meet Jun, a shop owner who does her own books",
+      "Her evenings disappear into spreadsheets",
+      "A tax audit letter arrives",
+      "An advisor hands her a simple ledger app",
+      "The first month of receipts is a mess",
+      "Audit day: every number checks out",
+      "Her evenings are hers again",
+      "Your guide is not the hero; you are"
+    ]
+  }
+}

@@ -1,9 +1,16 @@
 //! Deterministic diagrams: compact JSON data -> SVG, themed by the slide preset tokens.
-//! Every render runs `Svg::check`: text inside the canvas, no text or node overlaps.
-//! A layout that cannot fit is an error, never clipped output.
+//! Every render runs `Svg::check`: text inside the canvas, no text or node overlaps,
+//! no edge through a foreign node or label. A layout that cannot fit is an error, never clipped output.
 use serde_json::{Map, Value};
 
+mod cycle;
+mod fishbone;
+mod flowchart;
+mod funnel;
+mod hub;
+mod pyramid;
 mod quadrant;
+mod timeline;
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -12,7 +19,7 @@ pub const H: f64 = 360.0;
 pub const PAD: f64 = 24.0;
 const MIN_SIZE: f64 = 12.0;
 
-pub const TYPES: &[&str] = &["quadrant"];
+pub const TYPES: &[&str] = &["quadrant", "hub", "cycle", "timeline", "fishbone", "funnel", "pyramid", "flowchart"];
 
 /// Render `data` as diagram `kind` with a preset theme (None, "default", "night" or a token file).
 pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
@@ -20,6 +27,13 @@ pub fn render(kind: &str, data: &Value, theme: Option<&str>) -> Result<String> {
     let mut svg = Svg::new(&t);
     match kind {
         "quadrant" => quadrant::draw(data, &mut svg)?,
+        "hub" => hub::draw(data, &mut svg)?,
+        "cycle" => cycle::draw(data, &mut svg)?,
+        "timeline" => timeline::draw(data, &mut svg)?,
+        "fishbone" => fishbone::draw(data, &mut svg)?,
+        "funnel" => funnel::draw(data, &mut svg)?,
+        "pyramid" => pyramid::draw(data, &mut svg)?,
+        "flowchart" => flowchart::draw(data, &mut svg)?,
         _ => return Err(format!("unknown diagram type {kind}; expected one of {}", TYPES.join(", "))),
     }
     svg.check()?;
@@ -150,6 +164,40 @@ impl Rect {
     fn contains(&self, o: &Rect) -> bool {
         o.x >= self.x && o.y >= self.y && o.x + o.w <= self.x + self.w && o.y + o.h <= self.y + self.h
     }
+    /// Liang-Barsky: does segment a-b cross this rect shrunk by 1px (so touching a border is fine)?
+    fn hit_by(&self, a: (f64, f64), b: (f64, f64)) -> bool {
+        let (x0, y0, x1, y1) = (self.x + 1.0, self.y + 1.0, self.x + self.w - 1.0, self.y + self.h - 1.0);
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let (mut t0, mut t1) = (0.0f64, 1.0f64);
+        for (p, q) in [(-dx, a.0 - x0), (dx, x1 - a.0), (-dy, a.1 - y0), (dy, y1 - a.1)] {
+            if p == 0.0 {
+                if q < 0.0 {
+                    return false;
+                }
+            } else if p < 0.0 {
+                t0 = t0.max(q / p);
+            } else {
+                t1 = t1.min(q / p);
+            }
+        }
+        x0 < x1 && y0 < y1 && t0 <= t1
+    }
+}
+
+/// A recorded connector: polyline points, the node indices it joins, and its own label's text index.
+/// Two polylines share a collinear run longer than 2px (one line drawn over the other).
+pub fn runs_overlap(a: &[(f64, f64)], b: &[(f64, f64)]) -> bool {
+    let span = |p: f64, q: f64, r: f64, u: f64| p.max(q).min(r.max(u)) - p.min(q).max(r.min(u)) > 2.0;
+    a.windows(2).any(|s| b.windows(2).any(|t| {
+        (s[0].0 == s[1].0 && t[0].0 == t[1].0 && s[0].0 == t[0].0 && span(s[0].1, s[1].1, t[0].1, t[1].1))
+            || (s[0].1 == s[1].1 && t[0].1 == t[1].1 && s[0].1 == t[0].1 && span(s[0].0, s[1].0, t[0].0, t[1].0))
+    }))
+}
+
+pub struct Edge {
+    pub pts: Vec<(f64, f64)>,
+    pub ends: [usize; 2],
+    pub label: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -165,6 +213,15 @@ pub struct Svg<'a> {
     body: String,
     pub texts: Vec<Rect>,
     pub nodes: Vec<Rect>,
+    pub edges: Vec<Edge>,
+}
+
+/// Where the ray from `a`'s centre toward `b`'s centre leaves `a`, pushed `gap` further out.
+fn exit(a: &Rect, b: &Rect, gap: f64) -> (f64, f64) {
+    let (ax, ay) = (a.x + a.w / 2.0, a.y + a.h / 2.0);
+    let (dx, dy) = (b.x + b.w / 2.0 - ax, b.y + b.h / 2.0 - ay);
+    let k = (a.w / 2.0 / dx.abs()).min(a.h / 2.0 / dy.abs()) + gap / dx.hypot(dy);
+    (ax + dx * k, ay + dy * k)
 }
 
 /// Round to 0.5px so output is byte-stable across platforms.
@@ -175,7 +232,7 @@ fn n(v: f64) -> String {
 
 impl<'a> Svg<'a> {
     pub fn new(t: &'a Theme) -> Self {
-        Svg { t, body: String::new(), texts: Vec::new(), nodes: Vec::new() }
+        Svg { t, body: String::new(), texts: Vec::new(), nodes: Vec::new(), edges: Vec::new() }
     }
 
     /// A filled node box (counts for the overlap check).
@@ -183,6 +240,14 @@ impl<'a> Svg<'a> {
         let stroke = stroke.map(|(c, w)| format!(r#" stroke="{c}" stroke-width="{}""#, n(w))).unwrap_or_default();
         self.body += &format!(r#"<rect x="{}" y="{}" width="{}" height="{}" rx="{}" fill="{fill}"{stroke}/>"#, n(r.x), n(r.y), n(r.w), n(r.h), n(radius));
         self.nodes.push(r);
+    }
+
+    /// A filled polygon (funnel/pyramid bands); `inner` is its text-safe box, recorded as the node.
+    pub fn polygon(&mut self, pts: &[(f64, f64)], fill: &str, stroke: Option<&str>, inner: Option<Rect>) {
+        let pts: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        let stroke = stroke.map(|c| format!(r#" stroke="{c}" stroke-width="1""#)).unwrap_or_default();
+        self.body += &format!(r#"<polygon points="{}" fill="{fill}"{stroke}/>"#, pts.join(" "));
+        self.nodes.extend(inner);
     }
 
     /// A small decorative circle (bullets, timeline ticks); not a node.
@@ -193,6 +258,22 @@ impl<'a> Svg<'a> {
     pub fn line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: &str, arrow: bool) {
         let head = if arrow { format!(r#" marker-end="url(#{})""#, arrow_id(&self.t.muted)) } else { String::new() };
         self.body += &format!(r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{color}" stroke-width="1.5"{head}/>"#, n(x1), n(y1), n(x2), n(y2));
+    }
+
+    /// A polyline from node `ends[0]` to node `ends[1]` (indices into `nodes`), arrow at the end.
+    /// Returns the edge index so the caller can attach its label.
+    pub fn edge(&mut self, pts: &[(f64, f64)], ends: [usize; 2], color: &str) -> usize {
+        let p: Vec<String> = pts.iter().map(|(x, y)| format!("{},{}", n(*x), n(*y))).collect();
+        self.body += &format!(r#"<polyline points="{}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#{})"/>"#, p.join(" "), arrow_id(&self.t.muted));
+        self.edges.push(Edge { pts: pts.to_vec(), ends, label: None });
+        self.edges.len() - 1
+    }
+
+    /// A straight connector between two node boxes, clipped at both borders with a small gap.
+    pub fn link(&mut self, a: Rect, b: Rect, color: &str, arrow: bool) {
+        let (x1, y1) = exit(&a, &b, 6.0);
+        let (x2, y2) = exit(&b, &a, 6.0);
+        self.line(x1, y1, x2, y2, color, arrow);
     }
 
     /// Draw a fitted label with its top at `y`; returns the label height.
@@ -215,7 +296,8 @@ impl<'a> Svg<'a> {
     }
 
     /// Layout guarantees: texts inside the canvas, texts/nodes pairwise disjoint,
-    /// and a text either inside one node or clear of all nodes.
+    /// a text either inside one node or clear of all nodes, and no edge through
+    /// a text (other than its own label) or a node other than its endpoints.
     pub fn check(&self) -> Result<()> {
         let canvas = Rect { x: 0.0, y: 0.0, w: W, h: H };
         for (i, a) in self.texts.iter().enumerate() {
@@ -234,6 +316,24 @@ impl<'a> Svg<'a> {
                 return Err(format!("layout: node {i} overlaps another node"));
             }
         }
+        for (i, e) in self.edges.iter().enumerate() {
+            for s in e.pts.windows(2) {
+                if let Some(j) = (0..self.texts.len()).find(|&j| e.label != Some(j) && self.texts[j].hit_by(s[0], s[1])) {
+                    return Err(format!("layout: edge {i} passes through text {j}"));
+                }
+                if let Some(j) = (0..self.nodes.len()).find(|&j| !e.ends.contains(&j) && self.nodes[j].hit_by(s[0], s[1])) {
+                    return Err(format!("layout: edge {i} passes through node {j}"));
+                }
+            }
+        }
+        for (i, a) in self.edges.iter().enumerate() {
+            if let Some(j) = (i + 1..self.edges.len()).find(|&j| {
+                let b = &self.edges[j];
+                !a.ends.iter().any(|x| b.ends.contains(x)) && runs_overlap(&a.pts, &b.pts)
+            }) {
+                return Err(format!("layout: edges {i} and {j} overlap"));
+            }
+        }
         Ok(())
     }
 
@@ -248,6 +348,23 @@ impl<'a> Svg<'a> {
             w = W, h = H, font = t.font, muted = t.muted, arrow = arrow_id(&t.muted), bg = t.bg, body = self.body
         )
     }
+}
+
+/// Round up to the 8px grid.
+pub fn up8(v: f64) -> f64 {
+    (v / 8.0).ceil() * 8.0
+}
+
+/// Uniform boxes of `w` x `h` centred on an ellipse filling the canvas, clockwise from 12 o'clock.
+pub fn ring(n: usize, w: f64, h: f64) -> Vec<Rect> {
+    let (rx, ry) = (W / 2.0 - PAD - w / 2.0, H / 2.0 - PAD - h / 2.0);
+    (0..n)
+        .map(|i| {
+            let a = std::f64::consts::TAU * i as f64 / n as f64;
+            let (x, y) = (W / 2.0 + rx * a.sin(), H / 2.0 - ry * a.cos());
+            Rect { x: ((x - w / 2.0) / 8.0).round() * 8.0, y: ((y - h / 2.0) / 8.0).round() * 8.0, w, h }
+        })
+        .collect()
 }
 
 /// Strict input helpers: unknown fields are errors, every error names a `$.path`.
@@ -317,6 +434,39 @@ mod tests {
     }
 
     #[test]
+    fn runs_overlap_only_on_shared_collinear_runs() {
+        // Repro: two LR elbows bending on the same trunk x=320 over y=152..176.
+        let a = [(272.0, 152.0), (320.0, 152.0), (320.0, 232.0), (368.0, 232.0)];
+        let b = [(272.0, 96.0), (320.0, 96.0), (320.0, 176.0), (368.0, 176.0)];
+        assert!(runs_overlap(&a, &b));
+        let b2 = [(272.0, 96.0), (312.0, 96.0), (312.0, 176.0), (368.0, 176.0)];
+        assert!(!runs_overlap(&a, &b2));
+        assert!(!runs_overlap(&a, &[(272.0, 96.0), (368.0, 240.0)]));
+    }
+
+    #[test]
+    fn check_catches_edge_through_node_or_text() {
+        let t = Theme::load(None).unwrap();
+        let r = |x| Rect { x, y: 100.0, w: 40.0, h: 40.0 };
+        let mut s = Svg::new(&t);
+        s.node(r(0.0), "#fff", None, 0.0);
+        s.node(r(100.0), "#fff", None, 0.0);
+        s.node(r(200.0), "#fff", None, 0.0);
+        // 0 -> 2 straight through node 1.
+        s.edge(&[(40.0, 120.0), (200.0, 120.0)], [0, 2], "#000");
+        assert!(s.check().unwrap_err().contains("edge 0 passes through node 1"));
+        // Around node 1 (touching its border within tolerance) is fine; through a foreign label is not.
+        s.edges.clear();
+        s.edge(&[(40.0, 120.0), (60.0, 99.5), (180.0, 99.5), (200.0, 120.0)], [0, 2], "#000");
+        s.check().unwrap();
+        let l = fit("label", 12.0, 200.0, 1).unwrap();
+        s.text(&l, Anchor::Middle, 70.0, 90.0, 400, "#000"); // in the gap, across the detour
+        assert!(s.check().unwrap_err().contains("edge 0 passes through text 0"));
+        s.edges[0].label = Some(0);
+        s.check().unwrap();
+    }
+
+    #[test]
     fn fit_rejects_glyph_wider_than_box() {
         assert!(fit("검토", 16.0, 4.5, 2).err().unwrap().contains("does not fit"));
         assert!(fit("검토", 16.0, -8.0, 2).is_err());
@@ -338,7 +488,7 @@ mod tests {
     fn theme_values_load_and_night_differs() {
         let d = Theme::load(None).unwrap();
         let n = Theme::load(Some("night")).unwrap();
-        assert_eq!(d.accent, "#2563EB");
+        assert_eq!(d.accent, "#C2410C");
         assert_ne!(d.bg, n.bg);
         assert!(d.font.starts_with("Pretendard"));
     }

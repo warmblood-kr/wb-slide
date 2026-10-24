@@ -31,8 +31,10 @@ output paths resolve from the working directory, not the spec directory.
 
 Root requires integer `schema_version: 1`, `title` and `slides`. Optional
 `footer` is literal text, at most 200 characters, shown bottom-left on every
-slide. Each slide
-requires `blocks`; `heading` and `subtitle` are optional. A slide with a
+slide. Optional `folio` is a short running label (literal text, 1–60
+characters, not blank) shown top-left in the margin band, in small muted caps,
+on every slide except the cover and section dividers. Each slide
+requires `blocks` (unless it has `layout`, below); `heading` and `subtitle` are optional. A slide with a
 heading uses the built-in `slide-feature` layout. A slide without one shows its
 blocks centered (`slide-section`); `subtitle` then is an error. Optional
 `notes` holds speaker notes (literal text, 1–2000 characters). They are never
@@ -41,6 +43,55 @@ painted: the HTML carries them inside the slide as escaped
 slide's `notes` in `manifest.json` (`""` when absent). Notes are not private:
 anyone with the HTML file can read them. Unknown fields
 are errors at every level.
+
+Optional slide `layout` picks a layout variant from a closed set:
+
+| `layout` | Framework layout | Look (preset) |
+|---|---|---|
+| `cover` | `slide-cover` (no chrome) | title group bottom-left, accent bar above the title |
+| `section` | `slide-section` | divider title left, from mid-height, accent bar; blocks at body size |
+| `quote` | `slide-quote` | pull quote: `heading` is the quoted text, `subtitle` the attribution; no blocks |
+| `split` | `slide-split` | image/text split: slide `image` bleeds to `side`, head and blocks in the other half |
+| `agenda` | `slide-agenda` | head in the left third, one numbered list (3–6 items) in the right two-thirds |
+
+A slide with `layout` requires `heading`, allows `subtitle`, and may have no
+blocks (`blocks` absent or `[]`, at most 64). The body starts with an escaped
+heading group, `<header class="wb-head"><h1 class="wb-head-title">…</h1><p
+class="wb-head-subtitle">…</p></header>` (subtitle only when present), then the
+blocks and notes. Unknown values fail with
+`$.slides[i].layout: expected cover or section or quote or split or agenda`; a missing heading with
+`$.slides[i].heading: required for layout cover`. Without `layout`, behaviour is
+unchanged.
+
+Optional slide `number` (1–8 characters, not blank, e.g. `"01"`) is allowed only
+with `layout: "section"` (`$.slides[i].number: requires layout section`). It is
+emitted escaped first in the head group, `<span class="wb-head-number">01</span>`,
+and shown large in the accent at the top-left. A section slide with no blocks
+renders inverse (`--wb-inverse-bg`, `--wb-inverse-text`, `--wb-inverse-accent`).
+
+`layout: "quote"` takes no blocks (`$.slides[i].blocks: not allowed with layout
+quote`). Its body is `<figure class="wb-quote"><blockquote><p>heading</p></blockquote>
+<figcaption class="wb-quote-by">subtitle</figcaption></figure>` (escaped; the
+figcaption only with a subtitle), with no heading group. The preset sets the text at
+32–40px (from `--wb-title-size`) within `--wb-measure`, hangs an accent `“` in the
+left margin, sets the attribution in `--wb-label-size` muted caps, and centres the
+figure vertically, slightly high.
+
+`layout: "split"` requires a slide-level `image: {"src": "…", "alt": "…"}` (no other
+keys; same validation, embedding and 8-per-deck count as an `image` block, errors at
+`$.slides[i].image.src`) and allows `side`: `"left"` (default) or `"right"`
+(`$.slides[i].side: expected left or right`). `image` or `side` on another layout fail
+with `…: requires layout split`; a split without `image` with `$.slides[i].image:
+required for layout split`. The body is `<img class="wb-split-image wb-split-left|right"
+src="data:…" alt="…">` then the usual head group, blocks and notes. The preset sizes
+the image 45% × 100% at the edge (`object-fit: cover`, no radius), starts the text
+column at 52%, and moves footer/page number to the text side.
+
+`layout: "agenda"` requires exactly one `list` block (`$.slides[i].blocks: expected one
+list block with layout agenda`) with 3–6 items (`$.slides[i].blocks[0].items: expected
+3–6 items with layout agenda`). The body is the usual head group then the list; the
+preset numbers the items `01`–`06` with a CSS counter (accent, tabular), sets them at
+`--wb-subtitle-size` with hairlines between, and places the head in the left third.
 
 | Block type | Required fields | Optional fields |
 |---|---|---|

@@ -1,5 +1,10 @@
 <!-- Synthetic sample: semantic slide markup compiled to the typed spec. -->
 <wb-footer>wb-slide 마크업 예시 · 합성 자료</wb-footer>
+<wb-folio>wb-slide · 합성 덱</wb-folio>
+<wb-slide layout="cover">
+  <wb-title>가상 레이아웃 소개</wb-title>
+  <wb-subtitle>표지와 구역 변형을 보여 주는 합성 자료</wb-subtitle>
+</wb-slide>
 <wb-slide>안녕하세요</wb-slide>
 <wb-slide>
   <wb-title>가상 시범 운영 검토</wb-title>
@@ -23,17 +28,40 @@
   <wb-title>두 가지 선택지</wb-title>
   <wb-columns>
     <wb-column>
-      <wb-card label="A안">짧은 기간에 시작합니다.</wb-card>
+      <wb-stat value="2주">준비 기간</wb-stat>
       <wb-list><wb-item>준비 2주</wb-item><wb-item>비용 낮음</wb-item></wb-list>
     </wb-column>
     <wb-column>
-      <wb-card label="B안">범위를 넓혀 시작합니다.</wb-card>
+      <wb-stat value="+38%">예상 효과</wb-stat>
       <wb-list><wb-item>준비 6주</wb-item><wb-item>효과 큼</wb-item></wb-list>
     </wb-column>
   </wb-columns>
+</wb-slide>
+<wb-section number="02">마크업에서 슬라이드까지</wb-section>
+<wb-slide layout="section">
+  <wb-title>2부 · 흐름</wb-title>
+  <wb-subtitle>합성 자료로 보는 변환 과정</wb-subtitle>
+  마크업이 사양으로 바뀌는 과정을 봅니다.
 </wb-slide>
 <wb-slide>
   <wb-title>흐름</wb-title>
   마크업은 사양을 거쳐 슬라이드가 됩니다.
   <wb-image src="img/flow.svg" alt="마크업에서 사양을 거쳐 슬라이드로 가는 흐름" />
+  <wb-callout tone="warning">이미지는 로컬 파일만 씁니다. 원격 주소는 오류입니다.</wb-callout>
 </wb-slide>
+<wb-quote by="김가상, 합성 팀장">좋은 슬라이드는 한 장에 한 가지만 말하고, 나머지는 발표자가 말하게 둡니다.</wb-quote>
+<wb-split image="img/split.svg" alt="해 질 녘 언덕을 그린 합성 풍경" side="left">
+  <wb-title>현장에서 본 것</wb-title>
+  사진은 한쪽 끝까지 채우고, 글은 다른 쪽에 둡니다.
+  <wb-list>
+    <wb-item>이미지는 너비의 45%</wb-item>
+    <wb-item>본문은 52%에서 시작</wb-item>
+  </wb-list>
+</wb-split>
+<wb-agenda>
+  <wb-title>목차</wb-title>
+  <wb-item>왜 지금 바꾸는가</wb-item>
+  <wb-item>가상 시범 운영 결과</wb-item>
+  <wb-item>다음 분기 계획</wb-item>
+  <wb-item>질문과 토론</wb-item>
+</wb-agenda>

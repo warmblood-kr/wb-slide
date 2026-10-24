@@ -1,0 +1,70 @@
+{
+  "id": "kishotenketsu",
+  "name": "Kishotenketsu (four-part twist)",
+  "family": "story",
+  "summary": "Introduce, develop, twist with an unexpected angle, then reconcile into a new understanding; no conflict required.",
+  "references": [
+    "Classical East Asian four-part composition (Chinese qi-cheng-zhuan-he, Japanese kishotenketsu)"
+  ],
+  "when_to_use": {
+    "audiences": [
+      "general",
+      "team",
+      "academic"
+    ],
+    "goals": [
+      "inspire",
+      "teach",
+      "inform"
+    ],
+    "minutes": [
+      5,
+      20
+    ]
+  },
+  "title_style": "Calm descriptive titles, under 10 words; the twist title should surprise.",
+  "density": {
+    "max_bullets": 3,
+    "max_words": 30,
+    "one_idea_per_slide": true
+  },
+  "sequence": [
+    {
+      "role": "situation",
+      "purpose": "Ki: introduce the scene."
+    },
+    {
+      "role": "story",
+      "purpose": "Sho: develop it further.",
+      "repeat": true
+    },
+    {
+      "role": "turning-point",
+      "purpose": "Ten: an unexpected, unrelated-seeming angle."
+    },
+    {
+      "role": "resolution",
+      "purpose": "Ketsu: reconcile the two into new insight."
+    },
+    {
+      "role": "lesson",
+      "purpose": "Name the insight.",
+      "optional": true
+    }
+  ],
+  "pitfalls": [
+    "Forcing conflict into it; the twist is a new angle, not a fight.",
+    "A twist so unrelated it never reconnects.",
+    "Explaining the twist before it lands."
+  ],
+  "example": {
+    "topic": "A fictional office finding a use for server-room heat",
+    "outline": [
+      "Our office plants are watered every Monday",
+      "They grow well, slowly, by the windows",
+      "Meanwhile, the server room runs warm all week",
+      "We moved the plants beside the servers; both thrive",
+      "Waste in one place can be fuel in another"
+    ]
+  }
+}

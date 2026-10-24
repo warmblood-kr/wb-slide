@@ -18,3 +18,11 @@
 --wb-image-height: 280px;
 --wb-diagram-height: 300px;
 --wb-vertical: safe center;
+--wb-title-tracking: normal;
+--wb-title-leading: 1.25;
+--wb-measure: 100%;
+--wb-stat-size: 96px;
+--wb-label-size: 0.72rem;
+--wb-inverse-bg: #F9FAFB;
+--wb-inverse-text: #111827;
+--wb-inverse-accent: #B45309;

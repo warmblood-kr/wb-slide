@@ -1,0 +1,13 @@
+{"direction":"LR",
+ "nodes":[
+  {"id":"start","label":"주문 접수","shape":"terminal"},
+  {"id":"stock","label":"재고 있음?","shape":"decision"},
+  {"id":"order","label":"공급사 발주"},
+  {"id":"pack","label":"포장 및 출고"},
+  {"id":"done","label":"완료","shape":"terminal"}],
+ "edges":[
+  {"from":"start","to":"stock"},
+  {"from":"stock","to":"pack","label":"예"},
+  {"from":"stock","to":"order","label":"아니오"},
+  {"from":"order","to":"pack"},
+  {"from":"pack","to":"done"}]}

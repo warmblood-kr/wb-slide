@@ -17,6 +17,10 @@ struct Ctx<'a> {
 }
 
 const MAX_BYTES: usize = 64 * 1024;
+
+/// Slide layout variants: spec name -> framework layout. A new variant is one row
+/// here plus one CSS block in `framework/presets/slide.css`.
+const LAYOUTS: &[(&str, &str)] = &[("cover", "slide-cover"), ("section", "slide-section"), ("quote", "slide-quote"), ("split", "slide-split"), ("agenda", "slide-agenda")];
 type Object = Map<String, Value>;
 type Result<T> = std::result::Result<T, String>;
 
@@ -312,7 +316,7 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Resul
     }
     let v: Value =
         serde_json::from_slice(bytes).map_err(|e| error("$", &format!("invalid JSON: {e}")))?;
-    let root = object(&v, "$", &["schema_version", "title", "footer", "slides"])?;
+    let root = object(&v, "$", &["schema_version", "title", "footer", "folio", "slides"])?;
     if field(root, "schema_version", "$")?.as_u64() != Some(1) {
         return Err(error("$.schema_version", "expected integer 1"));
     }
@@ -322,13 +326,90 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Resul
         .enumerate()
         .map(|(i, v)| {
             let p = format!("$.slides[{i}]");
-            let s = object(v, &p, &["heading", "subtitle", "blocks", "notes"])?;
+            let s = object(v, &p, &["layout", "heading", "subtitle", "number", "image", "side", "blocks", "notes"])?;
+            let layout = optional(s, "layout", &p)?
+                .map(|name| {
+                    LAYOUTS.iter().find(|(n, _)| *n == name).map(|(_, l)| *l).ok_or_else(|| {
+                        let names: Vec<_> = LAYOUTS.iter().map(|(n, _)| *n).collect();
+                        error(&format!("{p}.layout"), &format!("expected {}", names.join(" or ")))
+                    })
+                })
+                .transpose()?;
             let heading = optional(s, "heading", &p)?;
             let subtitle = optional(s, "subtitle", &p)?;
-            let mut body_html = html(&blocks(s, &p, true, &mut 0, &mut ctx)?);
+            // Section number ("01"): a short label shown over the divider title.
+            let short = |n: String| (n.chars().count() <= 8).then_some(n);
+            let number = match optional(s, "number", &p).map(|n| n.map(short)) {
+                Ok(None) => None,
+                Ok(Some(Some(n))) => Some(n),
+                _ => return Err(error(&format!("{p}.number"), "expected 1–8 characters, not blank")),
+            };
+            if number.is_some() && layout != Some("slide-section") {
+                return Err(error(&format!("{p}.number"), "requires layout section"));
+            }
+            // Split: one slide-level image bleeding to `side` (default left); head and blocks fill the other side.
+            let split = layout == Some("slide-split");
+            let media = match s.get("image") {
+                Some(img) if split => {
+                    let side = match optional(s, "side", &p)?.as_deref() {
+                        None | Some("left") => "left",
+                        Some("right") => "right",
+                        _ => return Err(error(&format!("{p}.side"), "expected left or right")),
+                    };
+                    let ip = format!("{p}.image");
+                    let o = object(img, &ip, &["src", "alt"])?;
+                    let alt = string(o, "alt", &ip)?;
+                    let uri = image(&string(o, "src", &ip)?, &ip, &mut ctx)?;
+                    format!("<img class=\"wb-split-image wb-split-{side}\" src=\"{}\" alt=\"{}\">", escape(&uri), escape(&alt))
+                }
+                None if split => return Err(error(&format!("{p}.image"), "required for layout split")),
+                None if !s.contains_key("side") => String::new(),
+                _ => {
+                    let k = if s.contains_key("image") { "image" } else { "side" };
+                    return Err(error(&format!("{p}.{k}"), "requires layout split"));
+                }
+            };
+            // A variant may have no blocks: absent or [] means none.
+            let no_blocks = s.get("blocks").map_or(true, |b| b.as_array().is_some_and(Vec::is_empty));
+            // Agenda: exactly one list of 3–6 items beside the head; the numerals are CSS counters.
+            if layout == Some("slide-agenda") {
+                let list = s.get("blocks").and_then(Value::as_array).filter(|b| b.len() == 1 && b[0]["type"] == "list");
+                let list = list.ok_or_else(|| error(&format!("{p}.blocks"), "expected one list block with layout agenda"))?;
+                if !(3..=6).contains(&list[0]["items"].as_array().map_or(0, Vec::len)) {
+                    return Err(error(&format!("{p}.blocks[0].items"), "expected 3–6 items with layout agenda"));
+                }
+            }
+            if layout == Some("slide-quote") && !no_blocks {
+                return Err(error(&format!("{p}.blocks"), "not allowed with layout quote"));
+            }
+            let mut body_html = if layout.is_some() && no_blocks {
+                String::new()
+            } else {
+                html(&blocks(s, &p, true, &mut 0, &mut ctx)?)
+            };
             // Speaker notes ride along in the slide, hidden: no layout, no paint, no innerText.
             if let Some(notes) = optional(s, "notes", &p)? {
                 body_html.push_str(&format!("<aside class=\"wb-notes\" hidden>{}</aside>", escape(&notes)));
+            }
+            // A variant's template renders only content, so the heading group goes in the body.
+            if let Some(layout) = layout {
+                let heading = heading.ok_or_else(|| {
+                    error(&format!("{p}.heading"), &format!("required for layout {}", s["layout"].as_str().unwrap()))
+                })?;
+                let sub = subtitle.as_ref().map_or(String::new(), |t| format!("<p class=\"wb-head-subtitle\">{}</p>", escape(&t)));
+                let num = number.map_or(String::new(), |n| format!("<span class=\"wb-head-number\">{}</span>", escape(&n)));
+                let head = if layout == "slide-quote" {
+                    // Quote: heading is the quoted text, subtitle its attribution (outside the blockquote).
+                    let by = subtitle.map_or(String::new(), |t| format!("<figcaption class=\"wb-quote-by\">{}</figcaption>", escape(&t)));
+                    format!("<figure class=\"wb-quote\"><blockquote><p>{}</p></blockquote>{by}</figure>", escape(&heading))
+                } else {
+                    format!("<header class=\"wb-head\">{num}<h1 class=\"wb-head-title\">{}</h1>{sub}</header>", escape(&heading))
+                };
+                return Ok(Slide {
+                    frontmatter: vec![("layout".into(), layout.into())],
+                    body_html: media + &head + &body_html,
+                    slots: Vec::new(),
+                });
             }
             // No heading: content alone, centered (slide-section).
             let mut fm = match heading {
@@ -358,6 +439,12 @@ pub fn parse_in(bytes: &[u8], base: Option<&Path>, theme: Option<&str>) -> Resul
             return Err(error("$.footer", "expected at most 200 characters"));
         }
         meta.push(("footer".into(), escape(&footer)));
+    }
+    if let Some(folio) = optional(root, "folio", "$")? {
+        if folio.trim().is_empty() || folio.chars().count() > 60 {
+            return Err(error("$.folio", "expected 1–60 characters, not blank"));
+        }
+        meta.push(("folio".into(), escape(&folio)));
     }
     Ok((meta, slides))
 }
@@ -538,6 +625,20 @@ mod tests {
     }
 
     #[test]
+    fn folio_is_short_escaped_deck_text() {
+        let mut v = base();
+        v["folio"] = json!("<b>팀</b> & 가상");
+        let (meta, _) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(meta[1], ("folio".to_string(), "&lt;b&gt;팀&lt;/b&gt; &amp; 가상".to_string()));
+        v["folio"] = json!("x".repeat(60));
+        assert!(parse(v.to_string().as_bytes()).is_ok());
+        for bad in [json!("x".repeat(61)), json!("  "), json!(""), json!(1)] {
+            v["folio"] = bad;
+            assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.folio"));
+        }
+    }
+
+    #[test]
     fn footer_is_escaped_deck_text() {
         let mut v = base();
         v["footer"] = json!("<b>팀</b> & 가상");
@@ -567,6 +668,135 @@ mod tests {
         assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-section".to_string())]);
         v["slides"][0]["subtitle"] = json!("부제");
         assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].subtitle: requires heading"));
+    }
+
+    #[test]
+    fn layout_variants_map_and_emit_an_escaped_head() {
+        let mut v = base();
+        v["slides"][0]["layout"] = json!("cover");
+        v["slides"][0]["heading"] = json!("<가상> & 표지");
+        v["slides"][0]["subtitle"] = json!("부제 & 설명");
+        v["slides"][0]["notes"] = json!("메모");
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-cover".to_string())]);
+        assert_eq!(
+            slides[0].body_html,
+            "<header class=\"wb-head\"><h1 class=\"wb-head-title\">&lt;가상&gt; &amp; 표지</h1><p class=\"wb-head-subtitle\">부제 &amp; 설명</p></header><p>자료</p><aside class=\"wb-notes\" hidden>메모</aside>"
+        );
+        // Section, no subtitle, no blocks (absent or empty).
+        v["slides"][0] = json!({"layout": "section", "heading": "장", "blocks": []});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-section".to_string())]);
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">장</h1></header>");
+        v["slides"][0].as_object_mut().unwrap().remove("blocks");
+        assert!(parse(v.to_string().as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn section_number_heads_the_divider() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "section", "heading": "장", "number": "<01>"});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><span class=\"wb-head-number\">&lt;01&gt;</span><h1 class=\"wb-head-title\">장</h1></header>");
+        for (n, msg) in [(json!("123456789"), "expected 1–8 characters, not blank"), (json!(" "), "expected 1–8 characters, not blank"), (json!(1), "expected 1–8 characters, not blank")] {
+            v["slides"][0]["number"] = n;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), format!("$.slides[0].number: {msg}"));
+        }
+        for slide in [json!({"layout": "cover", "heading": "h", "number": "01"}), json!({"heading": "h", "number": "01", "blocks": [{"type":"text","text":"x"}]})] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].number: requires layout section");
+        }
+    }
+
+    #[test]
+    fn quote_is_a_figure_with_attribution() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "quote", "heading": "<좋은> 말", "subtitle": "A & B, CEO"});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-quote".to_string())]);
+        assert_eq!(slides[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>&lt;좋은&gt; 말</p></blockquote><figcaption class=\"wb-quote-by\">A &amp; B, CEO</figcaption></figure>");
+        v["slides"][0] = json!({"layout": "quote", "heading": "말"});
+        assert_eq!(parse(v.to_string().as_bytes()).unwrap().1[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>말</p></blockquote></figure>");
+        for (slide, msg) in [
+            (json!({"layout": "quote"}), "$.slides[0].heading: required for layout quote"),
+            (json!({"layout": "quote", "heading": "말", "subtitle": " "}), "$.slides[0].subtitle: expected 1–2000 characters, not blank"),
+            (json!({"layout": "quote", "heading": "말", "number": "01"}), "$.slides[0].number: requires layout section"),
+            (json!({"layout": "quote", "heading": "말", "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].blocks: not allowed with layout quote"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), msg);
+        }
+    }
+
+    #[test]
+    fn split_puts_one_checked_image_beside_the_head() {
+        let dir = std::env::temp_dir().join(format!("wb-spec-split-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "split", "image": {"src": "a.svg", "alt": "<팀> \"사진\""}, "side": "right",
+            "heading": "A & B", "blocks": [{"type": "text", "text": "본문"}]});
+        let (_, slides) = parse_in(v.to_string().as_bytes(), Some(&dir), None).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-split".to_string())]);
+        let html = &slides[0].body_html;
+        assert!(html.starts_with("<img class=\"wb-split-image wb-split-right\" src=\"data:image/svg+xml;base64,"), "{html}");
+        assert!(html.ends_with("alt=\"&lt;팀&gt; &quot;사진&quot;\"><header class=\"wb-head\"><h1 class=\"wb-head-title\">A &amp; B</h1></header><p>본문</p>"), "{html}");
+        v["slides"][0] = json!({"layout": "split", "image": {"src": "a.svg", "alt": "a"}, "heading": "T"});
+        assert!(parse_in(v.to_string().as_bytes(), Some(&dir), None).unwrap().1[0].body_html.contains("wb-split-left"));
+        // The slide image counts toward the deck limit like any image block.
+        v["slides"][0]["blocks"] = json!(vec![json!({"type":"image","src":"a.svg","alt":"a"}); 8]);
+        assert!(parse_in(v.to_string().as_bytes(), Some(&dir), None).err().unwrap().contains("at most 8 images"));
+        for (slide, msg) in [
+            (json!({"layout": "split", "heading": "T"}), "$.slides[0].image: required for layout split"),
+            (json!({"layout": "split", "heading": "T", "image": "a.svg"}), "$.slides[0].image: expected object"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg"}}), "$.slides[0].image.alt: missing required field"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg", "alt": "a", "w": 1}}), "$.slides[0].image.w: unknown field"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "/a.svg", "alt": "a"}}), "$.slides[0].image.src: expected a relative local path without .. or a scheme"),
+            (json!({"layout": "split", "heading": "T", "image": {"src": "a.svg", "alt": "a"}, "side": "top"}), "$.slides[0].side: expected left or right"),
+            (json!({"layout": "split", "image": {"src": "a.svg", "alt": "a"}}), "$.slides[0].heading: required for layout split"),
+            (json!({"heading": "T", "image": {"src": "a.svg", "alt": "a"}, "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].image: requires layout split"),
+            (json!({"layout": "cover", "heading": "T", "side": "left"}), "$.slides[0].side: requires layout split"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse_in(v.to_string().as_bytes(), Some(&dir), None).err().unwrap(), msg);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn agenda_is_one_list_of_three_to_six() {
+        let mut v = base();
+        v["slides"][0] = json!({"layout": "agenda", "heading": "목차", "blocks": [{"type": "list", "items": ["a<b", "둘", "셋"]}]});
+        let (_, slides) = parse(v.to_string().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter, vec![("layout".to_string(), "slide-agenda".to_string())]);
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">목차</h1></header><ul class=\"wb-list\"><li>a&lt;b</li><li>둘</li><li>셋</li></ul>");
+        let list = |n: usize| json!({"type": "list", "items": vec!["x"; n]});
+        for (slide, msg) in [
+            (json!({"layout": "agenda", "heading": "T"}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(3), list(3)]}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [{"type": "text", "text": "x"}]}), "$.slides[0].blocks: expected one list block with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(2)]}), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [list(7)]}), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda"),
+            (json!({"layout": "agenda", "heading": "T", "blocks": [{"type": "list", "items": ["a", " ", "c"]}]}), "$.slides[0].blocks[0].items[1]: expected 1–2000 characters, not blank"),
+            (json!({"layout": "agenda", "blocks": [list(3)]}), "$.slides[0].heading: required for layout agenda"),
+        ] {
+            v["slides"][0] = slide;
+            assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), msg);
+        }
+    }
+
+    #[test]
+    fn layout_errors() {
+        let mut v = base();
+        v["slides"][0]["layout"] = json!("pull-quote");
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split or agenda");
+        v["slides"][0] = json!({"layout": "cover", "blocks": [{"type":"text","text":"x"}]});
+        assert_eq!(parse(v.to_string().as_bytes()).err().unwrap(), "$.slides[0].heading: required for layout cover");
+        // Without a layout, blocks stay required (1–64).
+        v["slides"][0] = json!({"heading": "h", "blocks": []});
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].blocks: expected 1–64"));
+        v["slides"][0] = json!({"heading": "h"});
+        assert!(parse(v.to_string().as_bytes()).err().unwrap().contains("$.slides[0].blocks: missing"));
     }
 
     #[test]

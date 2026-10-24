@@ -7,13 +7,19 @@ type Result<T> = std::result::Result<T, String>;
 
 const ROLE_CSS: &str = include_str!("../framework/presets/slide.css");
 const DEFAULT_THEME: &str = include_str!("../framework/presets/themes/default.css");
-const NIGHT_THEME: &str = include_str!("../framework/presets/themes/night.css");
+/// Built-in themes beside default; each sets every token.
+const THEMES: &[(&str, &str)] = &[
+    ("night", include_str!("../framework/presets/themes/night.css")),
+    ("classic", include_str!("../framework/presets/themes/classic.css")),
+    ("graphite", include_str!("../framework/presets/themes/graphite.css")),
+    ("signal", include_str!("../framework/presets/themes/signal.css")),
+];
 const MAX_THEME_BYTES: usize = 8 * 1024;
 const MAX_MARKUP_BYTES: usize = 64 * 1024;
 const MAX_DEPTH: usize = 8;
 
 /// Tags and the attributes each accepts. Everything else is an error.
-const TAGS: &[(&str, &[&str])] = &[("wb-slide", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-footer", &[]), ("wb-notes", &[])];
+const TAGS: &[(&str, &[&str])] = &[("wb-slide", &["layout"]), ("wb-section", &["number"]), ("wb-quote", &["by"]), ("wb-split", &["image", "alt", "side"]), ("wb-agenda", &[]), ("wb-title", &[]), ("wb-subtitle", &[]), ("wb-list", &[]), ("wb-item", &[]), ("wb-card", &["label"]), ("wb-columns", &[]), ("wb-column", &[]), ("wb-image", &["src", "alt"]), ("wb-stat", &["value", "note"]), ("wb-callout", &["tone"]), ("wb-footer", &[]), ("wb-folio", &[]), ("wb-notes", &[])];
 
 enum Node {
     Text(String),
@@ -139,6 +145,26 @@ fn children<'a>(el: &'a El, name: &str) -> Result<Vec<&'a El>> {
     }).collect()
 }
 
+/// Text-only element (<wb-card>, <wb-callout>) -> paragraph strings.
+fn prose_of(e: &El) -> Result<Vec<serde_json::Value>> {
+    let mut texts = Vec::new();
+    for kid in &e.kids {
+        match kid {
+            Node::Text(t) => paragraphs(t, &mut texts),
+            Node::El(inner) => return Err(unexpected(inner)),
+        }
+    }
+    if texts.is_empty() {
+        return Err(format!("empty <{}> at byte {}", e.name, e.pos));
+    }
+    Ok(texts.into_iter().map(|t| t["text"].clone()).collect())
+}
+
+fn attr(e: &El, k: &str) -> Result<String> {
+    e.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
+        .ok_or(format!("<{}> at byte {} needs {k}=\"…\"", e.name, e.pos))
+}
+
 /// Body content -> spec blocks, in order.
 fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
     let mut blocks = Vec::new();
@@ -153,17 +179,7 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                 blocks.push(json!({"type": "list", "items": items}));
             }
             Node::El(e) if e.name == "wb-card" => {
-                let mut texts = Vec::new();
-                for kid in &e.kids {
-                    match kid {
-                        Node::Text(t) => paragraphs(t, &mut texts),
-                        Node::El(inner) => return Err(unexpected(inner)),
-                    }
-                }
-                if texts.is_empty() {
-                    return Err(format!("empty <wb-card> at byte {}", e.pos));
-                }
-                let mut panel = json!({"type": "panel", "paragraphs": texts.iter().map(|t| &t["text"]).collect::<Vec<_>>()});
+                let mut panel = json!({"type": "panel", "paragraphs": prose_of(e)?});
                 if let Some((_, label)) = e.attrs.iter().find(|(k, _)| k == "label") {
                     panel["label"] = json!(collapse(label));
                 }
@@ -187,9 +203,20 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
                 if e.kids.iter().any(|k| !matches!(k, Node::Text(t) if blank(t))) {
                     return Err(format!("<wb-image> at byte {} takes no content; use alt=\"…\"", e.pos));
                 }
-                let attr = |k: &str| e.attrs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
-                    .ok_or(format!("<wb-image> at byte {} needs {k}=\"…\"", e.pos));
-                blocks.push(json!({"type": "image", "src": attr("src")?, "alt": collapse(&attr("alt")?)}));
+                blocks.push(json!({"type": "image", "src": attr(e, "src")?, "alt": collapse(&attr(e, "alt")?)}));
+            }
+            Node::El(e) if e.name == "wb-stat" => {
+                // The caption is the spec kpi label.
+                let mut kpi = json!({"type": "kpi", "value": collapse(&attr(e, "value")?), "label": text_of(e)?});
+                if let Ok(note) = attr(e, "note") {
+                    kpi["note"] = json!(collapse(&note));
+                }
+                blocks.push(kpi);
+            }
+            Node::El(e) if e.name == "wb-callout" => {
+                // The spec rejects a tone other than info|warning with a field path.
+                let tone = attr(e, "tone")?.trim().to_string();
+                blocks.push(json!({"type": "callout", "tone": tone, "paragraphs": prose_of(e)?}));
             }
             Node::El(e) => return Err(unexpected(e)),
         }
@@ -199,6 +226,11 @@ fn body(kids: &[Node]) -> Result<Vec<serde_json::Value>> {
 
 fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
     let mut slide = json!({});
+    // Layout variant: the value is checked by the spec, which owns the closed set.
+    let layout = el.attrs.iter().find(|(k, _)| k == "layout").map(|(_, v)| v.trim().to_string());
+    if let Some(layout) = &layout {
+        slide["layout"] = json!(layout);
+    }
     // Speaker notes: at most one <wb-notes>, anywhere directly in the slide.
     let (notes, kids) = el.kids.into_iter().partition::<Vec<_>, _>(|k| matches!(k, Node::El(e) if e.name == "wb-notes"));
     // Rejoin text the notes split, as with comments.
@@ -244,7 +276,10 @@ fn slide(mut el: El, index: usize) -> Result<serde_json::Value> {
         }
     }
     let blocks = body(&el.kids[at..])?;
-    if blocks.is_empty() {
+    if layout.is_some() && slide.get("heading").is_none() {
+        return Err(format!("{}[{index}]: <wb-title> is required with layout at byte {}", el.name, el.pos));
+    }
+    if blocks.is_empty() && layout.is_none() {
         return Err(format!("wb-slide[{index}]: body text is required"));
     }
     slide["blocks"] = json!(blocks);
@@ -263,22 +298,71 @@ fn first_text(v: &serde_json::Value) -> Option<&serde_json::Value> {
 
 /// Compile markup to typed spec JSON. Same input, same bytes.
 pub fn compile(markup: &str) -> Result<String> {
-    let (mut slides, mut footer) = (Vec::new(), None);
+    let (mut slides, mut footer, mut folio) = (Vec::new(), None, None);
     for node in tree(markup)? {
         match node {
             Node::El(e) if e.name == "wb-slide" => slides.push(slide(e, slides.len())?),
+            // Section divider: title text only; the spec checks the number.
+            Node::El(e) if e.name == "wb-section" => {
+                let mut s = json!({"layout": "section", "heading": text_of(&e)?, "blocks": []});
+                if let Ok(number) = attr(&e, "number") {
+                    s["number"] = json!(number.trim());
+                }
+                slides.push(s);
+            }
+            // Pull quote: text only; `by` is the attribution, checked by the spec.
+            Node::El(e) if e.name == "wb-quote" => {
+                let mut s = json!({"layout": "quote", "heading": text_of(&e)?, "blocks": []});
+                if let Ok(by) = attr(&e, "by") {
+                    s["subtitle"] = json!(by.trim());
+                }
+                slides.push(s);
+            }
+            // Image/text split: a <wb-slide> body plus one image; the spec checks the path and side.
+            Node::El(mut e) if e.name == "wb-split" => {
+                let image = json!({"src": attr(&e, "image")?, "alt": collapse(&attr(&e, "alt")?)});
+                let side = attr(&e, "side").ok();
+                e.attrs.push(("layout".into(), "split".into()));
+                let mut s = slide(e, slides.len())?;
+                s["image"] = image;
+                if let Some(side) = side {
+                    s["side"] = json!(side.trim());
+                }
+                slides.push(s);
+            }
+            // Agenda: <wb-title> then <wb-item>s, lowered to one list block (numbered by CSS; the spec checks 3–6).
+            Node::El(mut e) if e.name == "wb-agenda" => {
+                let (index, pos) = (slides.len(), e.pos);
+                let (items, rest): (Vec<_>, Vec<_>) = e.kids.into_iter().partition(|k| matches!(k, Node::El(c) if c.name == "wb-item"));
+                let items = items.iter().map(|k| match k { Node::El(c) => text_of(c), _ => unreachable!() }).collect::<Result<Vec<_>>>()?;
+                e.kids = rest;
+                e.attrs.push(("layout".into(), "agenda".into()));
+                let mut s = slide(e, index)?;
+                if s["blocks"] != json!([]) {
+                    return Err(format!("<wb-agenda> at byte {pos} takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>"));
+                }
+                s["blocks"] = json!([{"type": "list", "items": items}]);
+                slides.push(s);
+            }
             // One deck-level footer, shown on every slide.
             Node::El(e) if e.name == "wb-footer" && footer.is_none() => footer = Some(text_of(&e)?),
+            // One deck-level folio: a short running label top-left; the spec checks length.
+            Node::El(e) if e.name == "wb-folio" && folio.is_none() => folio = Some(text_of(&e)?),
             Node::El(e) => return Err(unexpected(&e)),
             Node::Text(_) => {}
         }
     }
-    // Deck title: first heading, else the first text anywhere in the blocks.
+    // Deck title: first heading outside dividers, quotes and agendas, else a section or agenda title, else the first text, else a quote.
     let first = slides.first().ok_or("no <wb-slide> found")?;
-    let deck_title = slides.iter().find_map(|s| s.get("heading")).or_else(|| first_text(&first["blocks"])).cloned();
+    let heading = |skip: &[&str]| slides.iter().filter(|s| !skip.iter().any(|l| s["layout"] == *l)).find_map(|s| s.get("heading"));
+    let deck_title =
+        heading(&["section", "quote", "agenda"]).or_else(|| heading(&["quote"])).or_else(|| first_text(&first["blocks"])).or_else(|| heading(&[])).cloned();
     let mut spec = json!({"schema_version": 1, "title": deck_title, "slides": slides});
     if let Some(footer) = footer {
         spec["footer"] = json!(footer);
+    }
+    if let Some(folio) = folio {
+        spec["folio"] = json!(folio);
     }
     Ok(serde_json::to_string_pretty(&spec).unwrap())
 }
@@ -333,10 +417,21 @@ pub fn token_values(theme: Option<&str>) -> Result<Vec<(String, String)>> {
 
 fn overrides(theme: Option<&str>) -> Result<String> {
     Ok(match theme {
-        None | Some("default") => String::new(),
-        Some("night") => tokens(NIGHT_THEME, "night")?,
+        // paper is the default look; the name stays as an alias.
+        None | Some("default") | Some("paper") => String::new(),
+        Some(name) if THEMES.iter().any(|(n, _)| *n == name) => {
+            tokens(THEMES.iter().find(|(n, _)| *n == name).unwrap().1, name)?
+        }
         Some(path) => {
-            let source = std::fs::read(path).map_err(|e| format!("cannot read theme {path}: {e}"))?;
+            let source = std::fs::read(path).map_err(|e| {
+                // A bare word is almost always a mistyped built-in name, not a file.
+                if !path.contains('/') && !path.ends_with(".css") {
+                    let names: Vec<_> = THEMES.iter().map(|(n, _)| *n).collect();
+                    format!("unknown theme {path}: use paper, {} or a token file path", names.join(", "))
+                } else {
+                    format!("cannot read theme {path}: {e}")
+                }
+            })?;
             if source.len() > MAX_THEME_BYTES {
                 return Err(format!("theme {path} exceeds 8 KiB"));
             }
@@ -348,6 +443,13 @@ fn overrides(theme: Option<&str>) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_theme_name_lists_built_ins() {
+        let err = preset_css(Some("papr")).unwrap_err();
+        assert!(err.contains("unknown theme papr") && err.contains("graphite"), "{err}");
+        assert!(preset_css(Some("./nope.css")).unwrap_err().contains("cannot read theme"));
+    }
 
     fn spec(m: &str) -> serde_json::Value {
         serde_json::from_str(&compile(m).unwrap()).unwrap()
@@ -370,6 +472,128 @@ mod tests {
         let json = compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap();
         assert!(crate::spec::parse(json.as_bytes()).is_ok());
         assert_eq!(json, compile("<wb-slide><wb-title>A</wb-title>x</wb-slide><wb-slide><wb-title>B</wb-title>y</wb-slide>").unwrap());
+    }
+
+    #[test]
+    fn slide_layout_passes_through_and_allows_an_empty_body() {
+        let json = compile("<wb-slide layout=\" cover \"><wb-title>표지</wb-title><wb-subtitle>부제</wb-subtitle></wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["slides"][0], json!({"layout": "cover", "heading": "표지", "subtitle": "부제", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-cover");
+        assert_eq!(spec("<wb-slide layout=section><wb-title>장</wb-title>본문</wb-slide>")["slides"][0]["blocks"][0]["text"], "본문");
+        // The spec owns the value set.
+        let json = compile("<wb-slide layout=pull-quote><wb-title>T</wb-title></wb-slide>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].layout: expected cover or section or quote or split or agenda");
+        assert!(compile("<wb-slide layout=cover>x</wb-slide>").unwrap_err().contains("<wb-title> is required with layout at byte 0"));
+        assert!(compile("<wb-slide><wb-title>T</wb-title></wb-slide>").unwrap_err().contains("body text is required"));
+    }
+
+    #[test]
+    fn section_is_a_numbered_divider() {
+        let titled = spec("<wb-section number=\"01\">1부</wb-section><wb-slide><wb-title>진짜 제목</wb-title>x</wb-slide>");
+        assert_eq!(titled["title"], "진짜 제목");
+        assert_eq!(spec("<wb-section>1부</wb-section><wb-slide>x</wb-slide>")["title"], "1부");
+        let json = compile("<wb-section number=\" 01 \">\n  첫   장\n</wb-section><wb-slide>x</wb-slide>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["title"], "첫 장");
+        assert_eq!(s["slides"][0], json!({"layout": "section", "heading": "첫 장", "number": "01", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert!(slides[0].body_html.starts_with("<header class=\"wb-head\"><span class=\"wb-head-number\">01</span>"));
+        assert!(spec("<wb-section>장</wb-section>")["slides"][0].get("number").is_none());
+        // Slide indices in errors count sections too.
+        assert!(compile("<wb-section>장</wb-section><wb-slide></wb-slide>").unwrap_err().contains("wb-slide[1]: body text is required"));
+        let json = compile("<wb-section number=\"123456789\">장</wb-section>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].number: expected 1–8 characters, not blank");
+        for (m, msg) in [
+            ("<wb-section> </wb-section>", "empty <wb-section> at byte 0"),
+            ("<wb-section>장<wb-notes>n</wb-notes></wb-section>", "unexpected <wb-notes>"),
+            ("<wb-section layout=cover>장</wb-section>", "unsupported attributes"),
+            ("<wb-slide><wb-section>장</wb-section></wb-slide>", "unexpected <wb-section>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn quote_is_a_pull_quote_slide() {
+        let titled = spec("<wb-quote by=\"김 대표\">인용</wb-quote><wb-section>장</wb-section><wb-slide><wb-title>진짜 제목</wb-title>x</wb-slide>");
+        assert_eq!(titled["title"], "진짜 제목");
+        assert_eq!(spec("<wb-quote>인용</wb-quote><wb-section>장</wb-section>")["title"], "장");
+        assert_eq!(spec("<wb-quote>인용</wb-quote><wb-slide>본문</wb-slide>")["title"], "인용");
+        let json = compile("<wb-quote by=\" A &amp; B, CEO \">\n  좋은   &lt;말&gt;\n</wb-quote>").unwrap();
+        let s: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(s["title"], "좋은 <말>");
+        assert_eq!(s["slides"][0], json!({"layout": "quote", "heading": "좋은 <말>", "subtitle": "A & B, CEO", "blocks": []}));
+        let (_, slides) = crate::spec::parse(json.as_bytes()).unwrap();
+        assert_eq!(slides[0].body_html, "<figure class=\"wb-quote\"><blockquote><p>좋은 &lt;말&gt;</p></blockquote><figcaption class=\"wb-quote-by\">A &amp; B, CEO</figcaption></figure>");
+        assert!(spec("<wb-quote>말</wb-quote>")["slides"][0].get("subtitle").is_none());
+        let json = compile("<wb-quote by=\"\">말</wb-quote>").unwrap();
+        assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].subtitle: expected 1–2000 characters, not blank");
+        assert!(compile("<wb-quote>말</wb-quote><wb-slide></wb-slide>").unwrap_err().contains("wb-slide[1]: body text is required"));
+        for (m, msg) in [
+            ("<wb-quote> </wb-quote>", "empty <wb-quote> at byte 0"),
+            ("<wb-quote>말<wb-notes>n</wb-notes></wb-quote>", "unexpected <wb-notes>"),
+            ("<wb-quote author=x>말</wb-quote>", "unsupported attributes"),
+            ("<wb-slide><wb-quote>말</wb-quote></wb-slide>", "unexpected <wb-quote>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+    }
+
+    #[test]
+    fn split_is_a_slide_body_beside_one_image() {
+        let s = spec("<wb-split image=\"img/a.svg\" alt=\" 현장  &amp; 팀 \" side=\" right \"><wb-title>T</wb-title><wb-subtitle>S</wb-subtitle>본문<wb-list><wb-item>하나</wb-item></wb-list><wb-notes>n</wb-notes></wb-split>");
+        assert_eq!(s["title"], "T");
+        assert_eq!(s["slides"][0], json!({"layout": "split", "image": {"src": "img/a.svg", "alt": "현장 & 팀"}, "side": "right",
+            "heading": "T", "subtitle": "S", "notes": "n", "blocks": [{"type": "text", "text": "본문"}, {"type": "list", "items": ["하나"]}]}));
+        // side is optional (the spec defaults to left); a title alone is enough.
+        let s = spec("<wb-split image=a.png alt=a><wb-title>T</wb-title></wb-split>");
+        assert!(s["slides"][0].get("side").is_none() && s["slides"][0]["blocks"] == json!([]));
+        // The spec owns side values and image paths.
+        let json = compile("<wb-split image=a.png alt=a side=top><wb-title>T</wb-title></wb-split>").unwrap();
+        assert_eq!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).err().unwrap(), "$.slides[0].side: expected left or right");
+        let json = compile("<wb-split image=\"../x.png\" alt=a><wb-title>T</wb-title></wb-split>").unwrap();
+        assert!(crate::spec::parse_in(json.as_bytes(), Some(std::path::Path::new(".")), None).err().unwrap().starts_with("$.slides[0].image.src: expected a relative local path"));
+        for (m, msg) in [
+            ("<wb-split alt=a><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs image="),
+            ("<wb-split image=a.png><wb-title>T</wb-title></wb-split>", "<wb-split> at byte 0 needs alt="),
+            ("<wb-split image=a.png alt=a>본문</wb-split>", "wb-split[0]: <wb-title> is required with layout"),
+            ("<wb-split image=a.png alt=a layout=cover><wb-title>T</wb-title></wb-split>", "unsupported attributes"),
+            ("<wb-split image=a.png alt=a><wb-title>T</wb-title><wb-section>x</wb-section></wb-split>", "unexpected <wb-section>"),
+            ("<wb-slide><wb-split image=a.png alt=a><wb-title>T</wb-title></wb-split></wb-slide>", "unexpected <wb-split>"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}: {}", compile(m).unwrap_err());
+        }
+    }
+
+    #[test]
+    fn agenda_is_a_title_beside_numbered_items() {
+        let s = spec("<wb-slide><wb-title>본론</wb-title>x</wb-slide><wb-agenda>\n<wb-title>목차</wb-title>\n<wb-item> 배경 </wb-item>\n<wb-item>A &amp; B</wb-item>\n<wb-item>다음</wb-item>\n<wb-notes>n</wb-notes>\n</wb-agenda>");
+        assert_eq!(s["slides"][1], json!({"layout": "agenda", "heading": "목차", "notes": "n", "blocks": [{"type": "list", "items": ["배경", "A & B", "다음"]}]}));
+        // An agenda title is not the deck title unless nothing else is.
+        assert_eq!(s["title"], "본론");
+        let three = "<wb-item>a</wb-item><wb-item>b</wb-item><wb-item>c</wb-item>";
+        assert_eq!(spec(&format!("<wb-agenda><wb-title>순서</wb-title>{three}</wb-agenda>"))["title"], "순서");
+        let (_, slides) = crate::spec::parse(compile(&format!("<wb-agenda><wb-title>T</wb-title>{three}</wb-agenda>")).unwrap().as_bytes()).unwrap();
+        assert_eq!(slides[0].frontmatter[0].1, "slide-agenda");
+        assert_eq!(slides[0].body_html, "<header class=\"wb-head\"><h1 class=\"wb-head-title\">T</h1></header><ul class=\"wb-list\"><li>a</li><li>b</li><li>c</li></ul>");
+        // The spec owns the count.
+        for n in [2, 7] {
+            let json = compile(&format!("<wb-agenda><wb-title>T</wb-title>{}</wb-agenda>", "<wb-item>x</wb-item>".repeat(n))).unwrap();
+            assert_eq!(crate::spec::parse(json.as_bytes()).err().unwrap(), "$.slides[0].blocks[0].items: expected 3–6 items with layout agenda");
+        }
+        for (m, msg) in [
+            (format!("<wb-agenda>{three}</wb-agenda>"), "wb-agenda[0]: <wb-title> is required with layout"),
+            (format!("<wb-agenda><wb-title>T</wb-title>소개{three}</wb-agenda>"), "<wb-agenda> at byte 0 takes only <wb-title>, <wb-subtitle>, <wb-item> and <wb-notes>"),
+            (format!("<wb-agenda><wb-title>T</wb-title><wb-list>{three}</wb-list></wb-agenda>"), "takes only <wb-title>"),
+            (format!("<wb-agenda><wb-title>T</wb-title>{three}<wb-item> </wb-item></wb-agenda>"), "empty <wb-item>"),
+            (format!("<wb-agenda><wb-title>T</wb-title><wb-item>a<wb-stat value=1>x</wb-stat></wb-item></wb-agenda>"), "unexpected <wb-stat>"),
+            (format!("<wb-agenda layout=cover><wb-title>T</wb-title>{three}</wb-agenda>"), "unsupported attributes"),
+            (format!("<wb-slide><wb-agenda><wb-title>T</wb-title>{three}</wb-agenda></wb-slide>"), "unexpected <wb-agenda>"),
+        ] {
+            assert!(compile(&m).unwrap_err().contains(msg), "{m}: {}", compile(&m).unwrap_err());
+        }
     }
 
     #[test]
@@ -475,6 +699,17 @@ mod tests {
     }
 
     #[test]
+    fn folio_is_deck_level() {
+        let s = spec("<wb-folio> 가상 &amp; 팀 </wb-folio><wb-slide>x</wb-slide>");
+        assert_eq!(s["folio"], "가상 & 팀");
+        assert!(spec("<wb-slide>x</wb-slide>").get("folio").is_none());
+        for m in ["<wb-folio>a</wb-folio><wb-folio>b</wb-folio><wb-slide>x</wb-slide>", "<wb-slide><wb-folio>a</wb-folio>x</wb-slide>", "<wb-folio x=\"1\">a</wb-folio><wb-slide>x</wb-slide>"] {
+            assert!(compile(m).is_err(), "{m}");
+        }
+        assert!(compile("<wb-folio>a</wb-folio><wb-folio>b</wb-folio><wb-slide>x</wb-slide>").unwrap_err().contains("unexpected <wb-folio>"));
+    }
+
+    #[test]
     fn footer_is_deck_level() {
         let s = spec("<wb-footer> 가상 &amp; 팀 </wb-footer><wb-slide>x</wb-slide>");
         assert_eq!(s["footer"], "가상 & 팀");
@@ -482,6 +717,43 @@ mod tests {
         for m in ["<wb-footer>a</wb-footer><wb-footer>b</wb-footer><wb-slide>x</wb-slide>", "<wb-slide><wb-footer>a</wb-footer>x</wb-slide>"] {
             assert!(compile(m).unwrap_err().contains("unexpected <wb-footer>"), "{m}");
         }
+    }
+
+    #[test]
+    fn stat_is_a_kpi_with_caption() {
+        let s = spec("<wb-slide><wb-columns><wb-column><wb-stat value=\"+38%\" note=\" 가상  수치 \"> 재방문\n 증가 </wb-stat></wb-column>\n<wb-column><wb-stat value=\"3주\">준비 기간</wb-stat></wb-column></wb-columns></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"][0]["columns"], json!([
+            {"blocks":[{"type":"kpi","value":"+38%","label":"재방문 증가","note":"가상 수치"}]},
+            {"blocks":[{"type":"kpi","value":"3주","label":"준비 기간"}]}]));
+        for (m, msg) in [
+            ("<wb-slide><wb-stat>x</wb-stat></wb-slide>", "<wb-stat> at byte 10 needs value="),
+            ("<wb-slide><wb-stat value=\"1\"> </wb-stat></wb-slide>", "empty <wb-stat> at byte 10"),
+            ("<wb-slide><wb-stat value=\"1\">a<wb-list></wb-list></wb-stat></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide><wb-stat value=\"1\"/></wb-slide>", "self-closing"),
+            ("<wb-slide><wb-stat value=\"1\" label=\"a\">x</wb-stat></wb-slide>", "unsupported attributes"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        assert!(crate::spec::parse(compile("<wb-slide><wb-stat value=\"1\">a</wb-stat></wb-slide>").unwrap().as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn callout_has_tone_and_paragraphs() {
+        let s = spec("<wb-slide><wb-callout tone=\"warning\">첫째\n\n둘째</wb-callout><wb-callout tone=\"info\">단독</wb-callout></wb-slide>");
+        assert_eq!(s["slides"][0]["blocks"], json!([
+            {"type":"callout","tone":"warning","paragraphs":["첫째","둘째"]},
+            {"type":"callout","tone":"info","paragraphs":["단독"]}]));
+        for (m, msg) in [
+            ("<wb-slide><wb-callout>x</wb-callout></wb-slide>", "<wb-callout> at byte 10 needs tone="),
+            ("<wb-slide><wb-callout tone=\"info\"> </wb-callout></wb-slide>", "empty <wb-callout>"),
+            ("<wb-slide><wb-callout tone=\"info\"><wb-list></wb-list></wb-callout></wb-slide>", "unexpected <wb-list>"),
+            ("<wb-slide><wb-callout tone=\"info\"/></wb-slide>", "self-closing"),
+        ] {
+            assert!(compile(m).unwrap_err().contains(msg), "{m}");
+        }
+        // Another tone is left for the spec to reject with a field path.
+        let json = compile("<wb-slide><wb-callout tone=\"danger\">x</wb-callout></wb-slide>").unwrap();
+        assert!(crate::spec::parse(json.as_bytes()).err().unwrap().contains("$.slides[0].blocks[0].tone: expected info or warning"));
     }
 
     #[test]
@@ -523,12 +795,16 @@ mod tests {
     #[test]
     fn preset_defaults_and_theme_override() {
         let css = preset_css(None).unwrap();
-        assert!(css.contains("--wb-title-size: 32px;") && css.contains("--wb-font: Pretendard"));
+        assert!(css.contains("--wb-title-size: 40px;") && css.contains("--wb-font: Pretendard"));
         assert!(css.contains(".ms-slide-title") && css.contains("var(--wb-title-size)"));
         let night = preset_css(Some("night")).unwrap();
         // Overrides come after defaults inside :root, so the later value wins.
-        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 32px;").unwrap());
-        assert!(tokens(NIGHT_THEME, "night").unwrap().lines().count() == token_names().len());
+        assert!(night.rfind("--wb-title-size: 36px;").unwrap() > night.find("--wb-title-size: 40px;").unwrap());
+        for (name, source) in THEMES {
+            assert_eq!(tokens(source, name).unwrap().lines().count(), token_names().len(), "{name}");
+        }
+        assert_eq!(preset_css(Some("paper")).unwrap(), css);
+        assert!(preset_css(Some("classic")).unwrap().contains("--wb-title-size: 32px;"));
         assert!(tokens("--wb-vertical: start;", "t").is_ok());
         for (bad, msg) in [
             ("--wb-bg: url(http://x);", "must be plain"),
